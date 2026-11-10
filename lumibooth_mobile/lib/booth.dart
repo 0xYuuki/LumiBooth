@@ -9,6 +9,8 @@ import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'capture.dart';
+import 'motion_photo.dart';
+import 'motion_strip_view.dart';
 import 'strip.dart';
 import 'sticker_pack.dart';
 import 'sticker_controls.dart';
@@ -159,8 +161,15 @@ class _SessionPage extends StatefulWidget {
   State<_SessionPage> createState() => _SessionPageState();
 }
 
-class _SessionPageState extends State<_SessionPage> {
+class _SessionPageState extends State<_SessionPage>
+    with WidgetsBindingObserver {
   final List<ui.Image> _photos = [];
+  final Set<int> _motionShots = {};
+  final Map<int, MotionGifJob> _motionJobs = {};
+  final Map<int, Uint8List> _motionGifs = {};
+  int? _playingMotion;
+  bool _playingStrip = false;
+  bool _ending = false;
   final List<StripSticker> _stickers = [];
   final Map<String, ui.Image> _stickerImages = {};
   late final Future<List<StickerPack>> _stickerCatalog =
@@ -197,6 +206,7 @@ class _SessionPageState extends State<_SessionPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _keepAlive();
   }
 
@@ -208,17 +218,59 @@ class _SessionPageState extends State<_SessionPage> {
   }
 
   void _finish() {
+    _ending = true;
     _idle?.cancel();
+    setState(_discardMotion);
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
-  void _onPhoto(ui.Image image) {
-    if (_captured) {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      setState(_discardMotion);
+    }
+  }
+
+  void _discardMotion() {
+    for (final job in _motionJobs.values) {
+      job.cancel();
+    }
+    _motionJobs.clear();
+    for (final bytes in _motionGifs.values) {
+      PaintingBinding.instance.imageCache.evict(MemoryImage(bytes));
+    }
+    _motionGifs.clear();
+    _playingMotion = null;
+    _playingStrip = false;
+  }
+
+  void _onPhoto(ui.Image image, {MotionClip? motion}) {
+    if (_ending || _captured || !(ModalRoute.of(context)?.isCurrent ?? false)) {
       image.dispose();
       return;
     }
     _keepAlive();
-    setState(() => _photos.add(image));
+    final shot = _photos.length + 1;
+    final job = motion != null && motion.frames.length >= 2
+        ? MotionGifJob(motion)
+        : null;
+    setState(() {
+      _photos.add(image);
+      if (motion != null) _motionShots.add(shot);
+      if (job != null) _motionJobs[shot] = job;
+    });
+    if (job != null) unawaited(_completeMotion(shot, job));
+  }
+
+  Future<void> _completeMotion(int shot, MotionGifJob job) async {
+    final bytes = await job.result;
+    if (!mounted || _motionJobs[shot] != job) return;
+    setState(() {
+      _motionJobs.remove(shot);
+      if (bytes != null) _motionGifs[shot] = bytes;
+    });
   }
 
   Future<void> _chooseStickerPack(StickerPack pack) async {
@@ -298,17 +350,21 @@ class _SessionPageState extends State<_SessionPage> {
   void _message(String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
-  Future<void> _share(BuildContext buttonContext) async {
-    final bytes = _png;
-    if (bytes == null || _sharing) return;
+  Future<void> _share(
+    BuildContext buttonContext,
+    Uint8List bytes,
+    String filename,
+    String mimeType,
+  ) async {
+    if (_sharing) return;
     final box = buttonContext.findRenderObject() as RenderBox;
     final origin = box.localToGlobal(Offset.zero) & box.size;
     setState(() => _sharing = true);
     try {
       await SharePlus.instance.share(
         ShareParams(
-          files: [XFile.fromData(bytes, mimeType: 'image/png')],
-          fileNameOverrides: ['lumibooth-strip.png'],
+          files: [XFile.fromData(bytes, mimeType: mimeType)],
+          fileNameOverrides: [filename],
           sharePositionOrigin: origin,
         ),
       );
@@ -361,6 +417,8 @@ class _SessionPageState extends State<_SessionPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _discardMotion();
     _idle?.cancel();
     _captionController.dispose();
     _frameImages?.dispose();
@@ -373,13 +431,21 @@ class _SessionPageState extends State<_SessionPage> {
     super.dispose();
   }
 
+  void _editStrip() {
+    setState(() {
+      _playingStrip = false;
+      _playingMotion = null;
+      _png = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final png = _png;
     return PopScope(
       canPop: png == null,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _png != null) setState(() => _png = null);
+        if (!didPop && _png != null) _editStrip();
       },
       child: Scaffold(
         appBar: AppBar(
@@ -713,17 +779,31 @@ class _SessionPageState extends State<_SessionPage> {
         ),
         const SizedBox(height: 16),
         _Stage(
-          child: Image.memory(
-            png,
-            semanticLabel: 'Your finished LumiBooth photo strip',
-            fit: BoxFit.contain,
+          child: SizedBox(
             height: math.min(MediaQuery.sizeOf(context).height * .48, 480),
+            child: _playingStrip
+                ? MotionStripView(design: _design, gifs: _motionGifs)
+                : Image.memory(
+                    png,
+                    semanticLabel: 'Your finished LumiBooth photo strip',
+                    fit: BoxFit.contain,
+                  ),
           ),
         ),
+        if (_motionGifs.isNotEmpty)
+          TextButton(
+            onPressed: _motionJobs.isEmpty
+                ? () => setState(() => _playingStrip = !_playingStrip)
+                : null,
+            child: Text(_playingStrip ? 'Stop strip' : 'Play strip'),
+          ),
         const SizedBox(height: 16),
         Builder(
           builder: (context) => FilledButton.icon(
-            onPressed: _sharing ? null : () => _share(context),
+            onPressed: _sharing
+                ? null
+                : () =>
+                      _share(context, png, 'lumibooth-strip.png', 'image/png'),
             icon: const Icon(Icons.ios_share),
             label: const Text('Save or share PNG'),
           ),
@@ -735,10 +815,68 @@ class _SessionPageState extends State<_SessionPage> {
           label: const Text('Print photo'),
         ),
         TextButton(
-          onPressed: _sharing ? null : () => setState(() => _png = null),
+          onPressed: _sharing ? null : _editStrip,
           child: const Text('Edit strip'),
         ),
+        if (_motionShots.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('Motion photos', style: Theme.of(context).textTheme.titleLarge),
+          for (final shot in _motionShots) _motionTile(shot),
+        ],
       ],
+    );
+  }
+
+  Widget _motionTile(int shot) {
+    final bytes = _motionGifs[shot];
+    final playing = _playingMotion == shot;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Shot $shot'),
+            if (bytes == null)
+              Text(
+                _motionJobs.containsKey(shot)
+                    ? 'Preparing motion…'
+                    : 'Motion unavailable for this shot.',
+              )
+            else ...[
+              Wrap(
+                spacing: 8,
+                children: [
+                  TextButton(
+                    onPressed: () =>
+                        setState(() => _playingMotion = playing ? null : shot),
+                    child: Text(playing ? 'Stop' : 'Play'),
+                  ),
+                  Builder(
+                    builder: (context) => TextButton(
+                      onPressed: _sharing
+                          ? null
+                          : () => _share(
+                              context,
+                              bytes,
+                              'lumibooth-shot-$shot.gif',
+                              'image/gif',
+                            ),
+                      child: const Text('Share GIF'),
+                    ),
+                  ),
+                ],
+              ),
+              if (playing)
+                Image.memory(
+                  bytes,
+                  semanticLabel: 'Motion from shot $shot',
+                  fit: BoxFit.contain,
+                ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

@@ -4,11 +4,14 @@ import { Timer } from 'lucide-react';
 import { BoothHeader } from '../../components/BoothUI';
 import Webcam from 'react-webcam';
 import { PhotoboothContext } from '../../context/photoboothContext';
+import { useMotionCapture } from '../../motion/useMotionCapture';
+import { motionSeconds } from '../../motion/motionBuffer';
+import { cameraAspectRatio, drawCameraFrame } from './cameraFraming';
 
 const WebCamera = () => {
   const webcamRef = useRef(null);
   const navigate = useNavigate();
-  const { session, dispatch } = useContext(PhotoboothContext);
+  const { session, dispatch, capturePhoto } = useContext(PhotoboothContext);
   const { layout, photos } = session;
   const timeout = useRef(null);
   const [timer, setTimer] = useState(0);
@@ -16,18 +19,39 @@ const WebCamera = () => {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [cameraKey, setCameraKey] = useState(0);
+  const [motionOn, setMotionOn] = useState(false);
+  const motionBuffer = useMotionCapture(webcamRef, motionOn && ready);
 
-  useEffect(() => () => clearTimeout(timeout.current), []);
+  useEffect(() => {
+    const cancelCountdown = () => {
+      clearTimeout(timeout.current);
+      timeout.current = null;
+      setCountdown(0);
+    };
+    const cancelWhenHidden = () => {
+      if (document.hidden) cancelCountdown();
+    };
+    document.addEventListener('visibilitychange', cancelWhenHidden);
+    window.addEventListener('pagehide', cancelCountdown);
+    return () => {
+      clearTimeout(timeout.current);
+      document.removeEventListener('visibilitychange', cancelWhenHidden);
+      window.removeEventListener('pagehide', cancelCountdown);
+    };
+  }, []);
 
   const capture = () => {
+    const shutterTime = performance.now();
+    const motion = motionOn ? motionBuffer.take(shutterTime) : null;
     try {
-      const photo = webcamRef.current?.getScreenshot();
-      if (!photo) {
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      if (!context || !drawCameraFrame(webcamRef.current?.video, context, 960)) {
         setError('The camera has no frame yet. Wait for the live image, then try again.');
         return;
       }
       setError('');
-      dispatch({ type: 'capture', photo });
+      capturePhoto(canvas.toDataURL('image/jpeg', 0.92), motion);
     } catch {
       setError('Could not capture a photo. Try again.');
     }
@@ -35,11 +59,13 @@ const WebCamera = () => {
 
   const handleCaptureClick = () => {
     if (!ready || timeout.current !== null) return;
-    if (!timer) {
+    const now = performance.now();
+    const delay = Math.max(timer * 1000, motionOn ? motionBuffer.remaining(now) : 0);
+    if (!delay) {
       capture();
       return;
     }
-    const deadline = performance.now() + timer * 1000;
+    const deadline = now + delay;
     const tick = () => {
       const remaining = deadline - performance.now();
       setCountdown(Math.max(0, Math.ceil(remaining / 1000)));
@@ -71,7 +97,7 @@ const WebCamera = () => {
         <p className="booth-eyebrow">STEP 02 OF 04</p>
         <h1 className="booth-title">Ready for your close-up?</h1>
         <p className="booth-intro" aria-live="polite">{photos.length} of {layout.count} photos captured</p>
-        <div className="camera-view">
+        <div className="camera-view" style={{ aspectRatio: cameraAspectRatio }}>
           <Webcam
             key={cameraKey}
             onCanPlay={() => setReady(true)}
@@ -87,10 +113,8 @@ const WebCamera = () => {
             }}
             audio={false}
             ref={webcamRef}
-            screenshotFormat="image/jpeg"
             videoConstraints={{ facingMode: "user" }}
             className="camera-video"
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
           {countdown > 0 && (
             <div className="camera-countdown" aria-live="polite">{countdown}</div>
@@ -103,6 +127,11 @@ const WebCamera = () => {
           </div>
         )}
 
+        <label className="motion-toggle">
+          <input type="checkbox" checked={motionOn} disabled={!ready || countdown > 0}
+            onChange={(event) => setMotionOn(event.target.checked)} />
+          <span>Motion Photo <small>Waits as needed for {motionSeconds} seconds of motion before each shot</small></span>
+        </label>
         <div className="capture-controls">
           <button className="booth-button booth-secondary" aria-label={timer ? `Timer: ${timer} seconds` : 'Timer off'}
             disabled={countdown > 0}

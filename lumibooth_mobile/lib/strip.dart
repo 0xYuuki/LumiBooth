@@ -387,10 +387,15 @@ class StripDesign {
 }
 
 class StripPainter extends CustomPainter {
-  const StripPainter(this.design, {this.selected});
+  const StripPainter(
+    this.design, {
+    this.selected,
+    this.motionFrames = const {},
+  });
 
   final StripDesign design;
   final int? selected;
+  final Map<int, ui.Image> motionFrames;
 
   static Rect stickerBounds(StripDesign design, StripSticker sticker) {
     return Rect.fromLTWH(
@@ -548,7 +553,7 @@ class StripPainter extends CustomPainter {
       canvas.drawRRect(bounds, Paint()..color = const Color(0xffd0bdc0));
       return;
     }
-    final image = design.photos[index];
+    final image = motionFrames[index] ?? design.photos[index];
     final source = Size(image.width.toDouble(), image.height.toDouble());
     final crop = applyBoxFit(
       BoxFit.cover,
@@ -706,7 +711,9 @@ class StripPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(StripPainter oldDelegate) =>
-      oldDelegate.design != design || oldDelegate.selected != selected;
+      oldDelegate.design != design ||
+      oldDelegate.selected != selected ||
+      oldDelegate.motionFrames != motionFrames;
 }
 
 class StripPreview extends StatelessWidget {

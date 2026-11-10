@@ -4,6 +4,10 @@ import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show DeviceOrientation;
+
+import 'camera_framing.dart';
+import 'motion_photo.dart';
 
 class CapturePage extends StatefulWidget {
   const CapturePage({
@@ -15,7 +19,7 @@ class CapturePage extends StatefulWidget {
 
   final int captured;
   final int total;
-  final ValueChanged<ui.Image> onPhoto;
+  final void Function(ui.Image, {MotionClip? motion}) onPhoto;
 
   @override
   State<CapturePage> createState() => _CapturePageState();
@@ -33,6 +37,13 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
   Timer? _timer;
   String? _error;
   List<CameraDescription> _cameras = [];
+  final _motionBuffer = MotionBuffer();
+  List<MotionFrame>? _captureMotionFrames;
+  final _motionClock = Stopwatch()..start();
+  DeviceOrientation? _motionOrientation;
+  bool _motionOn = false;
+  bool _changingMotion = false;
+  bool _motionUnavailable = false;
 
   @override
   void initState() {
@@ -69,9 +80,15 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
         selected,
         ResolutionPreset.high,
         enableAudio: false,
+        imageFormatGroup: Platform.isIOS
+            ? ImageFormatGroup.bgra8888
+            : ImageFormatGroup.yuv420,
       );
       _camera = controller;
       await controller.initialize();
+      if (mounted && generation == _generation && _motionOn) {
+        await _startMotion(controller, generation);
+      }
     } on CameraException catch (error) {
       if (mounted && generation == _generation) {
         setState(() {
@@ -101,8 +118,85 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _startMotion(CameraController camera, int generation) async {
+    if (camera.value.isStreamingImages) return;
+    try {
+      if (!camera.supportsImageStreaming()) {
+        throw UnsupportedError('Camera image streaming is unavailable.');
+      }
+      await camera.startImageStream((frame) {
+        if (!mounted || generation != _generation || !_motionOn || _busy) {
+          return;
+        }
+        final orientation = camera.value.deviceOrientation;
+        if (orientation != _motionOrientation) {
+          _motionBuffer.clear();
+          _motionOrientation = orientation;
+        }
+        final time = _motionClock.elapsedMicroseconds;
+        if (!_motionBuffer.wantsFrame(time)) return;
+        final sample = sampleMotionFrame(
+          frame,
+          time,
+          rotation: Platform.isAndroid
+              ? androidMotionRotation(camera.description, orientation)
+              : 0,
+        );
+        if (sample != null) _motionBuffer.add(sample);
+      });
+      if (mounted && generation == _generation && _motionUnavailable) {
+        setState(() => _motionUnavailable = false);
+      }
+    } catch (_) {
+      if (mounted && generation == _generation) {
+        setState(() => _motionUnavailable = true);
+      }
+    }
+  }
+
+  Future<void> _stopMotion(CameraController camera, int generation) async {
+    if (!camera.value.isStreamingImages) return;
+    try {
+      await camera.stopImageStream();
+    } catch (_) {
+      if (mounted && generation == _generation && _motionOn) {
+        setState(() => _motionUnavailable = true);
+      }
+    }
+  }
+
+  Future<void> _toggleMotion(bool enabled) async {
+    final camera = _camera;
+    if (camera == null ||
+        !camera.value.isInitialized ||
+        _changingMotion ||
+        _busy) {
+      return;
+    }
+    final generation = _generation;
+    setState(() {
+      _motionOn = enabled;
+      _changingMotion = true;
+      _motionUnavailable = false;
+    });
+    _motionBuffer.clear();
+    if (enabled) {
+      await _startMotion(camera, generation);
+    } else {
+      await _stopMotion(camera, generation);
+    }
+    if (mounted && generation == _generation) {
+      setState(() => _changingMotion = false);
+    }
+  }
+
   void _release() {
     _generation++;
+    _motionBuffer.clear();
+    _captureMotionFrames?.clear();
+    _captureMotionFrames = null;
+    _motionOrientation = null;
+    _changingMotion = false;
     _timer?.cancel();
     _timer = null;
     _remaining = 0;
@@ -134,55 +228,71 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
   }
 
   void _takePhoto() {
-    if (_busy || _remaining > 0) return;
-    if (_delay == 0) {
-      unawaited(_capture());
-      return;
+    if (_busy || _changingMotion || _remaining > 0) return;
+    final now = _motionClock.elapsedMicroseconds;
+    final timerDelay = Duration(seconds: _delay);
+    final motionDelay = _motionOn && !_motionUnavailable
+        ? _motionBuffer.remaining(now)
+        : Duration.zero;
+    final delay = timerDelay > motionDelay ? timerDelay : motionDelay;
+    final deadline = now + delay.inMicroseconds;
+    const second = Duration.microsecondsPerSecond;
+
+    void tick() {
+      final remaining = deadline - _motionClock.elapsedMicroseconds;
+      if (remaining <= 0) {
+        _timer = null;
+        if (_remaining != 0) setState(() => _remaining = 0);
+        unawaited(_capture());
+        return;
+      }
+      final seconds = (remaining + second - 1) ~/ second;
+      setState(() => _remaining = seconds);
+      _timer = Timer(
+        Duration(microseconds: remaining - (seconds - 1) * second),
+        tick,
+      );
     }
 
-    setState(() => _remaining = _delay);
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() => _remaining--);
-      if (_remaining == 0) {
-        timer.cancel();
-        _timer = null;
-        unawaited(_capture());
-      }
-    });
+    tick();
   }
 
   Future<void> _capture() async {
     final camera = _camera;
     if (_busy || camera == null || !camera.value.isInitialized) return;
     final generation = _generation;
+    final capturedBefore = widget.captured;
+    final motion = _motionOn
+        ? _motionBuffer.take(_motionClock.elapsedMicroseconds)
+        : null;
+    final motionFrames = motion?.frames;
+    _captureMotionFrames = motionFrames;
+    var capturedPhoto = false;
     setState(() {
       _busy = true;
       _error = null;
     });
     XFile? file;
     try {
+      if (_motionOn) await _stopMotion(camera, generation);
+      if (!mounted || generation != _generation) return;
       file = await camera.takePicture();
-      final bytes = await file.readAsBytes();
-      final codec = await ui.instantiateImageCodec(
-        bytes,
-        targetWidth: 960,
-        allowUpscaling: false,
-      );
-      try {
-        final frame = await codec.getNextFrame();
-        if (mounted && generation == _generation) {
-          widget.onPhoto(frame.image);
-        } else {
-          frame.image.dispose();
-        }
-      } finally {
-        codec.dispose();
+      final photo = await decodeCameraPhoto(await file.readAsBytes());
+      if (mounted && generation == _generation) {
+        capturedPhoto = true;
+        widget.onPhoto(photo, motion: motion);
+      } else {
+        photo.dispose();
       }
     } catch (_) {
       if (mounted && generation == _generation) {
         setState(() => _error = 'Could not take that photo. Try again.');
       }
     } finally {
+      if (identical(_captureMotionFrames, motionFrames)) {
+        motionFrames?.clear();
+        _captureMotionFrames = null;
+      }
       if (file != null) {
         try {
           await File(file.path).delete();
@@ -190,7 +300,13 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
           // The platform may already have removed its temporary capture.
         }
       }
-      if (mounted && generation == _generation) setState(() => _busy = false);
+      if (mounted && generation == _generation) {
+        if (_motionOn &&
+            capturedBefore + (capturedPhoto ? 1 : 0) < widget.total) {
+          await _startMotion(camera, generation);
+        }
+        if (mounted && generation == _generation) setState(() => _busy = false);
+      }
     }
   }
 
@@ -205,7 +321,7 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final camera = _camera;
     final ready = !_opening && (camera?.value.isInitialized ?? false);
-    final locked = _busy || _remaining > 0;
+    final locked = _busy || _changingMotion || _remaining > 0;
     final canSwitch =
         _cameras.any(
           (camera) => camera.lensDirection == CameraLensDirection.front,
@@ -230,13 +346,20 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
         ClipRRect(
           borderRadius: BorderRadius.circular(20),
           child: AspectRatio(
-            aspectRatio: 3 / 4,
+            aspectRatio: cameraAspectRatio,
             child: ColoredBox(
               color: const Color(0xff23202a),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (ready) Center(child: CameraPreview(camera!)),
+                  if (ready)
+                    FittedBox(
+                      fit: BoxFit.cover,
+                      child: SizedBox(
+                        width: camera!.value.previewSize!.width,
+                        child: CameraPreview(camera),
+                      ),
+                    ),
                   if (_opening)
                     const Center(
                       child: CircularProgressIndicator(color: Colors.white),
@@ -265,6 +388,19 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
           if (!ready && !_opening)
             TextButton(onPressed: _retry, child: const Text('Retry camera')),
         ],
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Motion Photo'),
+          subtitle: Text(
+            _motionOn && _motionUnavailable
+                ? 'Motion is unavailable on this camera. You can still take photos.'
+                : 'Waits as needed for $motionSeconds seconds of motion before each shot',
+          ),
+          value: _motionOn,
+          onChanged: ready && !locked
+              ? (enabled) => unawaited(_toggleMotion(enabled))
+              : null,
+        ),
         const SizedBox(height: 16),
         Wrap(
           spacing: 8,

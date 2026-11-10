@@ -166,6 +166,76 @@ test('all five layouts are offered and a three-photo strip exports the chosen te
   await expect(gallery.getByRole('button', { name: 'Retro Flash' })).toHaveAttribute('aria-pressed', 'true');
 });
 
+test('a fixed camera crop fits both portrait and illustrated frame exports', async ({ page }) => {
+  await page.addInitScript(() => {
+    navigator.mediaDevices.getUserMedia = async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 360;
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#0000ff';
+      context.fillRect(0, 0, 640, 360);
+      context.fillStyle = '#ffff00';
+      context.fillRect(80, 0, 480, 360);
+      context.fillStyle = '#00ff00';
+      context.fillRect(150, 0, 340, 360);
+      return canvas.captureStream();
+    };
+  });
+  await page.goto('/layout');
+  await page.getByRole('button', { name: /Single Photo/ }).click();
+  const camera = page.locator('.camera-video');
+  const shutter = page.getByRole('button', { name: 'Take photo' });
+  await expect(shutter).toBeEnabled();
+  const { width, height } = await camera.boundingBox();
+  expect(width / height).toBeCloseTo(4 / 3);
+  await shutter.click();
+
+  const photo = page.getByRole('img', { name: 'Captured photo 1' });
+  const capture = await photo.evaluate(async (image) => {
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0);
+    return {
+      size: [image.naturalWidth, image.naturalHeight],
+      edge: [...context.getImageData(8, 8, 1, 1).data],
+    };
+  });
+  expect(capture.size).toEqual([480, 360]);
+  expect(capture.edge[0]).toBeGreaterThan(230);
+  expect(capture.edge[1]).toBeGreaterThan(230);
+  expect(capture.edge[2]).toBeLessThan(25);
+
+  async function exportEdge() {
+    const point = await photo.evaluate((image) => {
+      const slot = image.getBoundingClientRect();
+      const strip = image.closest('.photo-strip').getBoundingClientRect();
+      return [(slot.left - strip.left + .06 * slot.width) / strip.width,
+        (slot.top - strip.top + .5 * slot.height) / strip.height];
+    });
+    await page.getByRole('button', { name: 'Next' }).click();
+    return page.getByRole('img', { name: 'Your finished LumiBooth photo strip' }).evaluate(async (image, [x, y]) => {
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      context.drawImage(image, -Math.floor(x * image.naturalWidth), -Math.floor(y * image.naturalHeight));
+      return [...context.getImageData(0, 0, 1, 1).data];
+    }, point);
+  }
+
+  const portrait = await exportEdge();
+  expect(portrait[0]).toBeLessThan(25);
+  expect(portrait[1]).toBeGreaterThan(230);
+  await page.getByRole('button', { name: 'Edit Strip' }).click();
+  await page.getByRole('button', { name: 'Tube TV' }).click();
+  await expect(photo).toHaveAttribute('src', /^data:image\/jpeg;base64,/);
+  const tube = await exportEdge();
+  expect(tube[0]).toBeGreaterThan(230);
+  expect(tube[1]).toBeGreaterThan(230);
+  expect(tube[2]).toBeLessThan(25);
+});
+
 test('illustrated frames put captured photos inside the artwork and export the overlay', async ({ page }) => {
   await page.goto('/layout');
   await page.getByRole('button', { name: /Dual Strip/ }).click();

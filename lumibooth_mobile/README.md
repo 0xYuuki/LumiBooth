@@ -22,8 +22,13 @@ Select your phone if Flutter lists multiple devices. For iOS, configure a signin
 
 - Allow camera access when prompted. If access is denied, enable Camera in the device's app settings and tap **Retry camera**.
 - The timer cycles through off, 3, 5, and 10 seconds. A camera switch is available when both front and rear cameras are detected.
+- The camera uses a fixed 4:3 view. Choose a frame after taking your photos, and the editor crops them to fill each opening without stretching.
 - Select **Preview strip** to render a PNG. **Save or share PNG** opens the system share sheet, where the available save destinations depend on the device. **Print photo** opens the system print interface.
 - Photos stay in the active session. **End session**, leaving the session, or five minutes of inactivity releases the session images. Sharing hands a temporary PNG to the platform and can create copies outside the app.
+
+## Motion photos
+
+Turn on **Motion Photo** on the camera screen to keep five seconds before each shutter. If the buffer is still filling, the shutter waits for the remaining time. A longer timer still applies. Select **Play strip** on the finish screen to play motion inside the frame. You can also play or share the GIF for each shot. If the camera stream is interrupted, the shot may have a shorter clip or only a still. Unsaved motion is cleared when the app moves to the background or the session ends.
 
 ## Verify and build
 

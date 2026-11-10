@@ -7,7 +7,7 @@ export const layouts = [
 ];
 
 export function createSession(layout) {
-  return { layout, photos: [], frame: null, caption: null, signatureFont: null, stickers: [], output: null };
+  return { layout, photos: [], motions: [], designRevision: 0, frame: null, caption: null, signatureFont: null, stickers: [], output: null };
 }
 
 export function sessionReducer(session, action) {
@@ -20,11 +20,45 @@ export function sessionReducer(session, action) {
       if (!session || !action.photo || session.photos.length >= session.layout.count) {
         return session;
       }
-      return { ...session, photos: [...session.photos, action.photo] };
+      return {
+        ...session,
+        photos: [...session.photos, action.photo],
+        motions: [...session.motions, action.motion ?? null],
+        designRevision: session.designRevision + 1,
+      };
+    case 'motionResult': {
+      const index = session?.motions.findIndex((motion) => motion?.id === action.id && motion.status === 'pending');
+      if (index == null || index < 0) return session;
+      const motions = [...session.motions];
+      motions[index] = {
+        ...motions[index],
+        status: action.gif ? 'ready' : 'unavailable',
+        gif: action.gif,
+      };
+      return { ...session, motions };
+    }
+    case 'discardMotion': {
+      const statuses = action.pendingOnly ? ['pending'] : ['pending', 'ready'];
+      if (!session?.motions.some((motion) => statuses.includes(motion?.status))) return session;
+      return {
+        ...session,
+        motions: session.motions.map((motion) => statuses.includes(motion?.status)
+          ? { ...motion, status: 'unavailable', gif: null }
+          : motion),
+      };
+    }
     case 'edit':
-      return session && { ...session, ...action.changes, output: null };
+      return session && {
+        ...session,
+        ...action.changes,
+        designRevision: session.designRevision + 1,
+        output: null,
+      };
     case 'export':
-      return session === action.session ? { ...session, output: action.output } : session;
+      return session && action.session &&
+        session.photos === action.session.photos && session.designRevision === action.session.designRevision
+        ? { ...session, output: action.output }
+        : session;
     default:
       return session;
   }

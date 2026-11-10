@@ -19,7 +19,8 @@ Open the localhost address shown in the terminal and allow camera access when pr
 
 1. Select **Start photo booth** on the welcome screen.
 2. Choose **1, 2, 3, 4, or 6 photos** per strip. Two and three photos stack vertically. Four and six use a two-column grid.
-3. Select **Take photo** for each shot. Use **Timer** to cycle through 3, 5, and 10 seconds or turn it off. The editor opens after the last photo.
+3. Select **Take photo** for each shot. Use **Timer** to cycle through 3, 5, and 10 seconds or turn it off. The camera uses a fixed 4:3 view. After the last photo, the editor opens and automatically crops each photo to fill the frame you choose.
+   Turn on **Motion Photo** to keep five silent seconds before each shot. If the buffer is still filling, the shutter waits for the remaining time. A longer timer still applies. On the finish screen, select **Play strip** to see motion inside the frame. You can also play and export a GIF by shot number. Unsaved clips are cleared when you leave the app or end the session.
 4. Under **Frames → Illustrated**, try Tube TV, Camera Film, Vinyl Instant, Love Scrapbook, or Retro Zine. Find 14 more designs under **Templates**. You can also choose a solid color, gradient, or pattern. Under **Stickers**, pick Emoji or one of seven image packs, then select a sticker. Drag it to move it and use its corner handles to resize or rotate it. On web, you can also focus it and use the arrow keys to move it. The optional caption below LumiBooth can be edited up to 32 characters, removed, or reset to the frame caption. **Strip font** applies your choice to both the name and the caption.
 5. Select **Next** to see the finished strip. Choose **Save to Device** to download a PNG, **Print Photo** to open your browser's print dialog, or **Edit Strip** to make another change. Select **Finish Session** when you're done.
 

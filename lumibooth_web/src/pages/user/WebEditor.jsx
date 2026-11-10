@@ -5,6 +5,7 @@ import { BoothHeader, MiniStrip } from '../../components/BoothUI';
 import { toPng } from 'html-to-image';
 
 import { frameBackground, frameLibrary } from './frameLibrary';
+import { IllustratedPhoto, PhotoStrip, StickerLayer } from './PhotoStrip';
 
 import StickerArt from './StickerArt';
 import { stickerPacks } from './stickerPacks';
@@ -14,7 +15,7 @@ const signatureFonts = ['Outfit', 'Playfair Display', 'Space Mono', 'Caveat'];
 
 const WebEditor = () => {
   const { session, dispatch } = useContext(PhotoboothContext);
-  const { photos, layout, stickers: placedStickers } = session;
+  const { layout, stickers: placedStickers } = session;
   const selectedFrame = session.frame ?? frameLibrary.Templates[0];
   const signatureFont = session.signatureFont ?? signatureFonts[0];
   const caption = session.caption ?? selectedFrame.caption ?? 'THE PHOTO BOOTH';
@@ -98,32 +99,8 @@ const WebEditor = () => {
 
         <div className="design-workspace">
           <div className="design-stage">
-            <div
-              ref={constraintsRef}
-              className="photo-strip"
-              onPointerDown={() => setSelectedStickerId(null)}
-              style={{
-                ...frameBackground(selectedFrame),
-                '--strip-width': layout.columns === 1 && layout.count > 1 ? '220px' : '360px',
-                gridTemplateColumns: `repeat(${layout.columns}, minmax(0, 1fr))`,
-                color: selectedFrame.ink ?? '#292630',
-                outline: selectedFrame.border ? `1px solid ${selectedFrame.border}` : undefined,
-                outlineOffset: selectedFrame.border ? -9 : undefined,
-              }}
-            >
-              {selectedFrame.header && (
-                <img className="illustrated-header" src={selectedFrame.header} alt="" />
-              )}
-              {photos.map((photo, index) => (
-                selectedFrame.artwork
-                  ? <IllustratedPhoto key={index} frame={selectedFrame} photo={photo} index={index} />
-                  : <img key={index} src={photo} alt={`Captured photo ${index + 1}`}
-                      style={{ borderRadius: selectedFrame.radius ?? 4 }} />
-              ))}
-              <div className="strip-signature" style={{ fontFamily: `"${signatureFont}", sans-serif`, borderTop: selectedFrame.rule ? '1px solid currentColor' : undefined, paddingBottom: selectedFrame.footer, backgroundColor: selectedFrame.signaturePaper ? selectedFrame.bg : undefined }}>
-                <strong>LumiBooth</strong>
-                <span className="strip-caption">{caption.trim()}</span>
-              </div>
+            <PhotoStrip session={session} stripRef={constraintsRef}
+              onPointerDown={() => setSelectedStickerId(null)}>
               {placedStickers.map((sticker) => (
                 <StripSticker
                   key={sticker.id}
@@ -136,7 +113,7 @@ const WebEditor = () => {
                   onDelete={() => deleteSticker(sticker.id)}
                 />
               ))}
-            </div>
+            </PhotoStrip>
           </div>
 
           <fieldset className="design-tools" disabled={exporting} aria-label="Strip design">
@@ -238,22 +215,6 @@ const WebEditor = () => {
   );
 };
 
-function IllustratedPhoto({ frame, photo, index = 0 }) {
-  const [x, y, width, height, radius] = frame.window;
-  return (
-    <div className="illustrated-photo"
-      style={{ transform: photo && frame.tilt ? `rotate(${index % 2 ? frame.tilt : -frame.tilt}deg)` : undefined }}>
-      <span className="illustrated-window" style={{
-        left: `${x / 4}%`, top: `${y / 3}%`, width: `${width / 4}%`, height: `${height / 3}%`,
-        borderRadius: `${radius / width * 100}% / ${radius / height * 100}%`,
-      }}>
-        {photo && <img src={photo} alt={`Captured photo ${index + 1}`} />}
-      </span>
-      <img className="illustrated-overlay" src={frame.artwork} alt="" />
-    </div>
-  );
-}
-
 const arrowOffsets = {
   ArrowLeft: [-10, 0],
   ArrowRight: [10, 0],
@@ -342,22 +303,14 @@ function StripSticker({ sticker, selected, constraintsRef, disabled, onSelect, o
   };
 
   return (
-    <div
-      ref={stickerRef}
+    <StickerLayer
+      sticker={sticker}
+      layerRef={stickerRef}
       onPointerMove={drag}
       onPointerUp={finish}
       onPointerCancel={finish}
       onLostPointerCapture={finish}
-      style={{
-        '--sticker-size': `${sticker.size}px`,
-        left: `calc((100% - var(--sticker-size)) * ${sticker.x})`,
-        top: `calc((100% - var(--sticker-size)) * ${sticker.y})`,
-      }}
-      className="strip-sticker"
     >
-      <div className="sticker-visual" style={{ transform: `rotate(${sticker.angle ?? 0}deg)` }}>
-        <StickerArt art={sticker.art} />
-      </div>
       <button
         type="button"
         className="sticker-select"
@@ -389,7 +342,7 @@ function StripSticker({ sticker, selected, constraintsRef, disabled, onSelect, o
             onPointerDown={(event) => event.stopPropagation()} onClick={onDelete}>×</button>
         </>
       )}
-    </div>
+    </StickerLayer>
   );
 }
 

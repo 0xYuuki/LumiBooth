@@ -1,12 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
-
 :root {
-  --primary-pink: #FFB6C1;
-  --primary-pink-hover: #ff9eac;
+  --primary-pink: #e9e0f3;
+  --primary-pink-hover: #ded0ef;
   --primary-blue: #AEC6CF;
-  --bg-light: #F7F9FC;
+  --bg-light: #faf8f4;
   --text-dark: #2C2C2C;
-  --text-muted: #8A8A8A;
+  --text-muted: #666;
   --card-bg: #FFFFFF;
   --border-radius: 20px;
   --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -86,12 +84,12 @@ body {
 
 .nav-item:hover {
   background-color: rgba(255, 182, 193, 0.1);
-  color: var(--primary-pink);
+  color: var(--text-dark);
 }
 
 .nav-item.active {
   background-color: var(--primary-pink);
-  color: white;
+  color: var(--text-dark);
   box-shadow: 0 4px 12px rgba(255, 182, 193, 0.3);
 }
 
@@ -159,7 +157,8 @@ body {
 /* Utilities */
 .btn-primary {
   background-color: var(--primary-pink);
-  color: white;
+  color: var(--text-dark);
+  text-decoration: none;
   border: none;
   border-radius: 10px;
   padding: 0.75rem 1.5rem;
@@ -184,4 +183,77 @@ body {
   font-weight: 700;
   margin-bottom: 2rem;
   color: var(--text-dark);
+}
+
+.layout-option {
+  border: 0;
+  color: inherit;
+  font: inherit;
+}
+
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.camera-status, .editor-error {
+  padding: 1rem;
+  text-align: center;
+}
+
+.camera-status { color: white; }
+
+.strip-sticker {
+  position: absolute;
+  width: var(--sticker-size);
+  height: var(--sticker-size);
+  display: grid;
+  place-items: center;
+  font-size: var(--sticker-size);
+  z-index: 1;
+  line-height: 1;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.sticker-select {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: inherit;
+}
+
+.sticker-select[aria-pressed="true"] { border: 2px dashed var(--primary-pink); }
+
+.sticker-delete {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 24px;
+  height: 24px;
+  border: 1px solid #a00;
+  border-radius: 50%;
+  background: white;
+  color: #a00;
+  cursor: pointer;
+}
+
+.admin-demo-note {
+  color: var(--text-dark);
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 680px) {
+  .app-container { flex-direction: column; }
+  .sidebar { width: auto; padding: 1rem; }
+  .brand { margin-bottom: 1rem; }
+  .nav-menu { flex-direction: row; flex-wrap: wrap; }
+  .nav-item { padding: 0.5rem; }
+  .main-content { padding: 1rem; }
 }

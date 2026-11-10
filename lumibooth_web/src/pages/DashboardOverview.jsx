@@ -1,4 +1,3 @@
-import React from 'react';
 import { Camera, Users, Printer } from 'lucide-react';
 
 const DashboardOverview = () => {

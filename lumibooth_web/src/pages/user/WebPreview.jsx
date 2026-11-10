@@ -1,33 +1,45 @@
-import React from 'react';
+import { useContext, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Download, Printer } from 'lucide-react';
+import { PhotoboothContext } from '../../context/photoboothContext';
+import { BoothHeader } from '../../components/BoothUI';
 
-const WebPreview = () => {
+export default function WebPreview() {
   const navigate = useNavigate();
+  const { session, dispatch } = useContext(PhotoboothContext);
+  const [imageReady, setImageReady] = useState(false);
+
+  const finish = () => {
+    dispatch({ type: 'reset' });
+    navigate('/', { replace: true });
+  };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-light)' }}>
-      <div style={{ fontSize: '80px', marginBottom: '20px' }}>✅</div>
-      <h1 className="page-title" style={{ textAlign: 'center' }}>Your photo strip is ready!</h1>
-      <p style={{ color: 'var(--text-muted)', marginBottom: '40px', textAlign: 'center' }}>
-        You can now save this to your device or send it to the printer.
-      </p>
-      
-      <div style={{ display: 'flex', gap: '20px', flexDirection: 'column', width: '100%', maxWidth: '300px' }}>
-        <button className="btn-primary" style={{ justifyContent: 'center', padding: '1rem' }}>
-          <span style={{ fontSize: '20px' }}>💾</span> Save to Device
-        </button>
-        <button className="btn-primary" style={{ background: 'var(--primary-blue)', justifyContent: 'center', padding: '1rem' }}>
-          <span style={{ fontSize: '20px' }}>🖨️</span> Print Photo
-        </button>
-      </div>
-      
-      <button 
-        onClick={() => navigate('/')} 
-        style={{ marginTop: '40px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}>
-        Go back Home
-      </button>
+    <div className="booth-shell">
+      <BoothHeader step="04 / FINISH" />
+      <main className="booth-content strip-preview">
+        <div className="preview-copy">
+          <p className="booth-eyebrow">STEP 04 OF 04</p>
+          <h1 className="booth-title">Your strip is ready.</h1>
+          <p className="booth-intro">Save a copy or print it to keep.</p>
+          <div className="preview-actions">
+            <a className="booth-button" href={session.output} download="lumibooth-strip.png">
+              <Download size={17} aria-hidden="true" /> Save to Device
+            </a>
+            <button className="booth-button booth-secondary" disabled={!imageReady} onClick={() => window.print()}>
+              <Printer size={17} aria-hidden="true" /> Print Photo
+            </button>
+          </div>
+          <div className="preview-actions">
+            <button className="booth-link" onClick={() => navigate('/editor', { replace: true })}>Edit Strip</button>
+            <button className="booth-link" onClick={finish}>Finish Session</button>
+          </div>
+        </div>
+        <div className="preview-stage">
+          <img className="finished-strip" src={session.output} alt="Your finished LumiBooth photo strip"
+            onLoad={() => setImageReady(true)} />
+        </div>
+      </main>
     </div>
   );
-};
-
-export default WebPreview;
+}

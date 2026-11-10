@@ -1,6 +1,6 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink, Outlet } from 'react-router-dom';
-import { Camera, LayoutTemplate, Printer, Users, Settings } from 'lucide-react';
+import { useContext } from 'react';
+import { BrowserRouter as Router, Routes, Route, NavLink, Navigate, Outlet } from 'react-router-dom';
+import { Camera, LayoutTemplate, Printer } from 'lucide-react';
 import DashboardOverview from './pages/DashboardOverview';
 import TemplateManager from './pages/TemplateManager';
 import PrintLogs from './pages/PrintLogs';
@@ -9,8 +9,8 @@ import WebLayoutSelection from './pages/user/WebLayoutSelection';
 import WebCamera from './pages/user/WebCamera';
 import WebEditor from './pages/user/WebEditor';
 import WebPreview from './pages/user/WebPreview';
-import { PhotoboothProvider } from './context/PhotoboothContext';
-import './index.css';
+import { PhotoboothProvider } from './context/PhotoboothProvider';
+import { PhotoboothContext } from './context/photoboothContext';
 
 const AdminLayout = () => {
   return (
@@ -33,43 +33,47 @@ const AdminLayout = () => {
             <Printer size={20} />
             Print Logs
           </NavLink>
-          <NavLink to="/admin/users" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Users size={20} />
-            Users
-          </NavLink>
-          <div style={{ flex: 1 }}></div>
-          <NavLink to="/admin/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <Settings size={20} />
-            Settings
-          </NavLink>
         </nav>
       </aside>
       <main className="main-content">
+        <p className="admin-demo-note">Demo data only</p>
         <Outlet />
       </main>
     </div>
   );
 };
 
+function GuestStep({ step, children }) {
+  const { session } = useContext(PhotoboothContext);
+  if (!session) return <Navigate to="/" replace />;
+
+  const complete = session.photos.length === session.layout.count;
+  if (step === 'camera' && complete) return <Navigate to="/editor" replace />;
+  if (step !== 'camera' && !complete) return <Navigate to="/camera" replace />;
+  if (step === 'preview' && !session.output) return <Navigate to="/editor" replace />;
+  return children;
+}
+
 const App = () => {
   return (
     <PhotoboothProvider>
-      <Router>
+      <Router basename={import.meta.env.BASE_URL}>
         <Routes>
           {/* User Photobooth App */}
           <Route path="/" element={<WebWelcome />} />
           <Route path="/layout" element={<WebLayoutSelection />} />
-          <Route path="/camera" element={<WebCamera />} />
-          <Route path="/editor" element={<WebEditor />} />
-          <Route path="/preview" element={<WebPreview />} />
+          <Route path="/camera" element={<GuestStep step="camera"><WebCamera /></GuestStep>} />
+          <Route path="/editor" element={<GuestStep step="editor"><WebEditor /></GuestStep>} />
+          <Route path="/preview" element={<GuestStep step="preview"><WebPreview /></GuestStep>} />
 
           {/* Admin Dashboard */}
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<DashboardOverview />} />
             <Route path="templates" element={<TemplateManager />} />
             <Route path="logs" element={<PrintLogs />} />
-            <Route path="*" element={<div className="page-title">Coming Soon</div>} />
+            <Route path="*" element={<div className="page-title">Page unavailable</div>} />
           </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>
     </PhotoboothProvider>

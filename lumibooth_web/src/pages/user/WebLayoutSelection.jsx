@@ -1,45 +1,38 @@
-import React, { useContext } from 'react';
+import { useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PhotoboothContext } from '../../context/PhotoboothContext';
+import { ArrowUpRight } from 'lucide-react';
+import { PhotoboothContext } from '../../context/photoboothContext';
+import { layouts } from '../../context/photoboothSession';
+import { BoothHeader, MiniStrip } from '../../components/BoothUI';
 
-const WebLayoutSelection = () => {
+export default function WebLayoutSelection() {
   const navigate = useNavigate();
-  const { setLayout, setPhotos } = useContext(PhotoboothContext);
+  const { dispatch } = useContext(PhotoboothContext);
+  useEffect(() => { dispatch({ type: 'reset' }); }, [dispatch]);
 
-  const layouts = [
-    { id: '1-photo', name: 'Single Photo', count: 1 },
-    { id: '2-photo', name: 'Dual Strip', count: 2 },
-    { id: '4-grid', name: '4-Grid Classic', count: 4 },
-    { id: '6-grid', name: '6-Grid Wide', count: 6 },
-  ];
-
-  const handleSelect = (layout) => {
-    setLayout(layout);
-    setPhotos([]);
+  const selectLayout = (layout) => {
+    dispatch({ type: 'start', layout });
     navigate('/camera');
   };
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto', textAlign: 'center' }}>
-      <h1 className="page-title">Select Template</h1>
-      <p style={{ color: 'var(--text-muted)', marginBottom: '3rem' }}>Choose a layout for your photo strip</p>
-      
-      <div className="stats-grid">
-        {layouts.map(layout => (
-          <div 
-            key={layout.id} 
-            className="card" 
-            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}
-            onClick={() => handleSelect(layout)}
-          >
-            <div style={{ width: 80, height: 120, border: '2px dashed var(--primary-pink)', borderRadius: 8, marginBottom: '1rem', backgroundColor: 'rgba(255,182,193,0.1)' }}></div>
-            <h3 style={{ fontSize: '1.1rem' }}>{layout.name}</h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{layout.count} Photos</p>
-          </div>
-        ))}
-      </div>
+    <div className="booth-shell">
+      <BoothHeader step="01 / LAYOUT" back="/" />
+      <main className="booth-content">
+        <p className="booth-eyebrow">STEP 01 OF 04</p>
+        <h1 className="booth-title">Choose your layout.</h1>
+        <p className="booth-intro">How many photos would you like on your strip?</p>
+        <div className="layout-gallery">
+          {layouts.map((layout) => (
+            <button className="layout-tile" key={layout.id} onClick={() => selectLayout(layout)}>
+              <span className="layout-art"><MiniStrip count={layout.count} columns={layout.columns} /></span>
+              <strong>{layout.name}</strong>
+              <span>{layout.count} {layout.count === 1 ? 'photo' : 'photos'}</span>
+              <ArrowUpRight size={16} className="tile-arrow" aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </main>
     </div>
   );
-};
-
-export default WebLayoutSelection;
+}

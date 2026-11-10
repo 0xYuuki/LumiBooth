@@ -10,6 +10,8 @@ import 'package:share_plus/share_plus.dart';
 
 import 'capture.dart';
 import 'strip.dart';
+import 'sticker_pack.dart';
+import 'sticker_controls.dart';
 
 const paper = Color(0xfffaf8f4);
 const lavender = Color(0xffeee8f7);
@@ -160,6 +162,17 @@ class _SessionPage extends StatefulWidget {
 class _SessionPageState extends State<_SessionPage> {
   final List<ui.Image> _photos = [];
   final List<StripSticker> _stickers = [];
+  final Map<String, ui.Image> _stickerImages = {};
+  late final Future<List<StickerPack>> _stickerCatalog =
+      StickerPack.loadCatalog();
+  StickerPack _stickerPack = StickerPack.emoji;
+  bool _loadingStickerPack = false;
+  static const _captionLimit = 32;
+  final _captionController = TextEditingController(
+    text: StripFrame.studio.caption,
+  );
+  String? _caption;
+  StripFont _stripFont = StripFont.outfit;
   StripFrame _frame = StripFrame.studio;
   FrameImages? _frameImages;
   bool _loadingFrame = false;
@@ -174,6 +187,8 @@ class _SessionPageState extends State<_SessionPage> {
   StripDesign get _design => StripDesign(
     layout: widget.layout,
     frame: _frame,
+    caption: _caption,
+    font: _stripFont,
     frameImages: _frameImages,
     photos: _photos,
     stickers: List.unmodifiable(_stickers),
@@ -206,6 +221,43 @@ class _SessionPageState extends State<_SessionPage> {
     setState(() => _photos.add(image));
   }
 
+  Future<void> _chooseStickerPack(StickerPack pack) async {
+    if (_loadingStickerPack || pack == _stickerPack) return;
+    if (pack == StickerPack.emoji || _stickerImages.containsKey(pack.id)) {
+      setState(() => _stickerPack = pack);
+      return;
+    }
+    setState(() => _loadingStickerPack = true);
+    try {
+      final image = await pack.loadImage();
+      if (!mounted) {
+        image.dispose();
+        return;
+      }
+      setState(() {
+        _stickerImages[pack.id] = image;
+        _stickerPack = pack;
+      });
+    } catch (_) {
+      if (mounted) _message('Could not load this sticker pack. Try again.');
+    } finally {
+      if (mounted) setState(() => _loadingStickerPack = false);
+    }
+  }
+
+  void _addSticker(StripSticker sticker) {
+    setState(() {
+      _stickers.add(sticker);
+      _selected = _stickers.length - 1;
+    });
+  }
+
+  void _setCaption(String? value) {
+    setState(() => _caption = value);
+    _captionController.text = value ?? _frame.caption;
+    _keepAlive();
+  }
+
   Future<void> _chooseFrame(StripFrame frame) async {
     if (_loadingFrame || _exporting || frame == _frame) return;
     final art = frame.art;
@@ -222,6 +274,7 @@ class _SessionPageState extends State<_SessionPage> {
         _frameImages = images;
         _loadingFrame = false;
       });
+      if (_caption == null) _captionController.text = frame.caption;
       previous?.dispose();
     } catch (_) {
       if (!mounted) return;
@@ -297,30 +350,23 @@ class _SessionPageState extends State<_SessionPage> {
     }
   }
 
-  void _moveSticker(int index, Offset delta) {
+  void _updateSticker(int index, StripSticker sticker) {
+    if (_exporting) return;
     _keepAlive();
-    final sticker = _stickers[index];
-    final size = _design.size;
-    final position = Offset(
-      (sticker.position.dx + delta.dx / (size.width - sticker.size)).clamp(
-        0.0,
-        1.0,
-      ),
-      (sticker.position.dy + delta.dy / (size.height - sticker.size)).clamp(
-        0.0,
-        1.0,
-      ),
-    );
     setState(() {
       _selected = index;
-      _stickers[index] = StripSticker(sticker.symbol, position, sticker.size);
+      _stickers[index] = sticker;
     });
   }
 
   @override
   void dispose() {
     _idle?.cancel();
+    _captionController.dispose();
     _frameImages?.dispose();
+    for (final image in _stickerImages.values) {
+      image.dispose();
+    }
     for (final photo in _photos) {
       photo.dispose();
     }
@@ -400,47 +446,94 @@ class _SessionPageState extends State<_SessionPage> {
                   constraints.maxHeight * design.size.aspectRatio,
                 );
                 final scale = width / design.width;
-                return Center(
-                  child: SizedBox(
-                    width: width,
-                    height: design.size.height * scale,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        CustomPaint(
-                          painter: StripPainter(design, selected: selected),
-                        ),
-                        for (var i = 0; i < _stickers.length; i++)
-                          Positioned.fromRect(
-                            rect: _scaleRect(
-                              StripPainter.stickerBounds(design, _stickers[i]),
-                              scale,
-                            ),
-                            child: Semantics(
-                              button: true,
-                              label: 'Select ${_stickers[i].symbol} sticker',
-                              selected: selected == i,
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: _exporting
-                                    ? null
-                                    : () => setState(() => _selected = i),
-                                onPanUpdate: _exporting
-                                    ? null
-                                    : (event) =>
-                                          _moveSticker(i, event.delta / scale),
-                              ),
-                            ),
-                          ),
-                      ],
+                final height = design.size.height * scale;
+                final origin = Offset(
+                  (constraints.maxWidth - width) / 2,
+                  (constraints.maxHeight - height) / 2,
+                );
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Positioned.fromRect(
+                      rect: origin & Size(width, height),
+                      child: CustomPaint(
+                        painter: StripPainter(design, selected: selected),
+                      ),
                     ),
-                  ),
+                    for (var i = 0; i < _stickers.length; i++)
+                      StickerControls(
+                        key: ValueKey(i),
+                        sticker: _stickers[i],
+                        stripSize: design.size,
+                        bounds: _scaleRect(
+                          StripPainter.stickerBounds(design, _stickers[i]),
+                          scale,
+                        ).shift(origin),
+                        scale: scale,
+                        selected: selected == i,
+                        enabled: !_exporting,
+                        onSelect: () => setState(() => _selected = i),
+                        onChanged: (sticker) => _updateSticker(i, sticker),
+                      ),
+                  ],
                 );
               },
             ),
           ),
         ),
         const SizedBox(height: 20),
+        DropdownButtonFormField<StripFont>(
+          initialValue: _stripFont,
+          decoration: const InputDecoration(
+            labelText: 'Strip font',
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            for (final font in StripFont.values)
+              DropdownMenuItem(value: font, child: Text(font.family)),
+          ],
+          onChanged: _exporting
+              ? null
+              : (font) {
+                  if (font == null) return;
+                  setState(() => _stripFont = font);
+                  _keepAlive();
+                },
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _captionController,
+          enabled: !_exporting,
+          maxLength: _captionLimit,
+          textInputAction: TextInputAction.done,
+          decoration: const InputDecoration(
+            labelText: 'Caption under LumiBooth (optional)',
+            hintText: 'Write a short caption',
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (value) {
+            setState(() => _caption = value);
+            _keepAlive();
+          },
+        ),
+        Wrap(
+          spacing: 8,
+          children: [
+            TextButton(
+              onPressed: _exporting || design.footerCaption.isEmpty
+                  ? null
+                  : () => _setCaption(''),
+              child: const Text('Remove caption'),
+            ),
+            TextButton(
+              onPressed: _exporting || _caption == null
+                  ? null
+                  : () => _setCaption(null),
+              child: const Text('Use frame caption'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
         Text('Frame templates', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
         Wrap(
@@ -467,41 +560,36 @@ class _SessionPageState extends State<_SessionPage> {
         ),
         const SizedBox(height: 16),
         Text('Stickers', style: Theme.of(context).textTheme.titleLarge),
-        const Text('Tap to add a sticker, then drag it into place.'),
-        Wrap(
-          children: [
-            for (final symbol in ['✨', '💖', '🎀', '🌸', '🌟', '🦋', '🌈'])
-              IconButton(
-                tooltip: 'Add $symbol sticker',
-                onPressed: _exporting
-                    ? null
-                    : () => setState(() {
-                        _stickers.add(
-                          StripSticker(symbol, const Offset(.4, .4), 50),
-                        );
-                        _selected = _stickers.length - 1;
-                      }),
-                icon: Text(symbol, style: const TextStyle(fontSize: 24)),
-              ),
-          ],
+        const Text(
+          'Drag a sticker to move it. Use its corner handles to rotate or resize it.',
         ),
+        _stickerPicker(),
         if (selected != null) ...[
           const Text('Sticker size'),
           Slider(
-            min: 20,
-            max: 120,
+            min: StripSticker.minSize,
+            max: StripSticker.maxSize,
             label: 'Sticker size',
             value: _stickers[selected].size,
             onChanged: _exporting
                 ? null
-                : (size) => setState(() {
-                    final sticker = _stickers[selected];
-                    _stickers[selected] = StripSticker(
-                      sticker.symbol,
-                      sticker.position,
-                      size,
-                    );
-                  }),
+                : (size) => _updateSticker(
+                    selected,
+                    _stickers[selected].resizeTo(size, design.size),
+                  ),
+          ),
+          const Text('Sticker rotation'),
+          Slider(
+            min: -180,
+            max: 180,
+            label: 'Sticker rotation',
+            value: _stickers[selected].angle,
+            onChanged: _exporting
+                ? null
+                : (angle) => _updateSticker(
+                    selected,
+                    _stickers[selected].copyWith(angle: angle),
+                  ),
           ),
           Align(
             alignment: Alignment.centerLeft,
@@ -517,6 +605,91 @@ class _SessionPageState extends State<_SessionPage> {
             ),
           ),
         ],
+      ],
+    );
+  }
+
+  Widget _stickerPicker() {
+    final image = _stickerImages[_stickerPack.id];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FutureBuilder(
+          future: _stickerCatalog,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return const Text('Image sticker packs are unavailable.');
+            }
+            final packs = snapshot.data;
+            if (packs == null) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 8),
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Sticker pack',
+                  border: OutlineInputBorder(),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<StickerPack>(
+                    value: _stickerPack,
+                    isExpanded: true,
+                    onChanged: _loadingStickerPack || _exporting
+                        ? null
+                        : (pack) {
+                            if (pack != null) _chooseStickerPack(pack);
+                          },
+                    items: [
+                      for (final pack in packs)
+                        DropdownMenuItem(value: pack, child: Text(pack.name)),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        if (_loadingStickerPack) const LinearProgressIndicator(),
+        if (image == null)
+          Wrap(
+            children: [
+              for (final symbol in ['✨', '💖', '🎀', '🌸', '🌟', '🦋', '🌈'])
+                IconButton(
+                  tooltip: 'Add $symbol sticker',
+                  onPressed: _exporting
+                      ? null
+                      : () => _addSticker(
+                          StripSticker(symbol, const Offset(.4, .4), 50),
+                        ),
+                  icon: Text(symbol, style: const TextStyle(fontSize: 24)),
+                ),
+            ],
+          )
+        else
+          Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              for (final sticker in _stickerPack.items)
+                IconButton(
+                  tooltip: 'Add ${sticker.name} sticker',
+                  onPressed: _exporting
+                      ? null
+                      : () => _addSticker(
+                          StripSticker(
+                            sticker.name,
+                            const Offset(.4, .4),
+                            72,
+                            image: image,
+                            source: sticker.source,
+                          ),
+                        ),
+                  icon: CustomPaint(
+                    size: const Size(34, 34),
+                    painter: StickerImagePainter(image, sticker.source),
+                  ),
+                ),
+            ],
+          ),
       ],
     );
   }

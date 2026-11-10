@@ -209,39 +209,54 @@ body {
   position: absolute;
   width: var(--sticker-size);
   height: var(--sticker-size);
-  display: grid;
-  place-items: center;
   font-size: var(--sticker-size);
   z-index: 1;
   line-height: 1;
-  cursor: grab;
+  pointer-events: none;
   user-select: none;
+}
+
+.strip-sticker:has(.sticker-select[aria-pressed="true"]) { z-index: 2; }
+
+.sticker-visual {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.sticker-select, .sticker-handle {
+  position: absolute;
+  pointer-events: auto;
   touch-action: none;
 }
 
 .sticker-select {
-  position: absolute;
   inset: 0;
   background: transparent;
   border: 2px solid transparent;
   border-radius: 6px;
-  cursor: inherit;
+  cursor: grab;
 }
 
-.sticker-select[aria-pressed="true"] { border: 2px dashed var(--primary-pink); }
+.sticker-select:active { cursor: grabbing; }
+.sticker-select[aria-pressed="true"] { border-color: #523884; outline: 1px solid white; }
 
-.sticker-delete {
-  position: absolute;
-  top: -10px;
-  right: -10px;
-  width: 24px;
-  height: 24px;
-  border: 1px solid #a00;
+.sticker-handle {
+  width: 23px;
+  height: 23px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #523884;
   border-radius: 50%;
   background: white;
-  color: #a00;
-  cursor: pointer;
+  color: #523884;
+  font: 700 16px/1 sans-serif;
 }
+
+.sticker-rotate { top: -9px; left: -9px; cursor: crosshair; }
+.sticker-resize { bottom: -9px; right: -9px; cursor: nwse-resize; }
+.sticker-delete { top: -9px; right: -9px; color: #a00; border-color: #a00; cursor: pointer; }
 
 .admin-demo-note {
   color: var(--text-dark);

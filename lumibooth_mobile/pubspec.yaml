@@ -23,3 +23,18 @@ flutter:
   uses-material-design: true
   assets:
     - assets/frames/
+    - assets/stickers/
+    - assets/fonts/
+  fonts:
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit.ttf
+    - family: Playfair Display
+      fonts:
+        - asset: assets/fonts/PlayfairDisplay.ttf
+    - family: Space Mono
+      fonts:
+        - asset: assets/fonts/SpaceMono.ttf
+    - family: Caveat
+      fonts:
+        - asset: assets/fonts/Caveat.ttf

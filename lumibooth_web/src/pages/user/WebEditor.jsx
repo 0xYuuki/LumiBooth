@@ -1,20 +1,26 @@
 import { useContext, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PhotoboothContext } from '../../context/photoboothContext';
-import { motion, useMotionValue } from 'framer-motion';
 import { BoothHeader, MiniStrip } from '../../components/BoothUI';
 import { toPng } from 'html-to-image';
 
 import { frameBackground, frameLibrary } from './frameLibrary';
 
-const stickerLibrary = ['✨', '💖', '🎀', '🧸', '🌸', '🍒', '🦋', '👑', '🎂', '🎉', '🌟', '🐾', '☁️', '🍓', '🍑', '🍭', '🧊', '💋', '💅', '🧚‍♀️', '🦄', '🌈', '🔥', '❤️‍🔥'];
+import StickerArt from './StickerArt';
+import { stickerPacks } from './stickerPacks';
+
+const captionLimit = 32;
+const signatureFonts = ['Outfit', 'Playfair Display', 'Space Mono', 'Caveat'];
 
 const WebEditor = () => {
   const { session, dispatch } = useContext(PhotoboothContext);
   const { photos, layout, stickers: placedStickers } = session;
   const selectedFrame = session.frame ?? frameLibrary.Templates[0];
+  const signatureFont = session.signatureFont ?? signatureFonts[0];
+  const caption = session.caption ?? selectedFrame.caption ?? 'THE PHOTO BOOTH';
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Frames');
+  const [stickerPack, setStickerPack] = useState(stickerPacks[0]);
   const [activeCategory, setActiveCategory] = useState(() =>
     session.frame
       ? Object.keys(frameLibrary).find((category) => frameLibrary[category].includes(selectedFrame)) ?? 'Illustrated'
@@ -29,9 +35,9 @@ const WebEditor = () => {
   useEffect(() => () => { exportJob.current = null; }, []);
 
   const edit = (changes) => dispatch({ type: 'edit', changes });
-  const addSticker = (emoji) => {
+  const addSticker = (art) => {
     const id = (placedStickers.at(-1)?.id ?? 0) + 1;
-    edit({ stickers: [...placedStickers, { id, emoji, size: 50, x: 0.4, y: 0.4 }] });
+    edit({ stickers: [...placedStickers, { id, art, size: art.url ? 72 : 50, angle: 0, x: 0.4, y: 0.4 }] });
     setSelectedStickerId(id);
   };
 
@@ -114,9 +120,9 @@ const WebEditor = () => {
                   : <img key={index} src={photo} alt={`Captured photo ${index + 1}`}
                       style={{ borderRadius: selectedFrame.radius ?? 4 }} />
               ))}
-              <div className="strip-signature" style={{ borderTop: selectedFrame.rule ? '1px solid currentColor' : undefined, paddingBottom: selectedFrame.footer, backgroundColor: selectedFrame.signaturePaper ? selectedFrame.bg : undefined }}>
+              <div className="strip-signature" style={{ fontFamily: `"${signatureFont}", sans-serif`, borderTop: selectedFrame.rule ? '1px solid currentColor' : undefined, paddingBottom: selectedFrame.footer, backgroundColor: selectedFrame.signaturePaper ? selectedFrame.bg : undefined }}>
                 <strong>LumiBooth</strong>
-                <span>{selectedFrame.caption ?? 'THE PHOTO BOOTH'}</span>
+                <span className="strip-caption">{caption.trim()}</span>
               </div>
               {placedStickers.map((sticker) => (
                 <StripSticker
@@ -126,7 +132,7 @@ const WebEditor = () => {
                   constraintsRef={constraintsRef}
                   disabled={exporting}
                   onSelect={() => setSelectedStickerId(sticker.id)}
-                  onMove={(position) => updateSticker(sticker.id, position)}
+                  onChange={(changes) => updateSticker(sticker.id, changes)}
                   onDelete={() => deleteSticker(sticker.id)}
                 />
               ))}
@@ -166,21 +172,65 @@ const WebEditor = () => {
             )}
             {activeTab === 'Stickers' && (
               <>
-                <p className="sticker-help">Drag a sticker or focus it and use the arrow keys to move it.</p>
-                <div className="sticker-gallery">
-                  {stickerLibrary.map((emoji) => (
-                    <button key={emoji} onClick={() => addSticker(emoji)}>{emoji}</button>
+                <p className="sticker-help">Drag a sticker to move it. Use its corner handles to rotate or resize it.</p>
+                <label className="sticker-pack-picker">
+                  Sticker pack
+                  <select value={stickerPack.id} onChange={(event) => setStickerPack(
+                    stickerPacks.find((pack) => pack.id === event.target.value),
+                  )}>
+                    {stickerPacks.map((pack) => <option key={pack.id} value={pack.id}>{pack.name}</option>)}
+                  </select>
+                </label>
+                <div className={`sticker-gallery${stickerPack.id === 'emoji' ? '' : ' sticker-image-gallery'}`}>
+                  {stickerPack.items.map((art) => (
+                    <button key={art.name} title={art.name} aria-label={art.name} onClick={() => addSticker(art)}>
+                      <StickerArt art={art} />
+                    </button>
                   ))}
                 </div>
                 {selectedSticker && (
-                  <label className="sticker-size">
-                    Sticker size
-                    <input type="range" min="20" max="150" value={selectedSticker.size}
-                      onChange={(event) => updateSticker(selectedSticker.id, { size: Number(event.target.value) })} />
-                  </label>
+                  <>
+                    <label className="sticker-size">
+                      Sticker size
+                      <input type="range" min={minStickerSize} max={maxStickerSize} value={selectedSticker.size}
+                        onChange={(event) => updateSticker(selectedSticker.id, resizeSticker(
+                          selectedSticker, Number(event.target.value), constraintsRef.current,
+                        ))} />
+                    </label>
+                    <label className="sticker-size">
+                      Sticker rotation
+                      <input type="range" min="-180" max="180" value={selectedSticker.angle ?? 0}
+                        onChange={(event) => updateSticker(selectedSticker.id, { angle: Number(event.target.value) })} />
+                    </label>
+                  </>
                 )}
               </>
             )}
+            <div className="caption-tools">
+              <label htmlFor="strip-font">Strip font</label>
+              <select id="strip-font" value={signatureFont} onChange={(event) => edit({ signatureFont: event.target.value })}>
+                {signatureFonts.map((font) => <option key={font}>{font}</option>)}
+              </select>
+              <label htmlFor="strip-caption">Caption under LumiBooth (optional)</label>
+              <input
+                id="strip-caption"
+                type="text"
+                maxLength={captionLimit}
+                value={caption}
+                placeholder="Write a short caption"
+                aria-describedby="caption-limit"
+                onChange={(event) => edit({ caption: event.target.value })}
+              />
+              <small id="caption-limit">{caption.length}/{captionLimit} characters</small>
+              <div className="caption-actions">
+                <button type="button" className="booth-link" disabled={!caption.trim()} onClick={() => edit({ caption: '' })}>
+                  Remove caption
+                </button>
+                <button type="button" className="booth-link" disabled={session.caption == null} onClick={() => edit({ caption: null })}>
+                  Use frame caption
+                </button>
+              </div>
+            </div>
           </fieldset>
         </div>
       </main>
@@ -211,22 +261,76 @@ const arrowOffsets = {
   ArrowDown: [0, 10],
 };
 
-function offsetPosition(position, offset, travel) {
-  return travel > 0 ? Math.max(0, Math.min(1, position + offset / travel)) : position;
+const minStickerSize = 32;
+const maxStickerSize = 150;
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
-function StripSticker({ sticker, selected, constraintsRef, disabled, onSelect, onMove, onDelete }) {
-  const stickerRef = useRef(null);
-  const dragX = useMotionValue(0);
-  const dragY = useMotionValue(0);
+function positionForPixels(left, top, size, strip) {
+  return {
+    x: clamp(left / Math.max(1, strip.clientWidth - size), 0, 1),
+    y: clamp(top / Math.max(1, strip.clientHeight - size), 0, 1),
+  };
+}
 
-  const move = (offsetX, offsetY) => {
+function moveSticker(sticker, dx, dy, strip) {
+  const left = sticker.x * (strip.clientWidth - sticker.size);
+  const top = sticker.y * (strip.clientHeight - sticker.size);
+  return positionForPixels(left + dx, top + dy, sticker.size, strip);
+}
+
+function resizeSticker(sticker, nextSize, strip) {
+  const size = clamp(nextSize, minStickerSize, Math.min(maxStickerSize, strip.clientWidth, strip.clientHeight));
+  const left = sticker.x * (strip.clientWidth - sticker.size);
+  const top = sticker.y * (strip.clientHeight - sticker.size);
+  return { size, ...positionForPixels(left, top, size, strip) };
+}
+
+function StripSticker({ sticker, selected, constraintsRef, disabled, onSelect, onChange, onDelete }) {
+  const stickerRef = useRef(null);
+  const gesture = useRef(null);
+
+  const start = (event, mode) => {
+    event.stopPropagation();
+    if (disabled || gesture.current || event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const bounds = stickerRef.current.getBoundingClientRect();
+    const centerX = bounds.left + bounds.width / 2;
+    const centerY = bounds.top + bounds.height / 2;
+    gesture.current = {
+      mode,
+      pointer: event.pointerId,
+      sticker,
+      x: event.clientX,
+      y: event.clientY,
+      centerX,
+      centerY,
+      startAngle: Math.atan2(event.clientY - centerY, event.clientX - centerX),
+    };
+    onSelect();
+  };
+
+  const drag = (event) => {
+    const active = gesture.current;
+    if (!active || event.pointerId !== active.pointer || disabled) return;
     const strip = constraintsRef.current;
-    const element = stickerRef.current;
-    onMove({
-      x: offsetPosition(sticker.x, offsetX, strip.clientWidth - element.offsetWidth),
-      y: offsetPosition(sticker.y, offsetY, strip.clientHeight - element.offsetHeight),
-    });
+    const dx = event.clientX - active.x;
+    const dy = event.clientY - active.y;
+    if (active.mode === 'move') {
+      onChange(moveSticker(active.sticker, dx, dy, strip));
+    } else if (active.mode === 'resize') {
+      onChange(resizeSticker(active.sticker, Math.round(active.sticker.size + (dx + dy) / 2), strip));
+    } else {
+      const radians = Math.atan2(event.clientY - active.centerY, event.clientX - active.centerX);
+      const angle = Math.round((active.sticker.angle ?? 0) + (radians - active.startAngle) * 180 / Math.PI);
+      onChange({ angle: ((angle % 360 + 540) % 360) - 180 });
+    }
+  };
+
+  const finish = (event) => {
+    if (gesture.current?.pointer === event.pointerId) gesture.current = null;
   };
 
   const handleArrowKey = (event) => {
@@ -234,58 +338,58 @@ function StripSticker({ sticker, selected, constraintsRef, disabled, onSelect, o
     if (!offset) return;
     event.preventDefault();
     onSelect();
-    move(...offset);
+    onChange(moveSticker(sticker, ...offset, constraintsRef.current));
   };
 
   return (
-    <motion.div
+    <div
       ref={stickerRef}
-      drag={!disabled}
-      dragConstraints={constraintsRef}
-      dragElastic={0}
-      dragMomentum={false}
-      onDragEnd={() => {
-        move(dragX.get(), dragY.get());
-        dragX.jump(0);
-        dragY.jump(0);
-      }}
-      onPointerDown={(event) => event.stopPropagation()}
+      onPointerMove={drag}
+      onPointerUp={finish}
+      onPointerCancel={finish}
+      onLostPointerCapture={finish}
       style={{
-        x: dragX,
-        y: dragY,
         '--sticker-size': `${sticker.size}px`,
         left: `calc((100% - var(--sticker-size)) * ${sticker.x})`,
         top: `calc((100% - var(--sticker-size)) * ${sticker.y})`,
       }}
       className="strip-sticker"
     >
-      <span aria-hidden="true">{sticker.emoji}</span>
+      <div className="sticker-visual" style={{ transform: `rotate(${sticker.angle ?? 0}deg)` }}>
+        <StickerArt art={sticker.art} />
+      </div>
       <button
         type="button"
         className="sticker-select"
         data-editor-only
         disabled={disabled}
-        aria-label={`Select ${sticker.emoji} sticker`}
+        aria-label={`Select ${sticker.art.name} sticker`}
         aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
         aria-pressed={selected}
-        onPointerDown={onSelect}
+        onPointerDown={(event) => start(event, 'move')}
         onClick={onSelect}
         onKeyDown={handleArrowKey}
       />
       {selected && (
-        <button
-          type="button"
-          className="sticker-delete"
-          data-editor-only
-          disabled={disabled}
-          aria-label={`Remove ${sticker.emoji} sticker`}
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={onDelete}
-        >
-          ×
-        </button>
+        <>
+          <button type="button" className="sticker-handle sticker-rotate" data-editor-only
+            aria-label="Rotate sticker" title="Drag to rotate" disabled={disabled}
+            onPointerDown={(event) => start(event, 'rotate')}
+            onClick={(event) => {
+              if (event.detail === 0) onChange({ angle: ((sticker.angle ?? 0) + 195) % 360 - 180 });
+            }}>↻</button>
+          <button type="button" className="sticker-handle sticker-resize" data-editor-only
+            aria-label="Resize sticker" title="Drag to resize" disabled={disabled}
+            onPointerDown={(event) => start(event, 'resize')}
+            onClick={(event) => {
+              if (event.detail === 0) onChange(resizeSticker(sticker, sticker.size + 10, constraintsRef.current));
+            }}>↘</button>
+          <button type="button" className="sticker-handle sticker-delete" data-editor-only
+            disabled={disabled} aria-label={`Remove ${sticker.art.name} sticker`}
+            onPointerDown={(event) => event.stopPropagation()} onClick={onDelete}>×</button>
+        </>
       )}
-    </motion.div>
+    </div>
   );
 }
 

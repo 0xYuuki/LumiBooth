@@ -7,7 +7,7 @@ export const layouts = [
 ];
 
 export function createSession(layout) {
-  return { layout, photos: [], frame: null, stickers: [], output: null };
+  return { layout, photos: [], frame: null, caption: null, signatureFont: null, stickers: [], output: null };
 }
 
 export function sessionReducer(session, action) {

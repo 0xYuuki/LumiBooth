@@ -1,3 +1,24 @@
+@font-face {
+  font-family: "Playfair Display";
+  src: url("/fonts/PlayfairDisplay.ttf") format("truetype");
+  font-weight: 400 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Space Mono";
+  src: url("/fonts/SpaceMono.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Caveat";
+  src: url("/fonts/Caveat.ttf") format("truetype");
+  font-weight: 400 700;
+  font-display: swap;
+}
+
 .booth-shell {
   --paper: #faf8f4;
   --ink: #23202a;
@@ -183,8 +204,36 @@
   gap: 3px;
   padding-top: 8px;
 }
-.strip-signature strong { font-family: Georgia, serif; font-size: 1rem; }
-.strip-signature span { font-size: 0.6rem; letter-spacing: 0.13em; }
+.strip-signature strong { font-size: 1rem; }
+.strip-caption {
+  max-width: 100%;
+  min-height: 1.2em;
+  line-height: 1.2;
+  font-size: 0.6rem;
+  letter-spacing: 0.13em;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.caption-tools {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+.caption-tools input, .caption-tools select {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: inherit;
+  background: white;
+  font: inherit;
+}
+.caption-tools small { color: var(--muted); }
+.caption-actions { display: flex; flex-wrap: wrap; gap: 0.2rem 0.8rem; }
+.caption-actions button:disabled { opacity: 0.5; cursor: default; text-decoration: none; }
 .design-tools {
   align-self: start;
   min-width: 0;
@@ -253,3 +302,10 @@
 .illustrated-window img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .illustrated-overlay { inset: 0; width: 100%; height: 100%; }
 .illustrated-thumbnail { display: block; width: 100%; max-width: 88px; padding: 3px; border-radius: 4px; }
+
+
+.sticker-pack-picker { display: grid; gap: 0.35rem; margin: 0.75rem 0; font-size: 0.88rem; }
+.sticker-pack-picker select { padding: 0.55rem; background: white; border: 1px solid var(--line); border-radius: 8px; color: inherit; font: inherit; }
+.sticker-image-gallery { grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); max-height: 18rem; overflow-y: auto; }
+.sticker-image-gallery button { display: grid; place-items: center; height: 54px; padding: 5px; }
+.sticker-art { display: block; background-repeat: no-repeat; pointer-events: none; }

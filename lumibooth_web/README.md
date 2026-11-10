@@ -23,7 +23,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-The browser tests use a simulated camera and check the built site.
+The browser tests use a simulated camera and check the built site, including image sticker export. The editor offers Emoji and seven image sticker packs under **Stickers**.
 
 ## Deploy
 

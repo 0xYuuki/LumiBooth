@@ -36,7 +36,9 @@ void main() {
     expect(find.text('Start photo booth'), findsOneWidget);
   });
 
-  testWidgets('three captures open the frame editor', (tester) async {
+  testWidgets('three captures open the frame and caption editor', (
+    tester,
+  ) async {
     final image = await tester.runAsync(() async {
       final recorder = ui.PictureRecorder();
       Canvas(recorder).drawColor(Colors.green, BlendMode.src);
@@ -65,15 +67,16 @@ void main() {
       }
     }
     expect(find.text('Make it yours.'), findsOneWidget);
+    final editorScroll = find
+        .descendant(
+          of: find.byKey(const ValueKey('editor')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
     await tester.scrollUntilVisible(
       find.text('Soft Postcard'),
       140,
-      scrollable: find
-          .descendant(
-            of: find.byKey(const ValueKey('editor')),
-            matching: find.byType(Scrollable),
-          )
-          .first,
+      scrollable: editorScroll,
     );
     final target = find.text('Soft Postcard');
     await Scrollable.ensureVisible(tester.element(target), alignment: .4);
@@ -85,6 +88,47 @@ void main() {
       matching: find.byType(ChoiceChip),
     );
     expect(tester.widget<ChoiceChip>(chip).selected, isTrue);
+    final captionField = find.byType(TextField);
+    String caption() => tester.widget<TextField>(captionField).controller!.text;
+    await tester.scrollUntilVisible(
+      captionField,
+      -100,
+      scrollable: editorScroll,
+    );
+    await Scrollable.ensureVisible(tester.element(captionField), alignment: .4);
+    await tester.pumpAndSettle();
+    expect(caption(), StripFrame.postcard.caption);
+    await tester.enterText(
+      captionField,
+      '123456789012345678901234567890123456',
+    );
+    expect(caption(), '12345678901234567890123456789012');
+    await tester.enterText(captionField, 'Manila memories');
+    await tester.pump();
+    StripDesign currentDesign() => tester
+        .widgetList<CustomPaint>(find.byType(CustomPaint))
+        .map((widget) => widget.painter)
+        .whereType<StripPainter>()
+        .singleWhere((painter) => painter.design.photos.length == 3)
+        .design;
+    expect(currentDesign().footerCaption, 'Manila memories');
+    await tester.tap(find.text('Remove caption'));
+    await tester.pump();
+    expect(caption(), isEmpty);
+    expect(currentDesign().footerCaption, isEmpty);
+    await tester.tap(find.text('Use frame caption'));
+    await tester.pump();
+    expect(currentDesign().footerCaption, StripFrame.postcard.caption);
+    final font = find.byType(DropdownButtonFormField<StripFont>);
+    await tester.scrollUntilVisible(font, -100, scrollable: editorScroll);
+    await Scrollable.ensureVisible(tester.element(font), alignment: .35);
+    await tester.pumpAndSettle();
+    await tester.tap(font);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Caveat').last);
+    await tester.pumpAndSettle();
+    expect(currentDesign().font, StripFont.caveat);
+    expect(currentDesign().footerCaption, StripFrame.postcard.caption);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
   });

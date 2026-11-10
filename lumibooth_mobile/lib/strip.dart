@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'sticker_pack.dart';
+
 class StripLayout {
   const StripLayout(this.name, this.count, this.columns);
 
@@ -256,11 +258,71 @@ class FrameImages {
 }
 
 class StripSticker {
-  const StripSticker(this.symbol, this.position, this.size);
+  const StripSticker(
+    this.symbol,
+    this.position,
+    this.size, {
+    this.image,
+    this.source,
+    this.angle = 0,
+  });
+
+  final ui.Image? image;
+  final Rect? source;
+
+  StripSticker copyWith({Offset? position, double? size, double? angle}) =>
+      StripSticker(
+        symbol,
+        position ?? this.position,
+        size ?? this.size,
+        image: image,
+        source: source,
+        angle: angle ?? this.angle,
+      );
+
+  static const minSize = 32.0;
+  static const maxSize = 150.0;
 
   final String symbol;
   final Offset position;
   final double size;
+  final double angle;
+
+  Offset _topLeft(Size strip) => Offset(
+    position.dx * (strip.width - size),
+    position.dy * (strip.height - size),
+  );
+
+  Offset _normalize(Offset topLeft, double size, Size strip) => Offset(
+    (topLeft.dx / math.max(1, strip.width - size)).clamp(0.0, 1.0),
+    (topLeft.dy / math.max(1, strip.height - size)).clamp(0.0, 1.0),
+  );
+
+  StripSticker moveBy(Offset delta, Size strip) =>
+      copyWith(position: _normalize(_topLeft(strip) + delta, size, strip));
+
+  StripSticker resizeTo(double value, Size strip) {
+    final limit = math.min(maxSize, strip.shortestSide);
+    final next = value.clamp(math.min(minSize, limit), limit).toDouble();
+    return copyWith(
+      size: next,
+      position: _normalize(_topLeft(strip), next, strip),
+    );
+  }
+
+  StripSticker rotateBy(double degrees) =>
+      copyWith(angle: ((angle + degrees + 180) % 360) - 180);
+}
+
+enum StripFont {
+  outfit('Outfit'),
+  playfair('Playfair Display'),
+  spaceMono('Space Mono'),
+  caveat('Caveat');
+
+  const StripFont(this.family);
+
+  final String family;
 }
 
 class StripDesign {
@@ -270,6 +332,8 @@ class StripDesign {
     this.photos = const [],
     this.stickers = const [],
     this.frameImages,
+    this.caption,
+    this.font = StripFont.outfit,
   });
 
   final StripLayout layout;
@@ -277,6 +341,10 @@ class StripDesign {
   final List<ui.Image> photos;
   final List<StripSticker> stickers;
   final FrameImages? frameImages;
+  final String? caption;
+  final StripFont font;
+
+  String get footerCaption => (caption ?? frame.caption).trim();
 
   double get width => layout.columns == 1 && layout.count > 1 ? 220 : 360;
   double get cellWidth =>
@@ -420,24 +488,48 @@ class StripPainter extends CustomPainter {
       canvas,
       'LumiBooth',
       Offset(original.width / 2, footer + 8),
-      TextStyle(color: frame.ink, fontSize: 17, fontWeight: FontWeight.w700),
+      TextStyle(
+        color: frame.ink,
+        fontFamily: design.font.family,
+        fontSize: 17,
+        fontWeight: FontWeight.w700,
+      ),
     );
-    _text(
-      canvas,
-      frame.caption,
-      Offset(original.width / 2, footer + 28),
-      TextStyle(color: frame.ink, fontSize: 9, letterSpacing: 1.5),
-    );
+    final caption = design.footerCaption;
+    if (caption.isNotEmpty) {
+      _text(
+        canvas,
+        caption,
+        Offset(original.width / 2, footer + 28),
+        TextStyle(
+          color: frame.ink,
+          fontFamily: design.font.family,
+          fontSize: 9,
+          letterSpacing: 1.5,
+        ),
+        maxWidth: original.width - 54,
+      );
+    }
 
     for (var i = 0; i < design.stickers.length; i++) {
       final sticker = design.stickers[i];
       final bounds = stickerBounds(design, sticker);
-      _text(
-        canvas,
-        sticker.symbol,
-        bounds.center,
-        TextStyle(fontSize: sticker.size * 0.8),
-      );
+      canvas.save();
+      canvas.translate(bounds.center.dx, bounds.center.dy);
+      canvas.rotate(sticker.angle * math.pi / 180);
+      canvas.translate(-bounds.center.dx, -bounds.center.dy);
+      final image = sticker.image;
+      if (image != null) {
+        StickerImagePainter.draw(canvas, image, sticker.source!, bounds);
+      } else {
+        _text(
+          canvas,
+          sticker.symbol,
+          bounds.center,
+          TextStyle(fontSize: sticker.size * 0.8),
+        );
+      }
+      canvas.restore();
       if (i == selected) {
         canvas.drawRRect(
           RRect.fromRectAndRadius(bounds, const Radius.circular(4)),
@@ -589,16 +681,26 @@ class StripPainter extends CustomPainter {
     }
   }
 
-  void _text(Canvas canvas, String value, Offset center, TextStyle style) {
+  void _text(
+    Canvas canvas,
+    String value,
+    Offset center,
+    TextStyle style, {
+    double? maxWidth,
+  }) {
     final painter = TextPainter(
       text: TextSpan(text: value, style: style),
       textDirection: TextDirection.ltr,
       maxLines: 1,
     )..layout();
-    painter.paint(
-      canvas,
-      center - Offset(painter.width / 2, painter.height / 2),
-    );
+    final scale = maxWidth != null && painter.width > maxWidth
+        ? maxWidth / painter.width
+        : 1.0;
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.scale(scale);
+    painter.paint(canvas, Offset(-painter.width / 2, -painter.height / 2));
+    canvas.restore();
     painter.dispose();
   }
 

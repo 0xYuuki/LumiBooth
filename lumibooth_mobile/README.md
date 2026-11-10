@@ -1,6 +1,6 @@
 # LumiBooth Mobile
 
-A Flutter photo booth for Android and iOS. Choose a layout with 1, 2, 3, 4, or 6 photos, capture them with the device camera, then decorate the strip with one of 19 frames, including Tube TV, Camera Film, Vinyl Instant, Love Scrapbook, and Retro Zine. Tap to add a sticker, drag it into place, and use the size control to resize it.
+A Flutter photo booth for Android and iOS. Choose a layout with 1, 2, 3, 4, or 6 photos, capture them with the device camera, then decorate the strip with one of 19 frames, including Tube TV, Camera Film, Vinyl Instant, Love Scrapbook, and Retro Zine. Choose Emoji or one of seven image packs. Tap a sticker to add it, drag it into place, and use its corner handles to resize or rotate it. Edit the optional caption under LumiBooth with up to 32 characters, or remove it. **Strip font** applies your choice to both the name and the caption.
 
 ## Run on a phone
 

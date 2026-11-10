@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { PhotoboothContext } from '../../context/photoboothContext';
 import { BoothHeader, MiniStrip } from '../../components/BoothUI';
+import { printToPlayEnabled, remoteBoothEnabled } from '../../online/lumiClient';
 
 export default function WebWelcome() {
   const { dispatch } = useContext(PhotoboothContext);
@@ -19,6 +20,8 @@ export default function WebWelcome() {
           <Link className="booth-button" to="/layout">
             Start photo booth <ArrowRight size={18} aria-hidden="true" />
           </Link>
+          {remoteBoothEnabled && <Link className="booth-button booth-secondary" to="/room">Booth with a friend</Link>}
+          {printToPlayEnabled && <Link className="booth-link" to="/print-links">Manage gallery links</Link>}
         </div>
         <div className="hero-art" aria-hidden="true">
           <MiniStrip count={3} columns={1} />

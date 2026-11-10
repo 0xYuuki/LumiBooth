@@ -11,6 +11,11 @@ import WebEditor from './pages/user/WebEditor';
 import WebPreview from './pages/user/WebPreview';
 import { PhotoboothProvider } from './context/PhotoboothProvider';
 import { PhotoboothContext } from './context/photoboothContext';
+import { requiredPhotos } from './context/photoboothSession';
+import { printToPlayEnabled, remoteBoothEnabled } from './online/lumiClient';
+import SharedStrip from './online/SharedStrip';
+import PrintLinks from './online/PrintLinks';
+import RemoteBooth from './online/RemoteBooth';
 
 const AdminLayout = () => {
   return (
@@ -47,7 +52,7 @@ function GuestStep({ step, children }) {
   const { session } = useContext(PhotoboothContext);
   if (!session) return <Navigate to="/" replace />;
 
-  const complete = session.photos.length === session.layout.count;
+  const complete = session.photos.length === requiredPhotos(session.layout);
   if (step === 'camera' && complete) return <Navigate to="/editor" replace />;
   if (step !== 'camera' && !complete) return <Navigate to="/camera" replace />;
   if (step === 'preview' && !session.output) return <Navigate to="/editor" replace />;
@@ -65,6 +70,9 @@ const App = () => {
           <Route path="/camera" element={<GuestStep step="camera"><WebCamera /></GuestStep>} />
           <Route path="/editor" element={<GuestStep step="editor"><WebEditor /></GuestStep>} />
           <Route path="/preview" element={<GuestStep step="preview"><WebPreview /></GuestStep>} />
+          <Route path="/p" element={<SharedStrip />} />
+          {printToPlayEnabled && <Route path="/print-links" element={<PrintLinks />} />}
+          {remoteBoothEnabled && <Route path="/room" element={<RemoteBooth />} />}
 
           {/* Admin Dashboard */}
           <Route path="/admin" element={<AdminLayout />}>

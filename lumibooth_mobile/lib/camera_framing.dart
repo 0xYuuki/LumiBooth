@@ -1,8 +1,10 @@
+import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
+import 'package:image/image.dart' as image;
 
 const _frameWidth = 4;
 const _frameHeight = 3;
@@ -57,4 +59,23 @@ Future<ui.Image> decodeCameraPhoto(Uint8List bytes) async {
   } finally {
     image.dispose();
   }
+}
+
+Future<Uint8List> encodeCameraJpeg(ui.Image photo) async {
+  final width = photo.width;
+  final height = photo.height;
+  final data = await photo.toByteData(format: ui.ImageByteFormat.rawRgba);
+  if (data == null) throw StateError('Could not read the camera photo.');
+  final pixels = data.buffer;
+  return Isolate.run(
+    () => image.encodeJpg(
+      image.Image.fromBytes(
+        width: width,
+        height: height,
+        bytes: pixels,
+        numChannels: 4,
+      ),
+      quality: 92,
+    ),
+  );
 }

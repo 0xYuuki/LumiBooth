@@ -19,8 +19,7 @@ const WebCamera = () => {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [cameraKey, setCameraKey] = useState(0);
-  const [motionOn, setMotionOn] = useState(false);
-  const motionBuffer = useMotionCapture(webcamRef, motionOn && ready);
+  const motionBuffer = useMotionCapture(webcamRef, ready);
 
   useEffect(() => {
     const cancelCountdown = () => {
@@ -42,7 +41,7 @@ const WebCamera = () => {
 
   const capture = () => {
     const shutterTime = performance.now();
-    const motion = motionOn ? motionBuffer.take(shutterTime) : null;
+    const motion = motionBuffer.take(shutterTime);
     try {
       const canvas = document.createElement('canvas');
       const context = canvas.getContext('2d');
@@ -60,7 +59,7 @@ const WebCamera = () => {
   const handleCaptureClick = () => {
     if (!ready || timeout.current !== null) return;
     const now = performance.now();
-    const delay = Math.max(timer * 1000, motionOn ? motionBuffer.remaining(now) : 0);
+    const delay = Math.max(timer * 1000, motionBuffer.remaining(now));
     if (!delay) {
       capture();
       return;
@@ -127,11 +126,7 @@ const WebCamera = () => {
           </div>
         )}
 
-        <label className="motion-toggle">
-          <input type="checkbox" checked={motionOn} disabled={!ready || countdown > 0}
-            onChange={(event) => setMotionOn(event.target.checked)} />
-          <span>Motion Photo <small>Waits as needed for {motionSeconds} seconds of motion before each shot</small></span>
-        </label>
+        <p className="capture-motion-note">Automatically keeps up to {motionSeconds} seconds of motion before each shot.</p>
         <div className="capture-controls">
           <button className="booth-button booth-secondary" aria-label={timer ? `Timer: ${timer} seconds` : 'Timer off'}
             disabled={countdown > 0}

@@ -15,17 +15,19 @@ class CapturePage extends StatefulWidget {
     required this.captured,
     required this.total,
     required this.onPhoto,
+    this.remote = false,
   });
 
   final int captured;
   final int total;
   final void Function(ui.Image, {MotionClip? motion}) onPhoto;
+  final bool remote;
 
   @override
-  State<CapturePage> createState() => _CapturePageState();
+  State<CapturePage> createState() => CapturePageState();
 }
 
-class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
+class CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
   CameraController? _camera;
   Future<void> _closing = Future.value();
   int _generation = 0;
@@ -41,9 +43,12 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
   List<MotionFrame>? _captureMotionFrames;
   final _motionClock = Stopwatch()..start();
   DeviceOrientation? _motionOrientation;
-  bool _motionOn = false;
-  bool _changingMotion = false;
   bool _motionUnavailable = false;
+
+  bool get canCapture =>
+      !_busy && !_opening && (_camera?.value.isInitialized ?? false);
+
+  Future<void> captureForRoom() => _capture();
 
   @override
   void initState() {
@@ -86,7 +91,7 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
       );
       _camera = controller;
       await controller.initialize();
-      if (mounted && generation == _generation && _motionOn) {
+      if (mounted && generation == _generation && !widget.remote) {
         await _startMotion(controller, generation);
       }
     } on CameraException catch (error) {
@@ -125,7 +130,7 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
         throw UnsupportedError('Camera image streaming is unavailable.');
       }
       await camera.startImageStream((frame) {
-        if (!mounted || generation != _generation || !_motionOn || _busy) {
+        if (!mounted || generation != _generation || _busy) {
           return;
         }
         final orientation = camera.value.deviceOrientation;
@@ -159,34 +164,9 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
     try {
       await camera.stopImageStream();
     } catch (_) {
-      if (mounted && generation == _generation && _motionOn) {
+      if (mounted && generation == _generation) {
         setState(() => _motionUnavailable = true);
       }
-    }
-  }
-
-  Future<void> _toggleMotion(bool enabled) async {
-    final camera = _camera;
-    if (camera == null ||
-        !camera.value.isInitialized ||
-        _changingMotion ||
-        _busy) {
-      return;
-    }
-    final generation = _generation;
-    setState(() {
-      _motionOn = enabled;
-      _changingMotion = true;
-      _motionUnavailable = false;
-    });
-    _motionBuffer.clear();
-    if (enabled) {
-      await _startMotion(camera, generation);
-    } else {
-      await _stopMotion(camera, generation);
-    }
-    if (mounted && generation == _generation) {
-      setState(() => _changingMotion = false);
     }
   }
 
@@ -196,7 +176,7 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
     _captureMotionFrames?.clear();
     _captureMotionFrames = null;
     _motionOrientation = null;
-    _changingMotion = false;
+    _motionUnavailable = false;
     _timer?.cancel();
     _timer = null;
     _remaining = 0;
@@ -228,10 +208,10 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
   }
 
   void _takePhoto() {
-    if (_busy || _changingMotion || _remaining > 0) return;
+    if (_busy || _remaining > 0) return;
     final now = _motionClock.elapsedMicroseconds;
     final timerDelay = Duration(seconds: _delay);
-    final motionDelay = _motionOn && !_motionUnavailable
+    final motionDelay = !widget.remote && !_motionUnavailable
         ? _motionBuffer.remaining(now)
         : Duration.zero;
     final delay = timerDelay > motionDelay ? timerDelay : motionDelay;
@@ -262,7 +242,7 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
     if (_busy || camera == null || !camera.value.isInitialized) return;
     final generation = _generation;
     final capturedBefore = widget.captured;
-    final motion = _motionOn
+    final motion = !widget.remote
         ? _motionBuffer.take(_motionClock.elapsedMicroseconds)
         : null;
     final motionFrames = motion?.frames;
@@ -274,7 +254,7 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
     });
     XFile? file;
     try {
-      if (_motionOn) await _stopMotion(camera, generation);
+      if (!widget.remote) await _stopMotion(camera, generation);
       if (!mounted || generation != _generation) return;
       file = await camera.takePicture();
       final photo = await decodeCameraPhoto(await file.readAsBytes());
@@ -301,7 +281,7 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
         }
       }
       if (mounted && generation == _generation) {
-        if (_motionOn &&
+        if (!widget.remote &&
             capturedBefore + (capturedPhoto ? 1 : 0) < widget.total) {
           await _startMotion(camera, generation);
         }
@@ -321,7 +301,7 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final camera = _camera;
     final ready = !_opening && (camera?.value.isInitialized ?? false);
-    final locked = _busy || _changingMotion || _remaining > 0;
+    final locked = _busy || _remaining > 0;
     final canSwitch =
         _cameras.any(
           (camera) => camera.lensDirection == CameraLensDirection.front,
@@ -388,54 +368,51 @@ class _CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
           if (!ready && !_opening)
             TextButton(onPressed: _retry, child: const Text('Retry camera')),
         ],
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Motion Photo'),
-          subtitle: Text(
-            _motionOn && _motionUnavailable
+        if (!widget.remote) ...[
+          const SizedBox(height: 12),
+          Text(
+            _motionUnavailable
                 ? 'Motion is unavailable on this camera. You can still take photos.'
-                : 'Waits as needed for $motionSeconds seconds of motion before each shot',
+                : 'Automatically keeps up to $motionSeconds seconds of motion before each shot.',
+            textAlign: TextAlign.center,
           ),
-          value: _motionOn,
-          onChanged: ready && !locked
-              ? (enabled) => unawaited(_toggleMotion(enabled))
-              : null,
-        ),
+        ],
         const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.center,
-          children: [
-            OutlinedButton.icon(
-              onPressed: locked
-                  ? null
-                  : () => setState(
-                      () => _delay = switch (_delay) {
-                        0 => 3,
-                        3 => 5,
-                        5 => 10,
-                        _ => 0,
-                      },
-                    ),
-              icon: const Icon(Icons.timer_outlined),
-              label: Text(_delay == 0 ? 'Timer off' : '${_delay}s timer'),
-            ),
-            FilledButton.icon(
-              onPressed: ready && !locked ? _takePhoto : null,
-              icon: const Icon(Icons.camera_alt_outlined),
-              label: const Text('Take photo'),
-            ),
-            if (canSwitch)
-              IconButton(
-                tooltip: 'Switch camera',
-                onPressed: ready && !locked
-                    ? () => _retry(switchCamera: true)
-                    : null,
-                icon: const Icon(Icons.cameraswitch_outlined),
+        if (!widget.remote)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: locked
+                    ? null
+                    : () => setState(
+                        () => _delay = switch (_delay) {
+                          0 => 3,
+                          3 => 5,
+                          5 => 10,
+                          _ => 0,
+                        },
+                      ),
+                icon: const Icon(Icons.timer_outlined),
+                label: Text(_delay == 0 ? 'Timer off' : '${_delay}s timer'),
               ),
-          ],
-        ),
+              FilledButton.icon(
+                onPressed: ready && !locked ? _takePhoto : null,
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: const Text('Take photo'),
+              ),
+              if (canSwitch)
+                IconButton(
+                  tooltip: 'Switch camera',
+                  onPressed: ready && !locked
+                      ? () => _retry(switchCamera: true)
+                      : null,
+                  icon: const Icon(Icons.cameraswitch_outlined),
+                ),
+            ],
+          ),
       ],
     );
   }

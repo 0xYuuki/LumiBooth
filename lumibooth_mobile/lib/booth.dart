@@ -4,13 +4,18 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:pdf/widgets.dart' as pdf;
-import 'package:printing/printing.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:share_plus/share_plus.dart';
 
+import 'camera_framing.dart';
 import 'capture.dart';
+import 'gallery_qr.dart';
 import 'motion_photo.dart';
+import 'motion_strip_export.dart';
 import 'motion_strip_view.dart';
+import 'online_booth.dart';
+import 'print_strip.dart';
+import 'remote_booth.dart';
 import 'strip.dart';
 import 'sticker_pack.dart';
 import 'sticker_controls.dart';
@@ -69,6 +74,35 @@ class _WelcomePage extends StatelessWidget {
               icon: const Icon(Icons.arrow_forward),
               label: const Text('Start photo booth'),
             ),
+            if (OnlineBooth.remoteEnabled)
+              OutlinedButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => RemoteBoothPage(
+                      onDesign: (context, room, photos) =>
+                          Navigator.of(context).push<void>(
+                            MaterialPageRoute(
+                              builder: (_) => _SessionPage(
+                                layout: StripLayout.remoteDuo,
+                                initialPhotos: photos,
+                                roomId: room,
+                              ),
+                            ),
+                          ),
+                    ),
+                  ),
+                ),
+                child: const Text('Booth with a friend'),
+              ),
+            if (OnlineBooth.printEnabled)
+              TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const _PrintLinksPage(),
+                  ),
+                ),
+                child: const Text('Manage gallery links'),
+              ),
             const SizedBox(height: 24),
             const _Stage(
               child: Row(
@@ -153,9 +187,15 @@ class _LayoutPage extends StatelessWidget {
 }
 
 class _SessionPage extends StatefulWidget {
-  const _SessionPage({required this.layout});
+  const _SessionPage({
+    required this.layout,
+    this.initialPhotos = const [],
+    this.roomId,
+  });
 
   final StripLayout layout;
+  final List<ui.Image> initialPhotos;
+  final String? roomId;
 
   @override
   State<_SessionPage> createState() => _SessionPageState();
@@ -190,8 +230,14 @@ class _SessionPageState extends State<_SessionPage>
   int? _selected;
   bool _exporting = false;
   bool _sharing = false;
+  bool _preparingMotion = false;
+  int _motionGeneration = 0;
+  Uint8List? _motionStrip;
+  Map<String, dynamic>? _printTicket;
+  bool? _galleryHasMotion;
+  ({String url, String expiresAt})? _printLink;
 
-  bool get _captured => _photos.length == widget.layout.count;
+  bool get _captured => _photos.length == widget.layout.requiredPhotos;
 
   StripDesign get _design => StripDesign(
     layout: widget.layout,
@@ -206,6 +252,12 @@ class _SessionPageState extends State<_SessionPage>
   @override
   void initState() {
     super.initState();
+    _photos.addAll(widget.initialPhotos);
+    if (widget.roomId != null) {
+      _caption = 'MILES APART, SAME MOMENT';
+      _captionController.text = _caption!;
+      unawaited(_chooseFrame(StripFrame.tubeTV));
+    }
     WidgetsBinding.instance.addObserver(this);
     _keepAlive();
   }
@@ -221,7 +273,11 @@ class _SessionPageState extends State<_SessionPage>
     _ending = true;
     _idle?.cancel();
     setState(_discardMotion);
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    if (widget.roomId != null) {
+      Navigator.of(context).pop();
+    } else {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
   }
 
   @override
@@ -234,6 +290,8 @@ class _SessionPageState extends State<_SessionPage>
   }
 
   void _discardMotion() {
+    _motionGeneration++;
+    _motionStrip = null;
     for (final job in _motionJobs.values) {
       job.cancel();
     }
@@ -375,32 +433,214 @@ class _SessionPageState extends State<_SessionPage>
     }
   }
 
-  Future<void> _print() async {
+  Future<void> _print({String? replayUrl, String? expiry}) async {
     final bytes = _png;
     if (bytes == null || _sharing) return;
     setState(() => _sharing = true);
     try {
-      await Printing.layoutPdf(
-        name: 'LumiBooth photo strip',
-        onLayout: (format) async {
-          final document = pdf.Document();
-          document.addPage(
-            pdf.Page(
-              pageFormat: format,
-              margin: const pdf.EdgeInsets.all(18),
-              build: (_) => pdf.Center(
-                child: pdf.Image(
-                  pdf.MemoryImage(bytes),
-                  fit: pdf.BoxFit.contain,
-                ),
-              ),
-            ),
-          );
-          return document.save();
-        },
-      );
+      await printStrip(bytes, replayUrl: replayUrl, expiry: expiry);
     } catch (_) {
       if (mounted) _message('Could not open printing. Try again.');
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
+  }
+
+  Future<Uint8List> _animatedStrip() async {
+    if (_motionStrip case final cached?) return cached;
+    final generation = _motionGeneration;
+    bool active() => mounted && !_ending && generation == _motionGeneration;
+    final bytes = await exportMotionStrip(
+      _design,
+      Map.of(_motionGifs),
+      active: active,
+    );
+    if (!active()) throw StateError('Motion is no longer available.');
+    return _motionStrip = bytes;
+  }
+
+  Future<void> _saveAnimation(BuildContext button) async {
+    setState(() => _preparingMotion = true);
+    try {
+      final gif = await _animatedStrip();
+      if (button.mounted && mounted) {
+        await _share(button, gif, 'lumibooth-motion-strip.gif', 'image/gif');
+      }
+    } catch (_) {
+      if (mounted) _message('Could not save the animated strip.');
+    } finally {
+      if (mounted) setState(() => _preparingMotion = false);
+    }
+  }
+
+  Future<void> _shareWithQr(Uint8List png, {required bool print}) async {
+    if (_printLink case final link?) {
+      await _showGallery(link, print: print);
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(print ? 'Print with QR' : 'Share with QR'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.memory(png, height: 140, fit: BoxFit.contain),
+            const SizedBox(height: 8),
+            Text(
+              'Upload your individual photos and finished strip'
+              '${_motionGifs.isNotEmpty ? ', including the animated GIF,' : ''} through '
+              '${MaterialLocalizations.of(dialog).formatShortDate(DateTime.now().add(const Duration(days: 90)))}. '
+              'Anyone with the code can view and download these files.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: Text(print ? 'Print without QR' : 'Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: Text(print ? 'Upload and print' : 'Upload and show QR'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed == null) return;
+    if (!confirmed) {
+      if (print) await _print();
+      return;
+    }
+    setState(() => _preparingMotion = true);
+    try {
+      Uint8List? gif;
+      if (_motionGifs.isNotEmpty) {
+        try {
+          gif = await _animatedStrip();
+          if (gif.length > 16 * 1024 * 1024) gif = null;
+        } catch (_) {
+          // The gallery can still share every still when animation export fails.
+        }
+        if (gif == null && mounted && !_ending) {
+          _message(
+            'The animation was unavailable. The gallery includes your still photos.',
+          );
+        }
+      }
+      final originals = <Uint8List>[];
+      for (final photo in _photos) {
+        if (!mounted || _ending) return;
+        originals.add(await encodeCameraJpeg(photo));
+      }
+      if (!mounted || _ending) return;
+      final hasMotion = gif != null;
+      if (_galleryHasMotion != hasMotion) _printTicket = null;
+      final resuming = _printTicket != null;
+      _printTicket ??= await OnlineBooth.request('share_begin', {
+        'originals': originals.length,
+        'hasMotion': hasMotion,
+      }) as Map<String, dynamic>;
+      _galleryHasMotion = hasMotion;
+      final ticket = _printTicket!;
+      if (!mounted || _ending) return;
+      final uploads = resuming
+          ? await OnlineBooth.request('share_uploads', {'id': ticket['id']})
+                as Map<String, dynamic>
+          : ticket;
+      if (!mounted || _ending) return;
+      if (uploads['published'] != true) {
+        await Future.wait([
+          OnlineBooth.upload(
+            uploads['poster'] as Map<String, dynamic>,
+            png,
+            'image/png',
+          ),
+          if (gif != null)
+            OnlineBooth.upload(
+              uploads['motion'] as Map<String, dynamic>,
+              gif,
+              'image/gif',
+            ),
+          for (final (index, photo) in originals.indexed)
+            OnlineBooth.upload(
+              (uploads['originals'] as List)[index] as Map<String, dynamic>,
+              photo,
+              'image/jpeg',
+            ),
+        ]);
+      }
+      final result = await OnlineBooth.request('share_publish', {
+        'id': ticket['id'],
+      });
+      if (!mounted || _ending) return;
+      final expiry = DateTime.parse(result['expiresAt'] as String).toLocal();
+      final link = (
+        url: OnlineBooth.publicLink('p', ticket['token'] as String).toString(),
+        expiresAt: MaterialLocalizations.of(context).formatShortDate(expiry),
+      );
+      setState(() => _printLink = link);
+      await _showGallery(link, print: print);
+    } catch (_) {
+      if (mounted) {
+        _message('Could not create a gallery link. Try again.');
+      }
+    } finally {
+      if (mounted) setState(() => _preparingMotion = false);
+    }
+  }
+
+  Future<void> _showGallery(
+    ({String url, String expiresAt}) link, {
+    required bool print,
+  }) async {
+    if (print) {
+      await _print(replayUrl: link.url, expiry: link.expiresAt);
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Scan to download photos'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GalleryQr(url: link.url),
+            Text('Gallery available until ${link.expiresAt}.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Clipboard.setData(ClipboardData(text: link.url)),
+            child: const Text('Copy link'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _sendToFriend(Uint8List png) async {
+    setState(() => _sharing = true);
+    final payload = {'id': widget.roomId};
+    try {
+      final ticket = await OnlineBooth.request(
+        'room_prepare_final',
+        payload,
+      ) as Map<String, dynamic>;
+      if (ticket['complete'] != true) {
+        await OnlineBooth.upload(ticket, png, 'image/png');
+        await OnlineBooth.request('room_finish', {
+          ...payload,
+          'attempt': ticket['asset'],
+        });
+      }
+      if (mounted) _finish();
+    } catch (_) {
+      if (mounted) _message('Could not send the strip. Try again.');
     } finally {
       if (mounted) setState(() => _sharing = false);
     }
@@ -433,6 +673,11 @@ class _SessionPageState extends State<_SessionPage>
 
   void _editStrip() {
     setState(() {
+      _motionGeneration++;
+      _motionStrip = null;
+      _printTicket = null;
+      _galleryHasMotion = null;
+      _printLink = null;
       _playingStrip = false;
       _playingMotion = null;
       _png = null;
@@ -445,7 +690,9 @@ class _SessionPageState extends State<_SessionPage>
     return PopScope(
       canPop: png == null,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _png != null) _editStrip();
+        if (!didPop && _png != null && !_preparingMotion && !_sharing) {
+          _editStrip();
+        }
       },
       child: Scaffold(
         appBar: AppBar(
@@ -471,7 +718,7 @@ class _SessionPageState extends State<_SessionPage>
                 ? _editor()
                 : CapturePage(
                     captured: _photos.length,
-                    total: widget.layout.count,
+                    total: widget.layout.requiredPhotos,
                     onPhoto: _onPhoto,
                   ),
           ),
@@ -797,6 +1044,19 @@ class _SessionPageState extends State<_SessionPage>
                 : null,
             child: Text(_playingStrip ? 'Stop strip' : 'Play strip'),
           ),
+        if (_motionGifs.isNotEmpty)
+          Builder(
+            builder: (button) => OutlinedButton(
+              onPressed: _preparingMotion || _sharing || _motionJobs.isNotEmpty
+                  ? null
+                  : () => _saveAnimation(button),
+              child: Text(
+                _preparingMotion
+                    ? 'Preparing animation…'
+                    : 'Save or share animated strip',
+              ),
+            ),
+          ),
         const SizedBox(height: 16),
         Builder(
           builder: (context) => FilledButton.icon(
@@ -810,12 +1070,33 @@ class _SessionPageState extends State<_SessionPage>
         ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
-          onPressed: _sharing ? null : _print,
+          onPressed: _sharing ? null : () => _print(),
           icon: const Icon(Icons.print_outlined),
           label: const Text('Print photo'),
         ),
+        if (OnlineBooth.printEnabled && widget.roomId == null) ...[
+          OutlinedButton(
+            onPressed: _sharing || _preparingMotion || _motionJobs.isNotEmpty
+                ? null
+                : () => _shareWithQr(png, print: false),
+            child: const Text('Share with QR'),
+          ),
+          OutlinedButton(
+            onPressed: _sharing || _preparingMotion || _motionJobs.isNotEmpty
+                ? null
+                : () => _shareWithQr(png, print: true),
+            child: const Text('Print with QR'),
+          ),
+        ],
+        if (_printLink case final link?)
+          Text('Gallery available until ${link.expiresAt}.'),
+        if (widget.roomId != null)
+          FilledButton(
+            onPressed: _sharing ? null : () => _sendToFriend(png),
+            child: const Text('Send strip to friend'),
+          ),
         TextButton(
-          onPressed: _sharing ? null : _editStrip,
+          onPressed: _sharing || _preparingMotion ? null : _editStrip,
           child: const Text('Edit strip'),
         ),
         if (_motionShots.isNotEmpty) ...[
@@ -879,6 +1160,91 @@ class _SessionPageState extends State<_SessionPage>
       ),
     );
   }
+}
+
+class _PrintLinksPage extends StatefulWidget {
+  const _PrintLinksPage();
+
+  @override
+  State<_PrintLinksPage> createState() => _PrintLinksPageState();
+}
+
+class _PrintLinksPageState extends State<_PrintLinksPage> {
+  late Future<dynamic> _links = OnlineBooth.request('share_list');
+  bool _revoking = false;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Manage gallery links')),
+    body: SafeArea(
+      child: FutureBuilder<dynamic>(
+        future: _links,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: TextButton(
+                onPressed: () =>
+                    setState(() => _links = OnlineBooth.request('share_list')),
+                child: const Text('Could not load links. Retry'),
+              ),
+            );
+          }
+          final links = snapshot.data as List?;
+          if (links == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (links.isEmpty) {
+            return const Center(child: Text('No active links on this device.'));
+          }
+          return ListView(
+            children: [
+              for (final link in links)
+                ListTile(
+                  title: Text(
+                    'Expires ${MaterialLocalizations.of(context).formatShortDate(DateTime.parse(link['expires_at'] as String).toLocal())}',
+                  ),
+                  subtitle: Text(
+                    'Created ${MaterialLocalizations.of(context).formatShortDate(DateTime.parse(link['created_at'] as String).toLocal())}',
+                  ),
+                  trailing: TextButton(
+                    onPressed: _revoking
+                        ? null
+                        : () async {
+                            setState(() => _revoking = true);
+                            try {
+                              await OnlineBooth.request('share_revoke', {
+                                'id': link['id'],
+                              });
+                              if (mounted) {
+                                setState(
+                                  () => _links = OnlineBooth.request(
+                                    'share_list',
+                                  ),
+                                );
+                              }
+                            } catch (_) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Could not revoke the link. Try again.',
+                                    ),
+                                  ),
+                                );
+                              }
+                            } finally {
+                              if (mounted) setState(() => _revoking = false);
+                            }
+                          },
+                    child: const Text('Revoke'),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    ),
+  );
 }
 
 class _Heading extends StatelessWidget {

@@ -28,7 +28,9 @@ Select your phone if Flutter lists multiple devices. For iOS, configure a signin
 
 ## Motion photos
 
-Turn on **Motion Photo** on the camera screen to keep five seconds before each shutter. If the buffer is still filling, the shutter waits for the remaining time. A longer timer still applies. Select **Play strip** on the finish screen to play motion inside the frame. You can also play or share the GIF for each shot. If the camera stream is interrupted, the shot may have a shorter clip or only a still. Unsaved motion is cleared when the app moves to the background or the session ends.
+LumiBooth automatically keeps up to five silent seconds before each shutter. If the buffer is still filling, the shutter waits for the remaining time. A longer timer still applies. Select **Play strip** on the finish screen to play motion inside the frame. Select **Save or share animated strip** to save a GIF with the frame, stickers, and caption. You can also play or share the GIF for each shot. If the camera stream is interrupted, the shot may have a shorter clip or only a still. Unsaved motion is cleared when the app moves to the background or the session ends.
+
+With the [online backend configured](../supabase/README.md), select **Share with QR** to show a download gallery on screen or **Print with QR** to include it on paper. The gallery contains the undecorated JPEGs, finished PNG, and animated GIF when available. Select **Booth with a friend** to create a remote room or paste an invite link. The shared strip starts with three Tube TVs, each showing the host and guest side by side from the same round.
 
 ## Verify and build
 

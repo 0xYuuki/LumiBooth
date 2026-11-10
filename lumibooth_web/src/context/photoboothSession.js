@@ -6,6 +6,12 @@ export const layouts = [
   { id: '6-grid', name: '6-Grid Wide', count: 6, columns: 2 },
 ];
 
+export const remoteLayout = { id: 'remote-duo', name: 'Duo Strip', count: 3, columns: 1, photosPerCell: 2 };
+
+export function requiredPhotos(layout) {
+  return layout.count * (layout.photosPerCell ?? 1);
+}
+
 export function createSession(layout) {
   return { layout, photos: [], motions: [], designRevision: 0, frame: null, caption: null, signatureFont: null, stickers: [], output: null };
 }
@@ -14,10 +20,20 @@ export function sessionReducer(session, action) {
   switch (action.type) {
     case 'start':
       return createSession(action.layout);
+    case 'remoteStart': {
+      if (action.photos?.length !== requiredPhotos(remoteLayout) || !action.roomId) return session;
+      return {
+        ...createSession(remoteLayout),
+        photos: action.photos,
+        roomId: action.roomId,
+        frame: action.frame,
+        caption: 'MILES APART, SAME MOMENT',
+      };
+    }
     case 'reset':
       return null;
     case 'capture':
-      if (!session || !action.photo || session.photos.length >= session.layout.count) {
+      if (!session || !action.photo || session.photos.length >= requiredPhotos(session.layout)) {
         return session;
       }
       return {

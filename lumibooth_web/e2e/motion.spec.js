@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import { decompressFrames, parseGIF } from 'gifuct-js';
 
 async function openCamera(page, layout) {
   await page.addInitScript(() => {
@@ -60,14 +62,14 @@ async function readGif(locator) {
 }
 
 test('quick consecutive motion shots keep five seconds each on the six-photo strip', async ({ page }) => {
+  test.setTimeout(75000);
   await openCamera(page, /6-Grid Wide/);
   const toggle = page.getByRole('checkbox', { name: /Motion Photo/ });
   const shutter = page.getByRole('button', { name: 'Take photo' });
-  await expect(toggle).not.toBeChecked();
+  await expect(toggle).toHaveCount(0);
   await shutter.click();
   await expect(page.getByText('1 of 6 photos captured')).toBeVisible();
 
-  await toggle.check();
   await holdColor(page, '#ee1414', 420);
   await shutter.click();
   await expect(page.getByText('1 of 6 photos captured')).toBeVisible();
@@ -84,7 +86,6 @@ test('quick consecutive motion shots keep five seconds each on the six-photo str
   await page.getByRole('button', { name: 'Timer: 3 seconds' }).click();
   await page.getByRole('button', { name: 'Timer: 5 seconds' }).click();
   await page.getByRole('button', { name: 'Timer: 10 seconds' }).click();
-  await toggle.uncheck();
   for (const count of [4, 5]) {
     await shutter.click();
     await expect(page.getByText(`${count} of 6 photos captured`)).toBeVisible();
@@ -97,7 +98,7 @@ test('quick consecutive motion shots keep five seconds each on the six-photo str
   await page.getByRole('button', { name: '✨', exact: true }).click();
   await page.getByRole('button', { name: 'Next' }).click();
   const motions = page.getByRole('region', { name: 'Motion photos' });
-  await expect(motions.getByRole('listitem')).toHaveCount(2);
+  await expect(motions.getByRole('listitem')).toHaveCount(6);
   for (const shot of [2, 3]) {
     await motions.getByRole('button', { name: `Play motion for shot ${shot}` }).click();
     const clip = await readGif(motions.getByRole('img', { name: `Motion from shot ${shot}` }));
@@ -118,7 +119,7 @@ test('quick consecutive motion shots keep five seconds each on the six-photo str
   await expect(strip.locator('.illustrated-overlay')).toHaveCount(6);
   await expect(strip.getByRole('img', { name: 'Captured photo 2' })).toHaveAttribute('src', /^blob:/);
   await expect(strip.getByRole('img', { name: 'Captured photo 3' })).toHaveAttribute('src', /^blob:/);
-  await expect(strip.getByRole('img', { name: 'Captured photo 1' })).toHaveAttribute('src', /^data:image/);
+  await expect(strip.getByRole('img', { name: 'Captured photo 1' })).toHaveAttribute('src', /^blob:/);
   await expect(strip.getByText('Studio night')).toBeVisible();
   await expect(strip.locator('.sticker-visual')).toHaveCount(1);
   await expect(png).toHaveAttribute('src', still);
@@ -130,6 +131,27 @@ test('quick consecutive motion shots keep five seconds each on the six-photo str
   await expect(strip).toHaveCount(0);
   await page.getByRole('button', { name: 'Play strip' }).click();
 
+  const savedStrip = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Save animated strip' }).click();
+  const animation = await savedStrip;
+  expect(animation.suggestedFilename()).toBe('lumibooth-motion-strip.gif');
+  const bytes = await readFile(await animation.path());
+  const exported = decompressFrames(parseGIF(new Uint8Array(bytes)), true);
+  expect(exported).toHaveLength(40);
+  expect(exported.reduce((duration, frame) => duration + frame.delay, 0)).toBe(5000);
+  expect(exported[0].dims.width).toBeGreaterThan(320);
+  const colorsAt = (frame, x, y) => [...frame.patch.slice(
+    (frame.dims.width * y + x) * 4, (frame.dims.width * y + x) * 4 + 3,
+  )];
+  const { width, height } = exported[0].dims;
+  const x = Math.floor(width * .68);
+  const y = Math.floor(height * .16);
+  const start = colorsAt(exported[0], x, y);
+  const end = colorsAt(exported.at(-1), x, y);
+  expect(start[0]).toBeGreaterThan(start[2]);
+  expect(end[2]).toBeGreaterThan(end[0]);
+  expect(colorsAt(exported[0], 5, 5)).toEqual(colorsAt(exported.at(-1), 5, 5));
+
   const download = page.waitForEvent('download');
   await motions.getByRole('button', { name: 'Save GIF for shot 2' }).click();
   expect((await download).suggestedFilename()).toBe('lumibooth-shot-2.gif');
@@ -137,7 +159,7 @@ test('quick consecutive motion shots keep five seconds each on the six-photo str
     Object.defineProperty(document, 'hidden', { value: true, configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  await expect(motions.getByText('Motion unavailable for this shot.')).toHaveCount(2);
+  await expect(motions.getByText('Motion unavailable for this shot.')).toHaveCount(6);
   await expect(motions.getByRole('img')).toHaveCount(0);
   await expect(strip).toHaveCount(0);
   await expect(page.getByRole('img', { name: 'Your finished LumiBooth photo strip' })).toBeVisible();
@@ -154,7 +176,6 @@ test('an encoder failure still leaves a downloadable photo strip', async ({ page
     };
   });
   await openCamera(page, /Single Photo/);
-  await page.getByRole('checkbox', { name: /Motion Photo/ }).check();
   await holdColor(page, '#1414ee', 400);
   await page.getByRole('button', { name: 'Take photo' }).click();
   await page.getByRole('button', { name: 'Next' }).click();
@@ -171,7 +192,6 @@ test('a stalled motion buffer still saves the still after the countdown', async 
     );
   });
   await openCamera(page, /Single Photo/);
-  await page.getByRole('checkbox', { name: /Motion Photo/ }).check();
   await page.getByRole('button', { name: 'Take photo' }).click();
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.getByText('Motion unavailable for this shot.')).toBeVisible();

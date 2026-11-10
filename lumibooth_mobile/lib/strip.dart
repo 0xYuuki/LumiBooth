@@ -7,11 +7,21 @@ import 'package:flutter/services.dart';
 import 'sticker_pack.dart';
 
 class StripLayout {
-  const StripLayout(this.name, this.count, this.columns);
+  const StripLayout(
+    this.name,
+    this.count,
+    this.columns, {
+    this.photosPerCell = 1,
+  });
 
   final String name;
   final int count;
   final int columns;
+  final int photosPerCell;
+
+  int get requiredPhotos => count * photosPerCell;
+
+  static const remoteDuo = StripLayout('Duo Strip', 3, 1, photosPerCell: 2);
 
   static const choices = [
     StripLayout('Single Photo', 1, 1),
@@ -346,10 +356,16 @@ class StripDesign {
 
   String get footerCaption => (caption ?? frame.caption).trim();
 
-  double get width => layout.columns == 1 && layout.count > 1 ? 220 : 360;
+  double get width {
+    if (layout.photosPerCell == 2) return 320;
+    return layout.columns == 1 && layout.count > 1 ? 220 : 360;
+  }
+
   double get cellWidth =>
       (width - 48 - 10 * (layout.columns - 1)) / layout.columns;
-  double get cellHeight => cellWidth * (frame.art == null ? 4 / 3 : 3 / 4);
+  double get cellHeight =>
+      cellWidth *
+      (frame.art != null || layout.photosPerCell == 2 ? 3 / 4 : 4 / 3);
   double get headerWidth => math.min(255, width - 48);
   double get headerHeight =>
       frame.art?.header == null ? 0 : headerWidth * 149 / 400 + 10;
@@ -549,26 +565,46 @@ class StripPainter extends CustomPainter {
   }
 
   void _paintPhoto(Canvas canvas, int index, RRect bounds) {
-    if (index >= design.photos.length) {
+    final photosPerCell = design.layout.photosPerCell;
+    final first = index * photosPerCell;
+    if (first + photosPerCell > design.photos.length) {
       canvas.drawRRect(bounds, Paint()..color = const Color(0xffd0bdc0));
       return;
     }
-    final image = motionFrames[index] ?? design.photos[index];
-    final source = Size(image.width.toDouble(), image.height.toDouble());
-    final crop = applyBoxFit(
-      BoxFit.cover,
-      source,
-      bounds.outerRect.size,
-    ).source;
+    final rect = bounds.outerRect;
     canvas.save();
     canvas.clipRRect(bounds);
+    if (photosPerCell == 2) {
+      final middle = rect.center.dx;
+      _drawPhotoCover(
+        canvas,
+        design.photos[first],
+        Rect.fromLTRB(rect.left, rect.top, middle, rect.bottom),
+      );
+      _drawPhotoCover(
+        canvas,
+        design.photos[first + 1],
+        Rect.fromLTRB(middle, rect.top, rect.right, rect.bottom),
+      );
+    } else {
+      _drawPhotoCover(
+        canvas,
+        motionFrames[index] ?? design.photos[first],
+        rect,
+      );
+    }
+    canvas.restore();
+  }
+
+  void _drawPhotoCover(Canvas canvas, ui.Image image, Rect destination) {
+    final source = Size(image.width.toDouble(), image.height.toDouble());
+    final crop = applyBoxFit(BoxFit.cover, source, destination.size).source;
     canvas.drawImageRect(
       image,
       Alignment.center.inscribe(crop, Offset.zero & source),
-      bounds.outerRect,
+      destination,
       Paint()..filterQuality = FilterQuality.medium,
     );
-    canvas.restore();
   }
 
   void _drawArtwork(Canvas canvas, ui.Image image, Rect destination) {

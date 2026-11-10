@@ -1,6 +1,6 @@
 # LumiBooth
 
-LumiBooth is a browser-based photo booth. Guests choose 1, 2, 3, 4, or 6 photos per strip, take their photos, and choose a frame template or customize with colors, patterns, and stickers. They can then download a PNG or print through the browser. Photos and edits stay in the active browser tab and are cleared when the guest finishes, cancels, returns to the start, or leaves the booth idle for five minutes. Downloaded images stay on the device.
+LumiBooth is a browser-based photo booth. Guests choose 1, 2, 3, 4, or 6 photos per strip, take their photos, and choose from 19 frame templates or customize with colors, patterns, and stickers. They can then download a PNG or print through the browser. Photos and edits stay in the active browser tab and are cleared when the guest finishes, cancels, returns to the start, or leaves the booth idle for five minutes. Downloaded images stay on the device.
 
 ## Run locally
 

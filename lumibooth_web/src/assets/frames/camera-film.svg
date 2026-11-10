@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+<defs>
+ <pattern id="holes" width="400" height="37" patternUnits="userSpaceOnUse">
+   <rect x="15" y="7" width="24" height="17" rx="4" fill="#f7e6c2"/>
+   <rect x="361" y="7" width="24" height="17" rx="4" fill="#f7e6c2"/>
+ </pattern>
+</defs>
+<path fill="#241f20" fill-rule="evenodd" d="M0 0H400V300H0ZM52 13H348V287H52Z"/>
+<rect x="1" y="1" width="398" height="298" fill="url(#holes)"/>
+<path d="M47 2V298M353 2V298" stroke="#675146" stroke-width="2"/>
+<path d="M54 11H346M54 289H346" stroke="#a5814e" stroke-width="2" opacity=".7"/>
+<path d="M19 292h18m328 0h18" stroke="#dba864" stroke-width="2"/>
+</svg>

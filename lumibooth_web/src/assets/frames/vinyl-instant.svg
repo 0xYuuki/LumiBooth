@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+<defs><radialGradient id="vinyl"><stop stop-color="#323038"/><stop offset=".62" stop-color="#111017"/><stop offset="1" stop-color="#201d22"/></radialGradient></defs>
+<mask id="print"><rect width="400" height="300" fill="white"/><rect x="104" y="34" width="223" height="211" fill="black"/></mask>
+<g mask="url(#print)">
+ <circle cx="110" cy="155" r="148" fill="url(#vinyl)" stroke="#3b3436" stroke-width="2"/>
+ <circle cx="110" cy="155" r="51" fill="none" stroke="#5c575b" stroke-width="1.4"/><circle cx="110" cy="155" r="59" fill="none" stroke="#302c30" stroke-width="1.4"/><circle cx="110" cy="155" r="67" fill="none" stroke="#302c30" stroke-width="1.4"/><circle cx="110" cy="155" r="75" fill="none" stroke="#302c30" stroke-width="1.4"/><circle cx="110" cy="155" r="83" fill="none" stroke="#302c30" stroke-width="1.4"/><circle cx="110" cy="155" r="91" fill="none" stroke="#302c30" stroke-width="1.4"/><circle cx="110" cy="155" r="99" fill="none" stroke="#302c30" stroke-width="1.4"/><circle cx="110" cy="155" r="107" fill="none" stroke="#302c30" stroke-width="1.4"/><circle cx="110" cy="155" r="115" fill="none" stroke="#302c30" stroke-width="1.4"/><circle cx="110" cy="155" r="123" fill="none" stroke="#302c30" stroke-width="1.4"/><circle cx="110" cy="155" r="131" fill="none" stroke="#302c30" stroke-width="1.4"/><circle cx="110" cy="155" r="139" fill="none" stroke="#302c30" stroke-width="1.4"/><circle cx="110" cy="155" r="147" fill="none" stroke="#302c30" stroke-width="1.4"/>
+ <path d="M13 83Q85 9 181 46M1 237Q66 309 148 278" fill="none" stroke="#8a8187" opacity=".45" stroke-width="5"/>
+ <circle cx="110" cy="155" r="46" fill="#d8af85" stroke="#ede0c8" stroke-width="2"/>
+ <circle cx="110" cy="155" r="6" fill="#292331"/>
+ <rect x="88" y="18" width="255" height="273" rx="3" fill="#f8f4e9" stroke="#b5a89c" stroke-width="2"/>
+ <rect x="102" y="32" width="227" height="215" fill="none" stroke="#d6cabb" stroke-width="3"/>
+ <text x="216" y="273" text-anchor="middle" fill="#62514c" font-family="serif" font-style="italic" font-size="16">on repeat</text>
+</g>
+</svg>

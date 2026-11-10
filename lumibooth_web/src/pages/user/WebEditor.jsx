@@ -16,7 +16,9 @@ const WebEditor = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Frames');
   const [activeCategory, setActiveCategory] = useState(() =>
-    Object.keys(frameLibrary).find((category) => frameLibrary[category].includes(selectedFrame)) ?? 'Templates'
+    session.frame
+      ? Object.keys(frameLibrary).find((category) => frameLibrary[category].includes(selectedFrame)) ?? 'Illustrated'
+      : 'Illustrated'
   );
   const [selectedStickerId, setSelectedStickerId] = useState(null);
   const [exporting, setExporting] = useState(false);
@@ -99,13 +101,20 @@ const WebEditor = () => {
                 '--strip-width': layout.columns === 1 && layout.count > 1 ? '220px' : '360px',
                 gridTemplateColumns: `repeat(${layout.columns}, minmax(0, 1fr))`,
                 color: selectedFrame.ink ?? '#292630',
+                outline: selectedFrame.border ? `1px solid ${selectedFrame.border}` : undefined,
+                outlineOffset: selectedFrame.border ? -9 : undefined,
               }}
             >
+              {selectedFrame.header && (
+                <img className="illustrated-header" src={selectedFrame.header} alt="" />
+              )}
               {photos.map((photo, index) => (
-                <img key={index} src={photo} alt={`Captured photo ${index + 1}`}
-                  style={{ borderRadius: selectedFrame.radius ?? 4 }} />
+                selectedFrame.artwork
+                  ? <IllustratedPhoto key={index} frame={selectedFrame} photo={photo} index={index} />
+                  : <img key={index} src={photo} alt={`Captured photo ${index + 1}`}
+                      style={{ borderRadius: selectedFrame.radius ?? 4 }} />
               ))}
-              <div className="strip-signature" style={{ borderTop: selectedFrame.rule ? '1px solid currentColor' : undefined }}>
+              <div className="strip-signature" style={{ borderTop: selectedFrame.rule ? '1px solid currentColor' : undefined, paddingBottom: selectedFrame.footer, backgroundColor: selectedFrame.signaturePaper ? selectedFrame.bg : undefined }}>
                 <strong>LumiBooth</strong>
                 <span>{selectedFrame.caption ?? 'THE PHOTO BOOTH'}</span>
               </div>
@@ -141,8 +150,14 @@ const WebEditor = () => {
                 <div className="frame-gallery">
                   {frameLibrary[activeCategory].map((frame) => (
                     <button key={frame.name} aria-pressed={selectedFrame === frame} onClick={() => edit({ frame })}>
-                      <MiniStrip count={layout.count} columns={layout.columns}
-                        style={{ ...frameBackground(frame), '--mini-ink': frame.ink, '--mini-radius': `${(frame.radius ?? 4) / 2}px` }} />
+                      {frame.artwork ? (
+                        <span className="illustrated-thumbnail" aria-hidden="true" style={{ backgroundColor: frame.bg }}>
+                          <IllustratedPhoto frame={frame} />
+                        </span>
+                      ) : (
+                        <MiniStrip count={layout.count} columns={layout.columns}
+                          style={{ ...frameBackground(frame), '--mini-ink': frame.ink, borderColor: frame.border, '--mini-radius': `${(frame.radius ?? 4) / 2}px` }} />
+                      )}
                       <span>{frame.name}</span>
                     </button>
                   ))}
@@ -172,6 +187,22 @@ const WebEditor = () => {
     </div>
   );
 };
+
+function IllustratedPhoto({ frame, photo, index = 0 }) {
+  const [x, y, width, height, radius] = frame.window;
+  return (
+    <div className="illustrated-photo"
+      style={{ transform: photo && frame.tilt ? `rotate(${index % 2 ? frame.tilt : -frame.tilt}deg)` : undefined }}>
+      <span className="illustrated-window" style={{
+        left: `${x / 4}%`, top: `${y / 3}%`, width: `${width / 4}%`, height: `${height / 3}%`,
+        borderRadius: `${radius / width * 100}% / ${radius / height * 100}%`,
+      }}>
+        {photo && <img src={photo} alt={`Captured photo ${index + 1}`} />}
+      </span>
+      <img className="illustrated-overlay" src={frame.artwork} alt="" />
+    </div>
+  );
+}
 
 const arrowOffsets = {
   ArrowLeft: [-10, 0],

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+<defs>
+  <linearGradient id="body" x2="1" y2="1"><stop stop-color="#e2c8a0"/><stop offset=".3" stop-color="#ad8258"/><stop offset=".7" stop-color="#775136"/><stop offset="1" stop-color="#432a20"/></linearGradient>
+  <linearGradient id="bezel" x2="0" y2="1"><stop stop-color="#1b1514"/><stop offset=".64" stop-color="#655447"/><stop offset="1" stop-color="#e1c6a4"/></linearGradient>
+  <radialGradient id="knob"><stop stop-color="#f7e4bb"/><stop offset=".76" stop-color="#8e6b4b"/><stop offset="1" stop-color="#3b2924"/></radialGradient>
+  <pattern id="speaker" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="4" fill="#211b18"/><circle cx="2" cy="2" r=".8" fill="#927c63"/></pattern>
+  <mask id="screen"><rect width="400" height="300" fill="white"/><rect x="31" y="35" width="260" height="209" rx="31" fill="black"/></mask>
+</defs>
+<g mask="url(#screen)">
+  <rect x="42" y="258" width="317" height="26" rx="9" fill="#251916"/>
+  <rect x="9" y="12" width="382" height="255" rx="21" fill="url(#body)" stroke="#322319" stroke-width="6"/>
+  <rect x="18" y="23" width="284" height="233" rx="39" fill="url(#bezel)" stroke="#f2d8ac" stroke-width="3"/>
+  <rect x="29" y="33" width="264" height="213" rx="32" fill="#221a15" stroke="#5f4939" stroke-width="3"/>
+  <rect x="309" y="23" width="68" height="229" rx="10" fill="#59402e" stroke="#e5c79e" stroke-width="2"/>
+  <rect x="317" y="31" width="52" height="36" rx="4" fill="url(#speaker)"/>
+  <rect x="318" y="76" width="50" height="102" rx="5" fill="#d3b189" stroke="#37271e" stroke-width="2"/>
+  <circle cx="343" cy="103" r="18" fill="url(#knob)" stroke="#3b2820" stroke-width="2"/>
+  <circle cx="343" cy="148" r="18" fill="url(#knob)" stroke="#3b2820" stroke-width="2"/>
+  <path d="M334 96l18 14m-17 44l17-11" stroke="#f5dbad" stroke-width="3" stroke-linecap="round"/>
+  <rect x="317" y="185" width="52" height="60" rx="5" fill="url(#speaker)"/>
+  <circle cx="315" cy="257" r="2.5" fill="#f0a450"/>
+  <path d="M22 22H286M312 22H368" stroke="#fff1d0" opacity=".6" stroke-width="2"/>
+</g>
+</svg>

@@ -137,21 +137,65 @@ test('all five layouts are offered and a three-photo strip exports the chosen te
   }
   await shutter.click();
   await expect(page.getByRole('img', { name: /Captured photo/ })).toHaveCount(3);
-  await page.getByRole('button', { name: 'Soft Postcard' }).click();
-  await expect(page.getByText('A LITTLE KEEPSAKE')).toBeVisible();
+  const gallery = page.locator('.frame-gallery');
+  await page.getByRole('button', { name: 'Templates', exact: true }).click();
+  await expect(gallery.getByRole('button')).toHaveCount(14);
+  for (const name of ['Classic White', 'Retro Flash', 'Wedding Ivory', 'Birthday Confetti']) {
+    await expect(gallery.getByRole('button', { name, exact: true })).toBeVisible();
+  }
+  await gallery.getByRole('button', { name: 'Retro Flash' }).click();
+  await expect(page.getByText('GOOD TIMES · PHOTO BOOTH')).toBeVisible();
 
   await page.getByRole('button', { name: 'Next' }).click();
   const image = page.getByRole('img', { name: 'Your finished LumiBooth photo strip' });
   await expect(image).toBeVisible();
-  const corner = await image.evaluate(async (strip) => {
+  const checkerColors = await image.evaluate(async (strip) => {
     await strip.decode();
     const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 1;
+    canvas.width = 50;
+    canvas.height = 10;
     const context = canvas.getContext('2d');
-    context.drawImage(strip, 5, 5, 1, 1, 0, 0, 1, 1);
-    return [...context.getImageData(0, 0, 1, 1).data];
+    context.drawImage(strip, 0, 0);
+    return [6, 42].map((x) => [...context.getImageData(x, 6, 1, 1).data]);
   });
-  expect(corner).toEqual([245, 228, 216, 255]);
+  expect(checkerColors).toEqual(expect.arrayContaining([
+    [244, 211, 141, 255],
+    [169, 70, 55, 255],
+  ]));
   await page.getByRole('button', { name: 'Edit Strip' }).click();
-  await expect(page.getByRole('button', { name: 'Soft Postcard' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(gallery.getByRole('button', { name: 'Retro Flash' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('illustrated frames put captured photos inside the artwork and export the overlay', async ({ page }) => {
+  await page.goto('/layout');
+  await page.getByRole('button', { name: /Dual Strip/ }).click();
+  const shutter = page.getByRole('button', { name: 'Take photo' });
+  await shutter.click();
+  await expect(page.getByText('1 of 2 photos captured')).toBeVisible();
+  await shutter.click();
+
+  const gallery = page.locator('.frame-gallery');
+  await expect(gallery.getByRole('button')).toHaveCount(5);
+  await gallery.getByRole('button', { name: 'Camera Film' }).click();
+  await expect(page.locator('.photo-strip .illustrated-header')).toBeVisible();
+  await expect(page.locator('.photo-strip .illustrated-window img')).toHaveCount(2);
+  await gallery.getByRole('button', { name: 'Tube TV' }).click();
+  await expect(page.locator('.photo-strip .illustrated-overlay')).toHaveCount(2);
+  await expect(page.getByText('NOW ON AIR')).toBeVisible();
+  await page.getByRole('button', { name: 'Next' }).click();
+  const output = page.getByRole('img', { name: 'Your finished LumiBooth photo strip' });
+  await expect(output).toHaveAttribute('src', /^data:image\/png;base64,/);
+  const colors = await output.evaluate(async (image) => {
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = 650;
+    canvas.height = 500;
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0);
+    return [[6, 6], [505, 223], [279, 234]].map(([x, y]) =>
+      [...context.getImageData(x, y, 1, 1).data]);
+  });
+  expect(colors[0]).toEqual([229, 209, 173, 255]);
+  expect(colors[1]).not.toEqual(colors[0]);
+  expect(colors[1]).not.toEqual(colors[2]);
 });

@@ -151,15 +151,26 @@ class _WelcomePage extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            const Text(
-              'THE DIGITAL PHOTO BOOTH',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                color: purple,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.8,
-                fontSize: 11,
-              ),
+            Row(
+              children: [
+                Image.asset(
+                  'assets/images/logo_mark.png',
+                  width: 28,
+                  height: 28,
+                  fit: BoxFit.contain,
+                ),
+                const SizedBox(width: 10),
+                const Text(
+                  'THE DIGITAL PHOTO BOOTH',
+                  style: TextStyle(
+                    fontFamily: 'Outfit',
+                    color: purple,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.8,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Text.rich(
@@ -1984,10 +1995,15 @@ class _BoothHeader extends StatelessWidget implements PreferredSizeWidget {
               },
               child: Row(
                 mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.camera_outlined, size: 21, color: purple),
-                  SizedBox(width: 6),
-                  Text.rich(
+                children: [
+                  Image.asset(
+                    'assets/images/logo_mark.png',
+                    width: 22,
+                    height: 22,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text.rich(
                     TextSpan(
                       children: [
                         TextSpan(

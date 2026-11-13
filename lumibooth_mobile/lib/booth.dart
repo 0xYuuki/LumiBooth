@@ -23,6 +23,10 @@ import 'sticker_controls.dart';
 const paper = Color(0xfffaf8f4);
 const lavender = Color(0xffeee8f7);
 const purple = Color(0xff523884);
+const ink = Color(0xff23202a);
+const muted = Color(0xff615a68);
+const line = Color(0xffe4dfe6);
+const wash = Color(0xffeee8f7);
 
 class LumiBooth extends StatelessWidget {
   const LumiBooth({super.key});
@@ -32,18 +36,104 @@ class LumiBooth extends StatelessWidget {
     final scheme = ColorScheme.fromSeed(
       seedColor: purple,
       surface: paper,
-    ).copyWith(primary: purple);
+    ).copyWith(primary: purple, onSurface: ink);
     return MaterialApp(
       title: 'LumiBooth',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
+        fontFamily: 'Outfit',
         colorScheme: scheme,
         scaffoldBackgroundColor: paper,
         appBarTheme: const AppBarTheme(
           backgroundColor: paper,
           surfaceTintColor: Colors.transparent,
+          elevation: 0,
         ),
-        cardTheme: const CardThemeData(color: Colors.white, elevation: 0),
+        cardTheme: CardThemeData(
+          color: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: line),
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: purple,
+            foregroundColor: Colors.white,
+            minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(9),
+            ),
+            textStyle: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+            ),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: ink,
+            backgroundColor: Colors.white,
+            side: const BorderSide(color: line),
+            minimumSize: const Size(0, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(9),
+            ),
+            textStyle: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+            ),
+          ),
+        ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            foregroundColor: purple,
+            textStyle: const TextStyle(
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
+            ),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: line),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: line),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: purple, width: 1.5),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
+        ),
+        chipTheme: ChipThemeData(
+          backgroundColor: Colors.white,
+          selectedColor: const Color(0xfffaf7ff),
+          side: const BorderSide(color: line),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          labelStyle: const TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 13,
+            color: ink,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        ),
       ),
       home: const _WelcomePage(),
     );
@@ -56,15 +146,54 @@ class _WelcomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('LumiBooth.')),
+      appBar: const _BoothHeader(step: 'THE PHOTO BOOTH'),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            const _Heading(
+            const Text(
               'THE DIGITAL PHOTO BOOTH',
-              'Make a little keepsake.',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                color: purple,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.8,
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text.rich(
+              const TextSpan(
+                children: [
+                  TextSpan(text: 'Make a little\n'),
+                  TextSpan(
+                    text: 'keepsake.',
+                    style: TextStyle(
+                      fontFamily: 'Playfair Display',
+                      fontStyle: FontStyle.italic,
+                      color: purple,
+                    ),
+                  ),
+                ],
+              ),
+              style: const TextStyle(
+                fontFamily: 'Playfair Display',
+                fontSize: 44,
+                fontWeight: FontWeight.w400,
+                height: 1.05,
+                letterSpacing: -1.2,
+                color: ink,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
               'Pick a layout, take your photos, and give your strip a frame of its own.',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                color: muted,
+                fontSize: 15,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
@@ -74,7 +203,8 @@ class _WelcomePage extends StatelessWidget {
               icon: const Icon(Icons.arrow_forward),
               label: const Text('Start photo booth'),
             ),
-            if (OnlineBooth.remoteEnabled)
+            if (OnlineBooth.remoteEnabled) ...[
+              const SizedBox(height: 10),
               OutlinedButton(
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
@@ -94,7 +224,9 @@ class _WelcomePage extends StatelessWidget {
                 ),
                 child: const Text('Booth with a friend'),
               ),
-            if (OnlineBooth.printEnabled)
+            ],
+            if (OnlineBooth.printEnabled) ...[
+              const SizedBox(height: 8),
               TextButton(
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
@@ -103,29 +235,85 @@ class _WelcomePage extends StatelessWidget {
                 ),
                 child: const Text('Manage gallery links'),
               ),
-            const SizedBox(height: 24),
-            const _Stage(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+            ],
+            const SizedBox(height: 28),
+            Container(
+              height: 260,
+              decoration: BoxDecoration(
+                gradient: const RadialGradient(
+                  center: Alignment(0, -0.1),
+                  radius: 0.95,
+                  colors: [Color(0xfff8f2fd), Color(0xffe8def2)],
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  StripPreview(
-                    StripDesign(
-                      layout: StripLayout('Three', 3, 1),
-                      frame: StripFrame.postcard,
+                  Positioned(
+                    top: 16,
+                    right: 24,
+                    child: Text(
+                      '✳',
+                      style: TextStyle(
+                        fontSize: 28,
+                        color: purple.withValues(alpha: 0.55),
+                      ),
                     ),
-                    maxWidth: 60,
                   ),
-                  SizedBox(width: 18),
-                  StripPreview(
-                    StripDesign(
-                      layout: StripLayout('Four', 4, 2),
-                      frame: StripFrame.lavender,
+                  Transform.translate(
+                    offset: const Offset(-45, -8),
+                    child: Transform.rotate(
+                      angle: -16 * math.pi / 180,
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0x38392b52),
+                              blurRadius: 18,
+                              offset: Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: const StripPreview(
+                          StripDesign(
+                            layout: StripLayout('Three', 3, 1),
+                            frame: StripFrame.postcard,
+                          ),
+                          maxWidth: 62,
+                        ),
+                      ),
                     ),
-                    maxWidth: 112,
+                  ),
+                  Transform.translate(
+                    offset: const Offset(42, 12),
+                    child: Transform.rotate(
+                      angle: 13 * math.pi / 180,
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0x38392b52),
+                              blurRadius: 18,
+                              offset: Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: const StripPreview(
+                          StripDesign(
+                            layout: StripLayout('Four', 4, 2),
+                            frame: StripFrame.lavender,
+                          ),
+                          maxWidth: 110,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 32),
+            const _BoothFooter(),
           ],
         ),
       ),
@@ -136,10 +324,86 @@ class _WelcomePage extends StatelessWidget {
 class _LayoutPage extends StatelessWidget {
   const _LayoutPage();
 
+  Widget _layoutCard(BuildContext context, StripLayout layout) {
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: line),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => _SessionPage(layout: layout),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: wash,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Center(
+                    child: StripPreview(
+                      StripDesign(layout: layout, frame: StripFrame.lavender),
+                      maxWidth: layout.count == 3 ? 24 : 44,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          layout.name,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                            color: ink,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${layout.count} ${layout.count == 1 ? 'photo' : 'photos'}',
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 13,
+                            color: muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.arrow_outward, size: 18, color: purple),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('LumiBooth.')),
+      appBar: _BoothHeader(
+        step: '01 / LAYOUT',
+        onBack: () => Navigator.of(context).pop(),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
@@ -149,36 +413,27 @@ class _LayoutPage extends StatelessWidget {
               'Choose your layout.',
               'How many photos would you like on your strip?',
             ),
-            const SizedBox(height: 16),
-            for (final layout in StripLayout.choices)
-              Card(
-                clipBehavior: Clip.antiAlias,
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 6,
-                  ),
-                  leading: SizedBox(
-                    width: 42,
-                    child: Center(
-                      child: StripPreview(
-                        StripDesign(layout: layout, frame: StripFrame.lavender),
-                        maxWidth: layout.count == 3 ? 17 : 28,
+            const SizedBox(height: 20),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth > 540 ? 3 : 2;
+                final spacing = 12.0;
+                final cardWidth =
+                    (constraints.maxWidth - spacing * (columns - 1)) / columns;
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: [
+                    for (final layout in StripLayout.choices)
+                      SizedBox(
+                        width: cardWidth,
+                        height: 220,
+                        child: _layoutCard(context, layout),
                       ),
-                    ),
-                  ),
-                  title: Text(layout.name),
-                  subtitle: Text(
-                    '${layout.count} ${layout.count == 1 ? 'photo' : 'photos'}',
-                  ),
-                  trailing: const Icon(Icons.arrow_outward, size: 18),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => _SessionPage(layout: layout),
-                    ),
-                  ),
-                ),
-              ),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -204,6 +459,9 @@ class _SessionPage extends StatefulWidget {
 class _SessionPageState extends State<_SessionPage>
     with WidgetsBindingObserver {
   final List<ui.Image> _photos = [];
+  final List<int> _selectedIndices = [];
+  bool _choosingPhotos = false;
+  bool _finishedCapturingEarly = false;
   final Set<int> _motionShots = {};
   final Map<int, MotionGifJob> _motionJobs = {};
   final Map<int, Uint8List> _motionGifs = {};
@@ -228,6 +486,8 @@ class _SessionPageState extends State<_SessionPage>
   Uint8List? _png;
   Timer? _idle;
   int? _selected;
+  int _editorTab = 0;
+  String _frameCategory = 'All';
   bool _exporting = false;
   bool _sharing = false;
   bool _preparingMotion = false;
@@ -237,7 +497,27 @@ class _SessionPageState extends State<_SessionPage>
   bool? _galleryHasMotion;
   ({String url, String expiresAt})? _printLink;
 
-  bool get _captured => _photos.length == widget.layout.requiredPhotos;
+  int get _extraPhotos => widget.roomId != null ? 0 : 2;
+  int get _targetCaptureCount => widget.layout.requiredPhotos + _extraPhotos;
+
+  bool get _captured =>
+      _photos.length >= _targetCaptureCount ||
+      (_finishedCapturingEarly &&
+          _photos.length >= widget.layout.requiredPhotos);
+
+  List<ui.Image> get _stripPhotos => [
+    for (final i in _selectedIndices)
+      if (i >= 0 && i < _photos.length) _photos[i],
+  ];
+
+  Map<int, Uint8List> get _selectedMotionGifs {
+    final map = <int, Uint8List>{};
+    for (var i = 0; i < _selectedIndices.length; i++) {
+      final bytes = _motionGifs[_selectedIndices[i] + 1];
+      if (bytes != null) map[i + 1] = bytes;
+    }
+    return map;
+  }
 
   StripDesign get _design => StripDesign(
     layout: widget.layout,
@@ -245,7 +525,7 @@ class _SessionPageState extends State<_SessionPage>
     caption: _caption,
     font: _stripFont,
     frameImages: _frameImages,
-    photos: _photos,
+    photos: _stripPhotos,
     stickers: List.unmodifiable(_stickers),
   );
 
@@ -253,6 +533,9 @@ class _SessionPageState extends State<_SessionPage>
   void initState() {
     super.initState();
     _photos.addAll(widget.initialPhotos);
+    if (widget.initialPhotos.isNotEmpty) {
+      _initializeSelection();
+    }
     if (widget.roomId != null) {
       _caption = 'MILES APART, SAME MOMENT';
       _captionController.text = _caption!;
@@ -318,8 +601,50 @@ class _SessionPageState extends State<_SessionPage>
       _photos.add(image);
       if (motion != null) _motionShots.add(shot);
       if (job != null) _motionJobs[shot] = job;
+      if (_photos.length >= _targetCaptureCount) {
+        _initializeSelection();
+      }
     });
     if (job != null) unawaited(_completeMotion(shot, job));
+  }
+
+  void _finishCaptureEarly() {
+    setState(() {
+      _finishedCapturingEarly = true;
+      _initializeSelection();
+    });
+  }
+
+  void _initializeSelection() {
+    final required = widget.layout.requiredPhotos;
+    if (_photos.length > required) {
+      if (_selectedIndices.length != required) {
+        _selectedIndices
+          ..clear()
+          ..addAll([for (var i = 0; i < required; i++) i]);
+      }
+      _choosingPhotos = true;
+    } else {
+      _selectedIndices
+        ..clear()
+        ..addAll([for (var i = 0; i < _photos.length; i++) i]);
+      _choosingPhotos = false;
+    }
+  }
+
+  void _toggleSelection(int index) {
+    if (_exporting) return;
+    _keepAlive();
+    setState(() {
+      if (_selectedIndices.contains(index)) {
+        _selectedIndices.remove(index);
+      } else if (_selectedIndices.length < widget.layout.requiredPhotos) {
+        _selectedIndices.add(index);
+      } else {
+        _selectedIndices.removeLast();
+        _selectedIndices.add(index);
+      }
+    });
   }
 
   Future<void> _completeMotion(int shot, MotionGifJob job) async {
@@ -452,7 +777,7 @@ class _SessionPageState extends State<_SessionPage>
     bool active() => mounted && !_ending && generation == _motionGeneration;
     final bytes = await exportMotionStrip(
       _design,
-      Map.of(_motionGifs),
+      _selectedMotionGifs,
       active: active,
     );
     if (!active()) throw StateError('Motion is no longer available.');
@@ -688,24 +1013,25 @@ class _SessionPageState extends State<_SessionPage>
   Widget build(BuildContext context) {
     final png = _png;
     return PopScope(
-      canPop: png == null,
+      canPop: png == null && !_choosingPhotos,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _png != null && !_preparingMotion && !_sharing) {
-          _editStrip();
+        if (!didPop) {
+          if (_png != null && !_preparingMotion && !_sharing) {
+            _editStrip();
+          } else if (_choosingPhotos) {
+            setState(() => _choosingPhotos = false);
+          }
         }
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            png != null
-                ? '04 / FINISH'
-                : _captured
-                ? '03 / DESIGN'
-                : '02 / CAPTURE',
-          ),
-          actions: [
-            TextButton(onPressed: _finish, child: const Text('End session')),
-          ],
+        appBar: _BoothHeader(
+          step: png != null
+              ? '04 / FINISH'
+              : _captured
+              ? (_choosingPhotos ? '03 / CHOOSE PHOTOS' : '03 / DESIGN')
+              : '02 / CAPTURE',
+          onAction: _finish,
+          actionLabel: 'End session',
         ),
         body: SafeArea(
           child: Listener(
@@ -715,23 +1041,254 @@ class _SessionPageState extends State<_SessionPage>
             child: png != null
                 ? _preview(png)
                 : _captured
-                ? _editor()
+                ? (_choosingPhotos ? _selectionView() : _editor())
                 : CapturePage(
                     captured: _photos.length,
-                    total: widget.layout.requiredPhotos,
+                    total: _targetCaptureCount,
+                    minRequired: widget.layout.requiredPhotos,
                     onPhoto: _onPhoto,
+                    onFinishEarly:
+                        _photos.length >= widget.layout.requiredPhotos
+                            ? _finishCaptureEarly
+                            : null,
                   ),
           ),
         ),
         bottomNavigationBar: _captured && png == null
             ? SafeArea(
                 minimum: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                child: FilledButton(
-                  onPressed: _exporting || _loadingFrame ? null : _export,
-                  child: Text(_exporting ? 'Preparing…' : 'Preview strip'),
-                ),
+                child: _choosingPhotos
+                    ? FilledButton(
+                        onPressed:
+                            _selectedIndices.length ==
+                                widget.layout.requiredPhotos
+                                ? () => setState(() => _choosingPhotos = false)
+                                : null,
+                        child: Text(
+                          _selectedIndices.length ==
+                                  widget.layout.requiredPhotos
+                              ? 'Next: Decorate strip'
+                              : 'Select ${widget.layout.requiredPhotos - _selectedIndices.length} more',
+                        ),
+                      )
+                    : FilledButton(
+                        onPressed: _exporting || _loadingFrame ? null : _export,
+                        child: Text(
+                          _exporting ? 'Preparing…' : 'Preview strip',
+                        ),
+                      ),
               )
             : null,
+      ),
+    );
+  }
+
+  Widget _selectionView() {
+    final required = widget.layout.requiredPhotos;
+    final selectedCount = _selectedIndices.length;
+
+    return ListView(
+      key: const ValueKey('selection'),
+      padding: const EdgeInsets.all(20),
+      children: [
+        _Heading(
+          'STEP 03 OF 04',
+          'Pick your favorites.',
+          'Choose $required ${required == 1 ? 'photo' : 'photos'} for your strip ($selectedCount/$required selected).',
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: wash,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: line),
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.auto_awesome, size: 16, color: purple),
+                  const SizedBox(width: 6),
+                  Text(
+                    'LIVE STRIP PREVIEW ($selectedCount/$required)',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.5,
+                      color: purple,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: math.min(MediaQuery.sizeOf(context).height * .28, 220),
+                child: Center(
+                  child: StripPreview(_design, maxWidth: 100),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: const [
+            Text(
+              'All captured shots',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: ink,
+              ),
+            ),
+            Text(
+              'Tap to select or swap',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 13,
+                color: muted,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth > 540 ? 3 : 2;
+            const spacing = 12.0;
+            final cardWidth =
+                (constraints.maxWidth - spacing * (columns - 1)) / columns;
+            final cardHeight = cardWidth * 3 / 4;
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: [
+                for (var i = 0; i < _photos.length; i++)
+                  _photoCard(i, cardWidth, cardHeight),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _photoCard(int index, double width, double height) {
+    final isSelected = _selectedIndices.contains(index);
+    final slot = isSelected ? _selectedIndices.indexOf(index) + 1 : null;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _toggleSelection(index),
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? purple : line,
+              width: isSelected ? 3.0 : 1.5,
+            ),
+            boxShadow: isSelected
+                ? const [
+                    BoxShadow(
+                      color: Color(0x33523884),
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ]
+                : null,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(9),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                RawImage(
+                  image: _photos[index],
+                  fit: BoxFit.cover,
+                ),
+                if (!isSelected)
+                  Container(
+                    color: Colors.black.withValues(alpha: 0.15),
+                  ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isSelected
+                          ? purple
+                          : Colors.white.withValues(alpha: 0.85),
+                      border: Border.all(
+                        color: isSelected ? Colors.white : line,
+                        width: isSelected ? 2 : 1,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x33000000),
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: isSelected
+                          ? Text(
+                              '$slot',
+                              style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.add,
+                              size: 16,
+                              color: muted,
+                            ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 6,
+                  left: 6,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Shot ${index + 1}',
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -739,14 +1296,32 @@ class _SessionPageState extends State<_SessionPage>
   Widget _editor() {
     final design = _design;
     final selected = _selected;
+    final categories = ['All', ...StripFrame.categories.keys];
+    final displayedFrames = _frameCategory == 'All'
+        ? StripFrame.values
+        : StripFrame.categories[_frameCategory] ?? StripFrame.values;
+
     return ListView(
       key: const ValueKey('editor'),
       padding: const EdgeInsets.all(20),
       children: [
-        const _Heading(
-          'STEP 03 OF 04',
-          'Make it yours.',
-          'Choose a frame and decorate your strip.',
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Expanded(
+              child: _Heading(
+                'STEP 03 OF 04',
+                'Make it yours.',
+                'Choose a frame and decorate your strip.',
+              ),
+            ),
+            if (_photos.length > widget.layout.requiredPhotos)
+              TextButton.icon(
+                onPressed: () => setState(() => _choosingPhotos = true),
+                icon: const Icon(Icons.swap_horiz, size: 18),
+                label: const Text('Change photos'),
+              ),
+          ],
         ),
         const SizedBox(height: 16),
         _Stage(
@@ -794,130 +1369,245 @@ class _SessionPageState extends State<_SessionPage>
             ),
           ),
         ),
-        const SizedBox(height: 20),
-        DropdownButtonFormField<StripFont>(
-          initialValue: _stripFont,
-          decoration: const InputDecoration(
-            labelText: 'Strip font',
-            border: OutlineInputBorder(),
+        const SizedBox(height: 16),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: line),
           ),
-          items: [
-            for (final font in StripFont.values)
-              DropdownMenuItem(value: font, child: Text(font.family)),
-          ],
-          onChanged: _exporting
-              ? null
-              : (font) {
-                  if (font == null) return;
-                  setState(() => _stripFont = font);
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DropdownButtonFormField<StripFont>(
+                initialValue: _stripFont,
+                decoration: const InputDecoration(
+                  labelText: 'Strip font',
+                ),
+                items: [
+                  for (final font in StripFont.values)
+                    DropdownMenuItem(value: font, child: Text(font.family)),
+                ],
+                onChanged: _exporting
+                    ? null
+                    : (font) {
+                        if (font == null) return;
+                        setState(() => _stripFont = font);
+                        _keepAlive();
+                      },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _captionController,
+                enabled: !_exporting,
+                maxLength: _captionLimit,
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(
+                  labelText: 'Caption under LumiBooth (optional)',
+                  hintText: 'Write a short caption',
+                ),
+                onChanged: (value) {
+                  setState(() => _caption = value);
                   _keepAlive();
                 },
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _captionController,
-          enabled: !_exporting,
-          maxLength: _captionLimit,
-          textInputAction: TextInputAction.done,
-          decoration: const InputDecoration(
-            labelText: 'Caption under LumiBooth (optional)',
-            hintText: 'Write a short caption',
-            border: OutlineInputBorder(),
-          ),
-          onChanged: (value) {
-            setState(() => _caption = value);
-            _keepAlive();
-          },
-        ),
-        Wrap(
-          spacing: 8,
-          children: [
-            TextButton(
-              onPressed: _exporting || design.footerCaption.isEmpty
-                  ? null
-                  : () => _setCaption(''),
-              child: const Text('Remove caption'),
-            ),
-            TextButton(
-              onPressed: _exporting || _caption == null
-                  ? null
-                  : () => _setCaption(null),
-              child: const Text('Use frame caption'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text('Frame templates', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final frame in StripFrame.values)
-              ChoiceChip(
-                avatar: frame.art != null
-                    ? Image.asset(
-                        FrameArt.asset(frame.art!.name),
-                        width: 22,
-                        fit: BoxFit.contain,
-                        excludeFromSemantics: true,
-                      )
-                    : CircleAvatar(backgroundColor: frame.paper),
-                label: Text(frame.label),
-                selected: _frame == frame,
-                onSelected: _exporting || _loadingFrame
-                    ? null
-                    : (_) => _chooseFrame(frame),
               ),
-          ],
+              Wrap(
+                spacing: 8,
+                children: [
+                  TextButton(
+                    onPressed: _exporting || design.footerCaption.isEmpty
+                        ? null
+                        : () => _setCaption(''),
+                    child: const Text('Remove caption'),
+                  ),
+                  TextButton(
+                    onPressed: _exporting || _caption == null
+                        ? null
+                        : () => _setCaption(null),
+                    child: const Text('Use frame caption'),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 16),
-        Text('Stickers', style: Theme.of(context).textTheme.titleLarge),
-        const Text(
-          'Drag a sticker to move it. Use its corner handles to rotate or resize it.',
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: line),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Tab buttons: Frames and Stickers
+              Row(
+                children: [
+                  for (final (index, tabLabel) in ['Frames', 'Stickers'].indexed)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: InkWell(
+                        onTap: () => setState(() => _editorTab = index),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _editorTab == index ? wash : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            tabLabel,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                              color: _editorTab == index ? purple : muted,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (_editorTab == 0) ...[
+                // Frame categories filter
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final category in categories)
+                      ChoiceChip(
+                        label: Text(category),
+                        selected: _frameCategory == category,
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() => _frameCategory = category);
+                          }
+                        },
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final frame in displayedFrames)
+                      ChoiceChip(
+                        avatar: frame.art != null
+                            ? Image.asset(
+                                FrameArt.asset(frame.art!.name),
+                                width: 22,
+                                fit: BoxFit.contain,
+                                excludeFromSemantics: true,
+                              )
+                            : (frame.gradient != null
+                                ? Container(
+                                    width: 18,
+                                    height: 18,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: LinearGradient(
+                                        colors: frame.gradient!,
+                                      ),
+                                    ),
+                                  )
+                                : CircleAvatar(
+                                    backgroundColor: frame.paper,
+                                    radius: 9,
+                                    child: frame.border != null
+                                        ? Container(
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: frame.border!,
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                          )
+                                        : null,
+                                  )),
+                        label: Text(frame.label),
+                        selected: _frame == frame,
+                        onSelected: _exporting || _loadingFrame
+                            ? null
+                            : (_) => _chooseFrame(frame),
+                      ),
+                  ],
+                ),
+              ] else ...[
+                const Text(
+                  'Drag a sticker to move it. Use its corner handles to rotate or resize it.',
+                  style: TextStyle(color: muted, fontSize: 13),
+                ),
+                _stickerPicker(),
+                if (selected != null) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Sticker size',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Slider(
+                    min: StripSticker.minSize,
+                    max: StripSticker.maxSize,
+                    label: 'Sticker size',
+                    activeColor: purple,
+                    value: _stickers[selected].size,
+                    onChanged: _exporting
+                        ? null
+                        : (size) => _updateSticker(
+                            selected,
+                            _stickers[selected].resizeTo(size, design.size),
+                          ),
+                  ),
+                  const Text(
+                    'Sticker rotation',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Slider(
+                    min: -180,
+                    max: 180,
+                    label: 'Sticker rotation',
+                    activeColor: purple,
+                    value: _stickers[selected].angle,
+                    onChanged: _exporting
+                        ? null
+                        : (angle) => _updateSticker(
+                            selected,
+                            _stickers[selected].copyWith(angle: angle),
+                          ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: _exporting
+                          ? null
+                          : () => setState(() {
+                              _stickers.removeAt(selected);
+                              _selected = null;
+                            }),
+                      icon: const Icon(
+                        Icons.delete_outline,
+                        color: Color(0xffaa0000),
+                      ),
+                      label: const Text(
+                        'Remove sticker',
+                        style: TextStyle(color: Color(0xffaa0000)),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ],
+          ),
         ),
-        _stickerPicker(),
-        if (selected != null) ...[
-          const Text('Sticker size'),
-          Slider(
-            min: StripSticker.minSize,
-            max: StripSticker.maxSize,
-            label: 'Sticker size',
-            value: _stickers[selected].size,
-            onChanged: _exporting
-                ? null
-                : (size) => _updateSticker(
-                    selected,
-                    _stickers[selected].resizeTo(size, design.size),
-                  ),
-          ),
-          const Text('Sticker rotation'),
-          Slider(
-            min: -180,
-            max: 180,
-            label: 'Sticker rotation',
-            value: _stickers[selected].angle,
-            onChanged: _exporting
-                ? null
-                : (angle) => _updateSticker(
-                    selected,
-                    _stickers[selected].copyWith(angle: angle),
-                  ),
-          ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: _exporting
-                  ? null
-                  : () => setState(() {
-                      _stickers.removeAt(selected);
-                      _selected = null;
-                    }),
-              icon: const Icon(Icons.delete_outline),
-              label: const Text('Remove sticker'),
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -1029,7 +1719,7 @@ class _SessionPageState extends State<_SessionPage>
           child: SizedBox(
             height: math.min(MediaQuery.sizeOf(context).height * .48, 480),
             child: _playingStrip
-                ? MotionStripView(design: _design, gifs: _motionGifs)
+                ? MotionStripView(design: _design, gifs: _selectedMotionGifs)
                 : Image.memory(
                     png,
                     semanticLabel: 'Your finished LumiBooth photo strip',
@@ -1037,14 +1727,14 @@ class _SessionPageState extends State<_SessionPage>
                   ),
           ),
         ),
-        if (_motionGifs.isNotEmpty)
+        if (_selectedMotionGifs.isNotEmpty)
           TextButton(
             onPressed: _motionJobs.isEmpty
                 ? () => setState(() => _playingStrip = !_playingStrip)
                 : null,
             child: Text(_playingStrip ? 'Stop strip' : 'Play strip'),
           ),
-        if (_motionGifs.isNotEmpty)
+        if (_selectedMotionGifs.isNotEmpty)
           Builder(
             builder: (button) => OutlinedButton(
               onPressed: _preparingMotion || _sharing || _motionJobs.isNotEmpty
@@ -1175,7 +1865,10 @@ class _PrintLinksPageState extends State<_PrintLinksPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Manage gallery links')),
+    appBar: _BoothHeader(
+      step: 'GALLERY LINKS',
+      onBack: () => Navigator.of(context).pop(),
+    ),
     body: SafeArea(
       child: FutureBuilder<dynamic>(
         future: _links,
@@ -1247,6 +1940,146 @@ class _PrintLinksPageState extends State<_PrintLinksPage> {
   );
 }
 
+class _BoothHeader extends StatelessWidget implements PreferredSizeWidget {
+  const _BoothHeader({
+    required this.step,
+    this.onBack,
+    this.onAction,
+    this.actionLabel,
+  });
+
+  final String step;
+  final VoidCallback? onBack;
+  final VoidCallback? onAction;
+  final String? actionLabel;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(66);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 66,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: const BoxDecoration(
+        color: paper,
+        border: Border(bottom: BorderSide(color: line)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Row(
+          children: [
+            if (onBack != null)
+              IconButton(
+                icon: const Icon(Icons.arrow_back, size: 20, color: ink),
+                onPressed: onBack,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+            InkWell(
+              onTap: () {
+                if (Navigator.of(context).canPop()) {
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                }
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.camera_outlined, size: 21, color: purple),
+                  SizedBox(width: 6),
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'LumiBooth',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                            color: ink,
+                          ),
+                        ),
+                        TextSpan(
+                          text: '.',
+                          style: TextStyle(
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.w700,
+                            fontSize: 18,
+                            color: purple,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(),
+            Text(
+              step,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.8,
+                color: purple,
+              ),
+            ),
+            if (onAction != null && actionLabel != null) ...[
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: onAction,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(actionLabel!),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BoothFooter extends StatelessWidget {
+  const _BoothFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: line)),
+      ),
+      child: const Center(
+        child: Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: 'LUMIBOOTH STUDIO  ',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              TextSpan(text: '·  CAPTURE · FRAME · KEEP'),
+            ],
+          ),
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 10,
+            letterSpacing: 1.8,
+            color: muted,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Heading extends StatelessWidget {
   const _Heading(this.step, this.title, this.subtitle);
 
@@ -1262,20 +2095,35 @@ class _Heading extends StatelessWidget {
         Text(
           step,
           style: const TextStyle(
+            fontFamily: 'Outfit',
             color: purple,
             fontWeight: FontWeight.w700,
-            letterSpacing: 1.5,
+            letterSpacing: 1.8,
             fontSize: 11,
           ),
         ),
         const SizedBox(height: 8),
         Text(
           title,
-          style: Theme.of(context).textTheme.displaySmall
-              ?.copyWith(fontWeight: FontWeight.w600),
+          style: const TextStyle(
+            fontFamily: 'Playfair Display',
+            fontSize: 34,
+            fontWeight: FontWeight.w400,
+            height: 1.08,
+            letterSpacing: -0.8,
+            color: ink,
+          ),
         ),
         const SizedBox(height: 8),
-        Text(subtitle, style: Theme.of(context).textTheme.bodyLarge),
+        Text(
+          subtitle,
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            color: muted,
+            fontSize: 15,
+            height: 1.4,
+          ),
+        ),
       ],
     );
   }
@@ -1289,8 +2137,8 @@ class _Stage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
-      color: lavender,
-      borderRadius: BorderRadius.circular(20),
+      color: wash,
+      borderRadius: BorderRadius.circular(16),
     ),
     child: Padding(padding: const EdgeInsets.all(16), child: child),
   );

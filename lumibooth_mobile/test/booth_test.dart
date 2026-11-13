@@ -29,14 +29,15 @@ void main() {
     await tester.tap(find.text('Triple Strip'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('0 of 3 photos captured'), findsOneWidget);
+    expect(find.text('0 of 5 photos captured'), findsOneWidget);
+    expect(find.text('Pick your best 3 after shooting'), findsOneWidget);
 
     await tester.tap(find.text('End session'));
     await tester.pumpAndSettle();
     expect(find.text('Start photo booth'), findsOneWidget);
   });
 
-  testWidgets('three captures open the frame and caption editor', (
+  testWidgets('five captures open photo selection and allow choosing photos for strip', (
     tester,
   ) async {
     final image = await tester.runAsync(() async {
@@ -57,16 +58,41 @@ void main() {
     await tester.tap(find.text('Triple Strip'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    for (var count = 1; count <= 3; count++) {
+    for (var count = 1; count <= 5; count++) {
       tester
           .widget<CapturePage>(find.byType(CapturePage))
           .onPhoto(image.clone());
       await tester.pump();
-      if (count < 3) {
-        expect(find.text('$count of 3 photos captured'), findsOneWidget);
+      if (count < 5) {
+        expect(find.text('$count of 5 photos captured'), findsOneWidget);
       }
     }
+    // Photo selection step (03 / CHOOSE PHOTOS)
+    expect(find.text('Pick your favorites.'), findsOneWidget);
+    expect(find.text('03 / CHOOSE PHOTOS'), findsOneWidget);
+    expect(find.text('Shot 1'), findsOneWidget);
+    expect(find.text('Shot 5'), findsOneWidget);
+
+    // Swap shot 4 into selection
+    final selectionScroll = find
+        .descendant(
+          of: find.byKey(const ValueKey('selection')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    final shot4 = find.text('Shot 4');
+    await tester.scrollUntilVisible(shot4, 120, scrollable: selectionScroll);
+    await Scrollable.ensureVisible(tester.element(shot4), alignment: .4);
+    await tester.pumpAndSettle();
+    await tester.tap(shot4);
+    await tester.pump();
+
+    // Proceed to editor
+    await tester.tap(find.text('Next: Decorate strip'));
+    await tester.pump();
+
     expect(find.text('Make it yours.'), findsOneWidget);
+    expect(find.text('Change photos'), findsOneWidget);
     final editorScroll = find
         .descendant(
           of: find.byKey(const ValueKey('editor')),
@@ -133,6 +159,59 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets(
+    'guest can finish shooting early after meeting minimum required photos',
+    (tester) async {
+      final image = await tester.runAsync(() async {
+        final recorder = ui.PictureRecorder();
+        Canvas(recorder).drawColor(Colors.green, BlendMode.src);
+        final picture = recorder.endRecording();
+        try {
+          return await picture.toImage(20, 20);
+        } finally {
+          picture.dispose();
+        }
+      });
+      addTearDown(image!.dispose);
+
+      await tester.pumpWidget(const LumiBooth());
+      await tester.tap(find.text('Start photo booth'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dual Strip'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('0 of 4 photos captured'), findsOneWidget);
+
+      tester
+          .widget<CapturePage>(find.byType(CapturePage))
+          .onPhoto(image.clone());
+      await tester.pump();
+      expect(find.text('1 of 4 photos captured'), findsOneWidget);
+
+      tester
+          .widget<CapturePage>(find.byType(CapturePage))
+          .onPhoto(image.clone());
+      await tester.pump();
+      expect(find.text('2 of 4 photos captured'), findsOneWidget);
+
+      final cameraScroll = find
+          .descendant(
+            of: find.byType(CapturePage),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      final doneButton = find.text('Done shooting (2/4)');
+      await tester.scrollUntilVisible(doneButton, 200, scrollable: cameraScroll);
+      await tester.tap(doneButton);
+      await tester.pump();
+
+      // Exactly 2 required photos taken, so directly goes to editor
+      expect(find.text('Make it yours.'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
   test(
     'export encodes the chosen frame at three times the design size',
     () async {
@@ -164,7 +243,7 @@ void main() {
   test(
     'Retro Flash exports a checkerboard and Instant Print adds footer space',
     () async {
-      expect(StripFrame.values, hasLength(19));
+      expect(StripFrame.values, hasLength(36));
       final layout = StripLayout.choices.first;
       final retro = StripDesign(layout: layout, frame: StripFrame.retro);
       final instant = StripDesign(layout: layout, frame: StripFrame.instant);

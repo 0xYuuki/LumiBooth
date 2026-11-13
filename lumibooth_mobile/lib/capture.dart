@@ -15,12 +15,16 @@ class CapturePage extends StatefulWidget {
     required this.captured,
     required this.total,
     required this.onPhoto,
+    this.minRequired,
+    this.onFinishEarly,
     this.remote = false,
   });
 
   final int captured;
   final int total;
+  final int? minRequired;
   final void Function(ui.Image, {MotionClip? motion}) onPhoto;
+  final VoidCallback? onFinishEarly;
   final bool remote;
 
   @override
@@ -315,16 +319,47 @@ class CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
       children: [
         Text(
           'Ready for your close-up?',
-          style: Theme.of(context).textTheme.headlineMedium,
+          style: const TextStyle(
+            fontFamily: 'Playfair Display',
+            fontSize: 32,
+            fontWeight: FontWeight.w400,
+            letterSpacing: -0.8,
+            color: Color(0xff23202a),
+          ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Semantics(
           liveRegion: true,
-          child: Text('${widget.captured} of ${widget.total} photos captured'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${widget.captured} of ${widget.total} photos captured',
+                style: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 15,
+                  color: Color(0xff615a68),
+                ),
+              ),
+              if (widget.minRequired != null &&
+                  widget.minRequired! < widget.total) ...[
+                const SizedBox(height: 2),
+                Text(
+                  'Pick your best ${widget.minRequired} after shooting',
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 13,
+                    color: Color(0xff523884),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
         const SizedBox(height: 20),
         ClipRRect(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           child: AspectRatio(
             aspectRatio: cameraAspectRatio,
             child: ColoredBox(
@@ -410,6 +445,17 @@ class CapturePageState extends State<CapturePage> with WidgetsBindingObserver {
                       ? () => _retry(switchCamera: true)
                       : null,
                   icon: const Icon(Icons.cameraswitch_outlined),
+                ),
+              if (widget.minRequired != null &&
+                  widget.captured >= widget.minRequired! &&
+                  widget.captured < widget.total &&
+                  widget.onFinishEarly != null)
+                OutlinedButton.icon(
+                  onPressed: locked ? null : widget.onFinishEarly,
+                  icon: const Icon(Icons.check),
+                  label: Text(
+                    'Done shooting (${widget.captured}/${widget.total})',
+                  ),
                 ),
             ],
           ),

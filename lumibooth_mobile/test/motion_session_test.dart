@@ -48,6 +48,18 @@ void main() {
       });
       await tester.pump();
 
+      final cameraScroll = find.descendant(
+        of: find.byType(CapturePage),
+        matching: find.byType(Scrollable),
+      ).first;
+      await tester.scrollUntilVisible(
+        find.text('Done shooting (3/5)'),
+        200,
+        scrollable: cameraScroll,
+      );
+      await tester.tap(find.text('Done shooting (3/5)'));
+      await tester.pump();
+
       await tester.runAsync(() async {
         await tester.tap(find.text('Preview strip'));
       });

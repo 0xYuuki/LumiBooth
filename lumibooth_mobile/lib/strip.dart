@@ -189,6 +189,113 @@ enum StripFrame {
     6,
     border: Color(0xffc6a168),
     signaturePaper: true,
+  ),
+
+  // ── Color frames ──────────────────────────────────────────────────────
+  colorWhite('White', 'PHOTO STRIP', Color(0xffffffff), Color(0xff242424), 0),
+  colorBlack('Black', 'PHOTO STRIP', Color(0xff000000), Color(0xffffffff), 0),
+  pastelPink(
+    'Pastel Pink',
+    'PHOTO STRIP',
+    Color(0xffFFB6C1),
+    Color(0xff242424),
+    0,
+  ),
+  pastelBlue(
+    'Pastel Blue',
+    'PHOTO STRIP',
+    Color(0xffAEC6CF),
+    Color(0xff242424),
+    0,
+  ),
+  colorLavender(
+    'Lavender',
+    'PHOTO STRIP',
+    Color(0xffB07DF0),
+    Color(0xffffffff),
+    0,
+  ),
+  cream('Cream', 'PHOTO STRIP', Color(0xffFFFACD), Color(0xff242424), 0),
+  mint('Mint', 'PHOTO STRIP', Color(0xff98FF98), Color(0xff242424), 0),
+  coral('Coral', 'PHOTO STRIP', Color(0xffFF7F50), Color(0xffffffff), 0),
+
+  // ── Gradient frames ───────────────────────────────────────────────────
+  sunset(
+    'Sunset',
+    'GOLDEN HOUR',
+    Color(0xfff6d365),
+    Color(0xff5c3b25),
+    0,
+    gradient: [Color(0xfff6d365), Color(0xfffda085)],
+    gradientAngle: 120,
+  ),
+  candy(
+    'Candy',
+    'SWEET THINGS',
+    Color(0xffff0844),
+    Color(0xffffffff),
+    0,
+    gradient: [Color(0xffffb199), Color(0xffff0844)],
+    gradientAngle: 0,
+  ),
+  ocean(
+    'Ocean',
+    'DEEP BLUE',
+    Color(0xff4facfe),
+    Color(0xffffffff),
+    0,
+    gradient: [Color(0xff4facfe), Color(0xff00f2fe)],
+    gradientAngle: 90,
+  ),
+  twilight(
+    'Twilight',
+    'AFTER HOURS',
+    Color(0xff667eea),
+    Color(0xffffffff),
+    0,
+    gradient: [Color(0xff667eea), Color(0xff764ba2)],
+    gradientAngle: 135,
+  ),
+  peach(
+    'Peach',
+    'WARM & FUZZY',
+    Color(0xffffecd2),
+    Color(0xff5c3b25),
+    0,
+    gradient: [Color(0xffffecd2), Color(0xfffcb69f)],
+    gradientAngle: 90,
+  ),
+  minty(
+    'Minty',
+    'FRESH START',
+    Color(0xff00b09b),
+    Color(0xffffffff),
+    0,
+    gradient: [Color(0xff00b09b), Color(0xff96c93d)],
+    gradientAngle: 90,
+  ),
+
+  // ── Pattern frames ────────────────────────────────────────────────────
+  pinkDots(
+    'Pink Dots',
+    'PHOTO STRIP',
+    Color(0xffffffff),
+    Color(0xff242424),
+    0,
+  ),
+  blueStripes(
+    'Blue Stripes',
+    'PHOTO STRIP',
+    Color(0xffAEC6CF),
+    Color(0xff242424),
+    0,
+  ),
+  grid(
+    'Grid',
+    'PHOTO STRIP',
+    Color(0xffffffff),
+    Color(0xff242424),
+    0,
   );
 
   const StripFrame(
@@ -202,6 +309,8 @@ enum StripFrame {
     this.rule = false,
     this.signaturePaper = false,
     this.art,
+    this.gradient,
+    this.gradientAngle = 0,
   });
 
   final String label;
@@ -214,6 +323,29 @@ enum StripFrame {
   final bool rule;
   final bool signaturePaper;
   final FrameArt? art;
+  final List<Color>? gradient;
+  final double gradientAngle;
+
+  String get category {
+    for (final entry in categories.entries) {
+      if (entry.value.contains(this)) return entry.key;
+    }
+    return 'Templates';
+  }
+
+  static const Map<String, List<StripFrame>> categories = {
+    'Illustrated': [tubeTV, cameraFilm, vinyl, scrapbook, zine],
+    'Templates': [
+      studio, film, postcard, lavender, classic, instant, retro, vintage, diner,
+      arcade, disco, wedding, birthday, holiday,
+    ],
+    'Colors': [
+      colorWhite, colorBlack, pastelPink, pastelBlue, colorLavender, cream,
+      mint, coral,
+    ],
+    'Gradients': [sunset, candy, ocean, twilight, peach, minty],
+    'Patterns': [pinkDots, blueStripes, grid],
+  };
 }
 
 class FrameArt {
@@ -617,6 +749,19 @@ class StripPainter extends CustomPainter {
   }
 
   void _paintMotif(Canvas canvas, Size size, StripFrame frame) {
+    // Gradient frames: paint gradient and return early.
+    if (frame.gradient case final colors?) {
+      final radians = frame.gradientAngle * math.pi / 180;
+      final gPaint = Paint()
+        ..shader = LinearGradient(
+          begin: Alignment(-math.cos(radians), -math.sin(radians)),
+          end: Alignment(math.cos(radians), math.sin(radians)),
+          colors: colors,
+        ).createShader(Offset.zero & size);
+      canvas.drawRect(Offset.zero & size, gPaint);
+      return;
+    }
+
     final paint = Paint();
     switch (frame) {
       case StripFrame.film:
@@ -697,6 +842,52 @@ class StripPainter extends CustomPainter {
           StripFrame.classic ||
           StripFrame.instant ||
           StripFrame.wedding:
+        break;
+      case StripFrame.pinkDots:
+        final dotPaint = Paint()..color = const Color(0xffFFB6C1);
+        for (var x = 0.0; x < size.width; x += 20) {
+          for (var y = 0.0; y < size.height; y += 20) {
+            canvas.drawCircle(Offset(x, y), 2, dotPaint);
+            canvas.drawCircle(Offset(x + 10, y + 10), 2, dotPaint);
+          }
+        }
+      case StripFrame.blueStripes:
+        final stripePaint = Paint()
+          ..color = const Color(0xffAEC6CF)
+          ..strokeWidth = 10;
+        for (var x = -size.height; x < size.width; x += 20) {
+          canvas.drawLine(
+            Offset(x, 0),
+            Offset(x + size.height, size.height),
+            stripePaint,
+          );
+        }
+      case StripFrame.grid:
+        final gridPaint = Paint()
+          ..color = const Color(0xffe5e5e5)
+          ..strokeWidth = 2;
+        for (var x = 0.0; x < size.width; x += 20) {
+          canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+        }
+        for (var y = 0.0; y < size.height; y += 20) {
+          canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+        }
+      case StripFrame.colorWhite ||
+          StripFrame.colorBlack ||
+          StripFrame.pastelPink ||
+          StripFrame.pastelBlue ||
+          StripFrame.colorLavender ||
+          StripFrame.cream ||
+          StripFrame.mint ||
+          StripFrame.coral:
+        break;
+      // Gradient frames are handled before the switch.
+      case StripFrame.sunset ||
+          StripFrame.candy ||
+          StripFrame.ocean ||
+          StripFrame.twilight ||
+          StripFrame.peach ||
+          StripFrame.minty:
         break;
     }
   }

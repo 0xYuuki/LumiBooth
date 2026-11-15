@@ -29,15 +29,148 @@ void main() {
     await tester.tap(find.text('Triple Strip'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('0 of 5 photos captured'), findsOneWidget);
-    expect(find.text('Pick your best 3 after shooting'), findsOneWidget);
+    expect(find.text('0 of 3 photos captured'), findsOneWidget);
+    expect(find.text('STEP 02 OF 04'), findsOneWidget);
 
     await tester.tap(find.text('End session'));
     await tester.pumpAndSettle();
     expect(find.text('Start photo booth'), findsOneWidget);
   });
 
-  testWidgets('five captures open photo selection and allow choosing photos for strip', (
+  testWidgets(
+    'captures open shared review and allow alternative photos for the strip',
+    (tester) async {
+      final image = await tester.runAsync(() async {
+        final recorder = ui.PictureRecorder();
+        Canvas(recorder).drawColor(Colors.green, BlendMode.src);
+        final picture = recorder.endRecording();
+        try {
+          return await picture.toImage(20, 20);
+        } finally {
+          picture.dispose();
+        }
+      });
+      addTearDown(image!.dispose);
+
+      await tester.pumpWidget(const LumiBooth());
+      await tester.tap(find.text('Start photo booth'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Triple Strip'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      for (var count = 1; count <= 3; count++) {
+        tester
+            .widget<CapturePage>(find.byType(CapturePage))
+            .onPhoto(image.clone());
+        await tester.pump();
+        if (count < 3) {
+          expect(find.text('$count of 3 photos captured'), findsOneWidget);
+        }
+      }
+      // Photo selection step (02 / PHOTOS)
+      expect(find.text('Your photos, your order.'), findsOneWidget);
+      expect(find.text('02 / PHOTOS'), findsOneWidget);
+
+      await tester.tap(find.text('Take photos'));
+      await tester.pump();
+      tester
+          .widget<CapturePage>(find.byType(CapturePage))
+          .onPhoto(image.clone());
+      await tester.pump();
+      // Swap shot 4 into selection
+      final selectionScroll = find
+          .descendant(
+            of: find.byKey(const ValueKey('selection')),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      final shot4 = find.text('Shot 4');
+      await tester.scrollUntilVisible(shot4, 120, scrollable: selectionScroll);
+      expect(find.text('Shot 1'), findsOneWidget);
+      expect(find.text('Shot 4'), findsOneWidget);
+      await Scrollable.ensureVisible(tester.element(shot4), alignment: .4);
+      await tester.pumpAndSettle();
+      await tester.tap(shot4);
+      await tester.pump();
+
+      // Proceed to editor
+      await tester.tap(find.text('Next: Decorate strip'));
+      await tester.pump();
+
+      expect(find.text('Make it yours.'), findsOneWidget);
+      expect(find.text('Change photos'), findsOneWidget);
+      final editorScroll = find
+          .descendant(
+            of: find.byKey(const ValueKey('editor')),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(
+        find.text('Soft Postcard'),
+        140,
+        scrollable: editorScroll,
+      );
+      final target = find.text('Soft Postcard');
+      await Scrollable.ensureVisible(tester.element(target), alignment: .4);
+      await tester.pumpAndSettle();
+      await tester.tap(target);
+      await tester.pump();
+      final chip = find.ancestor(
+        of: find.text('Soft Postcard'),
+        matching: find.byType(ChoiceChip),
+      );
+      expect(tester.widget<ChoiceChip>(chip).selected, isTrue);
+      final captionField = find.byType(TextField);
+      String caption() =>
+          tester.widget<TextField>(captionField).controller!.text;
+      await tester.scrollUntilVisible(
+        captionField,
+        -100,
+        scrollable: editorScroll,
+      );
+      await Scrollable.ensureVisible(
+        tester.element(captionField),
+        alignment: .4,
+      );
+      await tester.pumpAndSettle();
+      expect(caption(), StripFrame.postcard.caption);
+      await tester.enterText(
+        captionField,
+        '123456789012345678901234567890123456',
+      );
+      expect(caption(), '12345678901234567890123456789012');
+      await tester.enterText(captionField, 'Manila memories');
+      await tester.pump();
+      StripDesign currentDesign() => tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((widget) => widget.painter)
+          .whereType<StripPainter>()
+          .singleWhere((painter) => painter.design.photos.length == 3)
+          .design;
+      expect(currentDesign().footerCaption, 'Manila memories');
+      await tester.tap(find.text('Remove caption'));
+      await tester.pump();
+      expect(caption(), isEmpty);
+      expect(currentDesign().footerCaption, isEmpty);
+      await tester.tap(find.text('Use frame caption'));
+      await tester.pump();
+      expect(currentDesign().footerCaption, StripFrame.postcard.caption);
+      final font = find.byType(DropdownButtonFormField<StripFont>);
+      await tester.scrollUntilVisible(font, -100, scrollable: editorScroll);
+      await Scrollable.ensureVisible(tester.element(font), alignment: .35);
+      await tester.pumpAndSettle();
+      await tester.tap(font);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Caveat').last);
+      await tester.pumpAndSettle();
+      expect(currentDesign().font, StripFont.caveat);
+      expect(currentDesign().footerCaption, StripFrame.postcard.caption);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('required photos always open review before design', (
     tester,
   ) async {
     final image = await tester.runAsync(() async {
@@ -55,162 +188,25 @@ void main() {
     await tester.pumpWidget(const LumiBooth());
     await tester.tap(find.text('Start photo booth'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Triple Strip'));
+    await tester.tap(find.text('Dual Strip'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    for (var count = 1; count <= 5; count++) {
-      tester
-          .widget<CapturePage>(find.byType(CapturePage))
-          .onPhoto(image.clone());
-      await tester.pump();
-      if (count < 5) {
-        expect(find.text('$count of 5 photos captured'), findsOneWidget);
-      }
-    }
-    // Photo selection step (03 / CHOOSE PHOTOS)
-    expect(find.text('Pick your favorites.'), findsOneWidget);
-    expect(find.text('03 / CHOOSE PHOTOS'), findsOneWidget);
+    expect(find.text('0 of 2 photos captured'), findsOneWidget);
 
-    // Swap shot 4 into selection
-    final selectionScroll = find
-        .descendant(
-          of: find.byKey(const ValueKey('selection')),
-          matching: find.byType(Scrollable),
-        )
-        .first;
-    final shot4 = find.text('Shot 4');
-    await tester.scrollUntilVisible(shot4, 120, scrollable: selectionScroll);
-    expect(find.text('Shot 1'), findsOneWidget);
-    expect(find.text('Shot 5'), findsOneWidget);
-    await Scrollable.ensureVisible(tester.element(shot4), alignment: .4);
-    await tester.pumpAndSettle();
-    await tester.tap(shot4);
+    tester.widget<CapturePage>(find.byType(CapturePage)).onPhoto(image.clone());
+    await tester.pump();
+    expect(find.text('1 of 2 photos captured'), findsOneWidget);
+
+    tester.widget<CapturePage>(find.byType(CapturePage)).onPhoto(image.clone());
     await tester.pump();
 
-    // Proceed to editor
+    expect(find.text('Your photos, your order.'), findsOneWidget);
     await tester.tap(find.text('Next: Decorate strip'));
     await tester.pump();
-
     expect(find.text('Make it yours.'), findsOneWidget);
-    expect(find.text('Change photos'), findsOneWidget);
-    final editorScroll = find
-        .descendant(
-          of: find.byKey(const ValueKey('editor')),
-          matching: find.byType(Scrollable),
-        )
-        .first;
-    await tester.scrollUntilVisible(
-      find.text('Soft Postcard'),
-      140,
-      scrollable: editorScroll,
-    );
-    final target = find.text('Soft Postcard');
-    await Scrollable.ensureVisible(tester.element(target), alignment: .4);
-    await tester.pumpAndSettle();
-    await tester.tap(target);
-    await tester.pump();
-    final chip = find.ancestor(
-      of: find.text('Soft Postcard'),
-      matching: find.byType(ChoiceChip),
-    );
-    expect(tester.widget<ChoiceChip>(chip).selected, isTrue);
-    final captionField = find.byType(TextField);
-    String caption() => tester.widget<TextField>(captionField).controller!.text;
-    await tester.scrollUntilVisible(
-      captionField,
-      -100,
-      scrollable: editorScroll,
-    );
-    await Scrollable.ensureVisible(tester.element(captionField), alignment: .4);
-    await tester.pumpAndSettle();
-    expect(caption(), StripFrame.postcard.caption);
-    await tester.enterText(
-      captionField,
-      '123456789012345678901234567890123456',
-    );
-    expect(caption(), '12345678901234567890123456789012');
-    await tester.enterText(captionField, 'Manila memories');
-    await tester.pump();
-    StripDesign currentDesign() => tester
-        .widgetList<CustomPaint>(find.byType(CustomPaint))
-        .map((widget) => widget.painter)
-        .whereType<StripPainter>()
-        .singleWhere((painter) => painter.design.photos.length == 3)
-        .design;
-    expect(currentDesign().footerCaption, 'Manila memories');
-    await tester.tap(find.text('Remove caption'));
-    await tester.pump();
-    expect(caption(), isEmpty);
-    expect(currentDesign().footerCaption, isEmpty);
-    await tester.tap(find.text('Use frame caption'));
-    await tester.pump();
-    expect(currentDesign().footerCaption, StripFrame.postcard.caption);
-    final font = find.byType(DropdownButtonFormField<StripFont>);
-    await tester.scrollUntilVisible(font, -100, scrollable: editorScroll);
-    await Scrollable.ensureVisible(tester.element(font), alignment: .35);
-    await tester.pumpAndSettle();
-    await tester.tap(font);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Caveat').last);
-    await tester.pumpAndSettle();
-    expect(currentDesign().font, StripFont.caveat);
-    expect(currentDesign().footerCaption, StripFrame.postcard.caption);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
   });
-
-  testWidgets(
-    'guest can finish shooting early after meeting minimum required photos',
-    (tester) async {
-      final image = await tester.runAsync(() async {
-        final recorder = ui.PictureRecorder();
-        Canvas(recorder).drawColor(Colors.green, BlendMode.src);
-        final picture = recorder.endRecording();
-        try {
-          return await picture.toImage(20, 20);
-        } finally {
-          picture.dispose();
-        }
-      });
-      addTearDown(image!.dispose);
-
-      await tester.pumpWidget(const LumiBooth());
-      await tester.tap(find.text('Start photo booth'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Dual Strip'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(find.text('0 of 4 photos captured'), findsOneWidget);
-
-      tester
-          .widget<CapturePage>(find.byType(CapturePage))
-          .onPhoto(image.clone());
-      await tester.pump();
-      expect(find.text('1 of 4 photos captured'), findsOneWidget);
-
-      tester
-          .widget<CapturePage>(find.byType(CapturePage))
-          .onPhoto(image.clone());
-      await tester.pump();
-      expect(find.text('2 of 4 photos captured'), findsOneWidget);
-
-      final cameraScroll = find
-          .descendant(
-            of: find.byType(CapturePage),
-            matching: find.byType(Scrollable),
-          )
-          .first;
-      final doneButton = find.text('Done shooting (2/4)');
-      await tester.scrollUntilVisible(doneButton, 200, scrollable: cameraScroll);
-      await tester.tap(doneButton);
-      await tester.pump();
-
-      // Exactly 2 required photos taken, so directly goes to editor
-      expect(find.text('Make it yours.'), findsOneWidget);
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pumpAndSettle();
-    },
-  );
 
   test(
     'export encodes the chosen frame at three times the design size',

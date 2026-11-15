@@ -4,8 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'
-    show Clipboard, ClipboardData, PlatformException;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -22,6 +21,7 @@ import 'remote_booth.dart';
 import 'strip.dart';
 import 'sticker_pack.dart';
 import 'sticker_controls.dart';
+import 'photo_crop_controls.dart';
 
 const paper = Color(0xfffaf8f4);
 const lavender = Color(0xffeee8f7);
@@ -184,29 +184,9 @@ class _WelcomePageState extends State<WelcomePage> {
     }
   }
 
-  Future<void> _chooseFromGallery() async {
-    if (_selectingGallery) return;
-    setState(() => _selectingGallery = true);
-    try {
-      final files = await _imagePicker.pickMultiImage(
-        maxWidth: 1600,
-        maxHeight: 1600,
-        imageQuality: 92,
-      );
-      if (files.isEmpty || !mounted) return;
-      await _openGalleryFiles(files);
-    } on PlatformException {
-      if (mounted) {
-        _showMessage(
-          'Photo access was interrupted. Check photo permissions and try again.',
-        );
-      }
-    } catch (_) {
-      if (mounted) _showMessage('Could not open the photo library. Try again.');
-    } finally {
-      if (mounted) setState(() => _selectingGallery = false);
-    }
-  }
+  Future<void> _chooseFromGallery() => Navigator.of(context).push<void>(
+    MaterialPageRoute(builder: (_) => const _LayoutPage(fromGallery: true)),
+  );
 
   Future<void> _openGalleryFiles(List<XFile> files) async {
     if (files.length > 12) {
@@ -239,18 +219,20 @@ class _WelcomePageState extends State<WelcomePage> {
       return;
     }
     setState(() => _selectingGallery = false);
+    if (failed > 0) _showMessage('$failed photos could not be restored.');
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) =>
-            _GalleryImportPage(images: images, skippedCount: failed),
+        builder: (_) => _LayoutPage(fromGallery: true, recoveredPhotos: images),
       ),
     );
+    for (final image in images) {
+      image.dispose();
+    }
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -270,14 +252,16 @@ class _WelcomePageState extends State<WelcomePage> {
                   fit: BoxFit.contain,
                 ),
                 const SizedBox(width: 10),
-                const Text(
-                  'THE DIGITAL PHOTO BOOTH',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    color: purple,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.8,
-                    fontSize: 11,
+                const Flexible(
+                  child: Text(
+                    'THE DIGITAL PHOTO BOOTH',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      color: purple,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.8,
+                      fontSize: 11,
+                    ),
                   ),
                 ),
               ],
@@ -471,312 +455,15 @@ Future<ui.Image> _decodeGalleryImage(XFile file) async {
   }
 }
 
-class _GalleryImportPage extends StatefulWidget {
-  const _GalleryImportPage({required this.images, this.skippedCount = 0});
-
-  final List<ui.Image> images;
-  final int skippedCount;
-
-  @override
-  State<_GalleryImportPage> createState() => _GalleryImportPageState();
-}
-
-class _GalleryImportPageState extends State<_GalleryImportPage> {
-  final ImagePicker _imagePicker = ImagePicker();
-  late final List<ui.Image> _images = List.of(widget.images);
-  late StripLayout _layout = StripLayout.choices.firstWhere(
-    (layout) => layout.requiredPhotos == _images.length,
-    orElse: () => StripLayout.choices.first,
-  );
-  bool _busy = false;
-  bool _transferred = false;
-
-  @override
-  void dispose() {
-    if (!_transferred) {
-      for (final image in _images) {
-        image.dispose();
-      }
-    }
-    super.dispose();
-  }
-
-  Future<void> _addPhotos({int? replaceIndex}) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    try {
-      final files = replaceIndex == null
-          ? await _imagePicker.pickMultiImage(
-              maxWidth: 1600,
-              maxHeight: 1600,
-              imageQuality: 92,
-            )
-          : await _pickOneImage();
-      if (files.isEmpty || !mounted) return;
-      if (replaceIndex == null && _images.length + files.length > 12) {
-        _showMessage(
-          'Choose up to 12 photos for one strip. Remove a photo first.',
-        );
-        return;
-      }
-
-      final decoded = <ui.Image>[];
-      var failed = 0;
-      for (final file in files) {
-        try {
-          decoded.add(await _decodeGalleryImage(file));
-        } catch (_) {
-          failed++;
-        }
-      }
-      if (!mounted) {
-        for (final image in decoded) {
-          image.dispose();
-        }
-        return;
-      }
-      if (failed > 0) {
-        _showMessage(
-          '$failed photo${failed == 1 ? '' : 's'} could not be opened.',
-        );
-      }
-      if (decoded.isEmpty) return;
-
-      setState(() {
-        if (replaceIndex != null) {
-          _images[replaceIndex].dispose();
-          _images[replaceIndex] = decoded.first;
-          for (final extra in decoded.skip(1)) {
-            extra.dispose();
-          }
-        } else {
-          _images.addAll(decoded);
-        }
-      });
-    } on PlatformException {
-      if (mounted) {
-        _showMessage(
-          'Photo access was interrupted. Check photo permissions and try again.',
-        );
-      }
-    } catch (_) {
-      if (mounted) _showMessage('Could not read those photos. Try again.');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<List<XFile>> _pickOneImage() async {
-    final file = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1600,
-      maxHeight: 1600,
-      imageQuality: 92,
-    );
-    return file == null ? const [] : [file];
-  }
-
-  void _move(int index, int offset) {
-    final target = index + offset;
-    if (target < 0 || target >= _images.length) return;
-    setState(() {
-      final image = _images.removeAt(index);
-      _images.insert(target, image);
-    });
-  }
-
-  void _remove(int index) {
-    setState(() => _images.removeAt(index).dispose());
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  void _continue() {
-    if (_busy || _images.length != _layout.requiredPhotos) return;
-    _transferred = true;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => _SessionPage(
-          layout: _layout,
-          initialPhotos: List.unmodifiable(_images),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final required = _layout.requiredPhotos;
-    final exactCount = _images.length == required;
-    return Scaffold(
-      appBar: _BoothHeader(
-        step: 'GALLERY IMPORT',
-        onBack: () => Navigator.of(context).pop(),
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            _Heading(
-              'CHOOSE FROM GALLERY',
-              'Build your strip.',
-              'Photos stay on this device. Reorder, replace, or remove them before editing.',
-            ),
-            if (widget.skippedCount > 0) ...[
-              const SizedBox(height: 10),
-              Text(
-                '${widget.skippedCount} photo${widget.skippedCount == 1 ? '' : 's'} could not be opened. Replace them or choose a matching layout.',
-                style: const TextStyle(color: Color(0xff8a3030)),
-              ),
-            ],
-            const SizedBox(height: 16),
-            const Text(
-              'Choose a layout',
-              style: TextStyle(fontWeight: FontWeight.w700, color: ink),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final layout in StripLayout.choices)
-                  ChoiceChip(
-                    label: Text(
-                      '${layout.count} photo${layout.count == 1 ? '' : 's'}',
-                    ),
-                    selected: layout == _layout,
-                    onSelected: _busy
-                        ? null
-                        : (_) => setState(() => _layout = layout),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              exactCount
-                  ? '${_images.length} photos ready in strip order.'
-                  : _images.length < required
-                  ? 'Add ${required - _images.length} more or choose a smaller layout.'
-                  : 'Remove ${_images.length - required} photos or choose a larger layout.',
-              style: const TextStyle(color: muted),
-            ),
-            const SizedBox(height: 12),
-            for (var i = 0; i < _images.length; i++)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          SizedBox(
-                            width: 72,
-                            height: 64,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: RawImage(
-                                image: _images[i],
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Photo ${i + 1}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          IconButton(
-                            tooltip: 'Move photo up',
-                            onPressed: _busy || i == 0
-                                ? null
-                                : () => _move(i, -1),
-                            icon: const Icon(Icons.arrow_upward),
-                          ),
-                          IconButton(
-                            tooltip: 'Move photo down',
-                            onPressed: _busy || i == _images.length - 1
-                                ? null
-                                : () => _move(i, 1),
-                            icon: const Icon(Icons.arrow_downward),
-                          ),
-                          IconButton(
-                            tooltip: 'Replace photo ${i + 1}',
-                            onPressed: _busy
-                                ? null
-                                : () => _addPhotos(replaceIndex: i),
-                            icon: const Icon(Icons.swap_horiz),
-                          ),
-                          IconButton(
-                            tooltip: 'Remove photo ${i + 1}',
-                            onPressed: _busy ? null : () => _remove(i),
-                            icon: const Icon(Icons.close),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            OutlinedButton.icon(
-              onPressed: _busy || _images.length >= 12
-                  ? null
-                  : () => _addPhotos(),
-              icon: const Icon(Icons.add_photo_alternate_outlined),
-              label: Text(_busy ? 'Reading photos…' : 'Add photos'),
-            ),
-            const SizedBox(height: 90),
-          ],
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        minimum: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _busy
-                    ? null
-                    : () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => _SessionPage(layout: _layout),
-                        ),
-                      ),
-                icon: const Icon(Icons.camera_alt_outlined),
-                label: const Text('Take photos'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: exactCount && !_busy ? _continue : null,
-                icon: const Icon(Icons.edit_outlined),
-                label: Text(
-                  exactCount ? 'Edit photos' : 'Need $required photos',
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _LayoutPage extends StatelessWidget {
-  const _LayoutPage();
+  const _LayoutPage({
+    this.fromGallery = false,
+    this.recoveredPhotos = const [],
+    this.onSelected,
+  });
+  final bool fromGallery;
+  final List<ui.Image> recoveredPhotos;
+  final ValueChanged<StripLayout>? onSelected;
 
   Widget _layoutCard(BuildContext context, StripLayout layout) {
     return Material(
@@ -787,9 +474,23 @@ class _LayoutPage extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => _SessionPage(layout: layout)),
-        ),
+        onTap: () {
+          if (onSelected != null) {
+            onSelected!(layout);
+            return;
+          }
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => _SessionPage(
+                layout: layout,
+                fromGallery: fromGallery,
+                initialPhotos: [
+                  for (final image in recoveredPhotos) image.clone(),
+                ],
+              ),
+            ),
+          );
+        },
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -854,14 +555,15 @@ class _LayoutPage extends StatelessWidget {
     return Scaffold(
       appBar: _BoothHeader(
         step: '01 / LAYOUT',
-        onBack: () => Navigator.of(context).pop(),
+        onHome: () => Navigator.of(context).pop(),
       ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            _StepBack(number: 1, onBack: () => Navigator.of(context).pop()),
             const _Heading(
-              'STEP 01 OF 04',
+              '',
               'Choose your layout.',
               'How many photos would you like on your strip?',
             ),
@@ -897,11 +599,13 @@ class _SessionPage extends StatefulWidget {
   const _SessionPage({
     required this.layout,
     this.initialPhotos = const [],
+    this.fromGallery = false,
     this.roomId,
   });
 
   final StripLayout layout;
   final List<ui.Image> initialPhotos;
+  final bool fromGallery;
   final String? roomId;
 
   @override
@@ -912,8 +616,15 @@ class _SessionPageState extends State<_SessionPage>
     with WidgetsBindingObserver {
   final List<ui.Image> _photos = [];
   final List<int> _selectedIndices = [];
+  final Set<int> _removedPhotos = {};
+  final Map<int, PhotoCrop> _crops = {};
+  int _cropPhoto = 0;
+  int get _activeCount => _photos.length - _removedPhotos.length;
   bool _choosingPhotos = false;
-  bool _finishedCapturingEarly = false;
+  bool _reviewing = false;
+  bool _pickingImages = false;
+  late StripLayout _layout = widget.layout;
+  late int _captureGoal = _layout.requiredPhotos;
   final Set<int> _motionShots = {};
   final Map<int, MotionGifJob> _motionJobs = {};
   final Map<int, Uint8List> _motionGifs = {};
@@ -949,19 +660,13 @@ class _SessionPageState extends State<_SessionPage>
   bool? _galleryHasMotion;
   ({String url, String expiresAt})? _printLink;
 
-  int get _extraPhotos => widget.roomId != null ? 0 : 2;
-  int get _targetCaptureCount => widget.layout.requiredPhotos + _extraPhotos;
-
-  bool get _captured =>
-      (widget.initialPhotos.isNotEmpty &&
-          _photos.length >= widget.layout.requiredPhotos) ||
-      _photos.length >= _targetCaptureCount ||
-      (_finishedCapturingEarly &&
-          _photos.length >= widget.layout.requiredPhotos);
+  int get _targetCaptureCount => _captureGoal;
+  bool get _captured => _reviewing;
 
   List<ui.Image> get _stripPhotos => [
     for (final i in _selectedIndices)
-      if (i >= 0 && i < _photos.length) _photos[i],
+      if (i >= 0 && i < _photos.length && !_removedPhotos.contains(i))
+        _photos[i],
   ];
 
   Map<int, Uint8List> get _selectedMotionGifs {
@@ -974,12 +679,15 @@ class _SessionPageState extends State<_SessionPage>
   }
 
   StripDesign get _design => StripDesign(
-    layout: widget.layout,
+    layout: _layout,
     frame: _frame,
     caption: _caption,
     font: _stripFont,
     frameImages: _frameImages,
     photos: _stripPhotos,
+    crops: [
+      for (final index in _selectedIndices) _crops[index] ?? const PhotoCrop(),
+    ],
     stickers: List.unmodifiable(_stickers),
   );
 
@@ -987,9 +695,10 @@ class _SessionPageState extends State<_SessionPage>
   void initState() {
     super.initState();
     _photos.addAll(widget.initialPhotos);
-    if (widget.initialPhotos.isNotEmpty) {
-      _initializeSelection();
+    if (widget.initialPhotos.isNotEmpty || widget.fromGallery) {
+      _initializeSelection(fill: true);
     }
+    if (widget.roomId != null) _choosingPhotos = false;
     if (widget.roomId != null) {
       _caption = 'MILES APART, SAME MOMENT';
       _captionController.text = _caption!;
@@ -1010,11 +719,14 @@ class _SessionPageState extends State<_SessionPage>
     _ending = true;
     _idle?.cancel();
     setState(_discardMotion);
-    if (widget.roomId != null) {
-      Navigator.of(context).pop();
-    } else {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (widget.roomId != null) {
+        Navigator.of(context).pop();
+      } else {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    });
   }
 
   @override
@@ -1042,47 +754,198 @@ class _SessionPageState extends State<_SessionPage>
   }
 
   void _onPhoto(ui.Image image, {MotionClip? motion}) {
-    if (_ending || _captured || !(ModalRoute.of(context)?.isCurrent ?? false)) {
+    if (_ending ||
+        _reviewing ||
+        _activeCount >= 12 ||
+        !(ModalRoute.of(context)?.isCurrent ?? false)) {
       image.dispose();
       return;
     }
     _keepAlive();
-    final shot = _photos.length + 1;
+    late int shot;
     final job = motion != null && motion.frames.length >= 2
         ? MotionGifJob(motion)
         : null;
     setState(() {
-      _photos.add(image);
+      shot = _storePhoto(image) + 1;
+      if (_selectedIndices.length < _layout.requiredPhotos) {
+        _selectedIndices.add(shot - 1);
+      }
       if (motion != null) _motionShots.add(shot);
       if (job != null) _motionJobs[shot] = job;
-      if (_photos.length >= _targetCaptureCount) {
+      if (_activeCount >= _targetCaptureCount) {
         _initializeSelection();
       }
     });
     if (job != null) unawaited(_completeMotion(shot, job));
   }
 
-  void _finishCaptureEarly() {
+  void _finishCaptureEarly() => setState(_initializeSelection);
+
+  void _initializeSelection({bool fill = false}) {
+    _reviewing = true;
+    if (fill) {
+      for (
+        var i = 0;
+        i < _photos.length && _selectedIndices.length < _layout.requiredPhotos;
+        i++
+      ) {
+        if (!_removedPhotos.contains(i) && !_selectedIndices.contains(i)) {
+          _selectedIndices.add(i);
+        }
+      }
+    }
+    _choosingPhotos = true;
+  }
+
+  void _takeMore() {
+    if (_activeCount >= 12) {
+      _message('Remove a photo before taking more.');
+      return;
+    }
     setState(() {
-      _finishedCapturingEarly = true;
-      _initializeSelection();
+      _reviewing = false;
+      _captureGoal = math.max(_layout.requiredPhotos, _activeCount + 1);
     });
   }
 
-  void _initializeSelection() {
-    final required = widget.layout.requiredPhotos;
-    if (_photos.length > required) {
-      if (_selectedIndices.length != required) {
-        _selectedIndices
-          ..clear()
-          ..addAll([for (var i = 0; i < required; i++) i]);
+  Future<void> _addGallery() async {
+    if (_pickingImages) return;
+    setState(() => _pickingImages = true);
+    final decoded = <ui.Image>[];
+    try {
+      final files = await ImagePicker().pickMultiImage(
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 92,
+      );
+      if (!mounted || _ending || files.isEmpty) return;
+      if (_activeCount + files.length > 12) {
+        _message('Choose up to 12 photos. Remove a photo first.');
+        return;
+      }
+      var failed = 0;
+      for (final file in files) {
+        try {
+          decoded.add(await _decodeGalleryImage(file));
+        } catch (_) {
+          failed++;
+        }
+      }
+      if (!mounted || _ending) return;
+      setState(() {
+        for (final image in decoded) {
+          final index = _storePhoto(image);
+          if (_selectedIndices.length < _layout.requiredPhotos) {
+            _selectedIndices.add(index);
+          }
+        }
+        decoded.clear();
+        _initializeSelection();
+      });
+      if (failed > 0) _message('$failed photos could not be opened.');
+    } catch (_) {
+      if (mounted) _message('Could not open the photo library. Try again.');
+    } finally {
+      for (final image in decoded) {
+        image.dispose();
+      }
+      if (mounted) setState(() => _pickingImages = false);
+    }
+  }
+
+  void _moveSelected(int index, int offset) {
+    final at = _selectedIndices.indexOf(index),
+        target = _selectedIndices.indexOf(index) + offset;
+    if (at < 0 || target < 0 || target >= _selectedIndices.length) return;
+    setState(() {
+      _selectedIndices.removeAt(at);
+      _selectedIndices.insert(target, index);
+    });
+  }
+
+  int _storePhoto(ui.Image image) {
+    if (_removedPhotos.isEmpty) {
+      _photos.add(image);
+      return _photos.length - 1;
+    }
+    final index = _removedPhotos.first;
+    _photos[index].dispose();
+    _photos[index] = image;
+    _removedPhotos.remove(index);
+    _crops.remove(index);
+    _motionJobs.remove(index + 1)?.cancel();
+    _motionGifs.remove(index + 1);
+    _motionShots.remove(index + 1);
+    return index;
+  }
+
+  void _setCrop(int index, PhotoCrop crop) {
+    if (_exporting || index >= _selectedIndices.length) return;
+    setState(() {
+      _crops[_selectedIndices[index]] = crop.normalized();
+      _motionStrip = null;
+      _png = null;
+    });
+    _keepAlive();
+  }
+
+  void _removePhoto(int index) {
+    // Keep stable shot IDs for motion jobs; hide removed entries without renumbering the pool.
+    setState(() {
+      _selectedIndices.remove(index);
+      _removedPhotos.add(index);
+    });
+  }
+
+  Future<void> _changeLayout() async {
+    if (_exporting || _pickingImages || _sharing || _preparingMotion) return;
+    final wasCamera = !_reviewing;
+    setState(() {
+      _reviewing = true;
+      _choosingPhotos = true;
+    });
+    final chosen = await Navigator.of(context).push<StripLayout>(
+      MaterialPageRoute(
+        builder: (_) => _LayoutPage(
+          onSelected: (layout) => Navigator.of(context).pop(layout),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (chosen == null) {
+      if (wasCamera) setState(() => _reviewing = false);
+      return;
+    }
+    setState(() {
+      _layout = chosen;
+      if (_selectedIndices.length > chosen.requiredPhotos) {
+        _selectedIndices.removeRange(
+          chosen.requiredPhotos,
+          _selectedIndices.length,
+        );
+      }
+      _cropPhoto = 0;
+      _reviewing =
+          !wasCamera || _selectedIndices.length == chosen.requiredPhotos;
+      if (!_reviewing) {
+        _captureGoal = math.max(chosen.requiredPhotos, _activeCount + 1);
       }
       _choosingPhotos = true;
+    });
+    _keepAlive();
+  }
+
+  void _back() {
+    if (_exporting || _pickingImages || _sharing || _preparingMotion) return;
+    if (_png != null) {
+      _editStrip();
+    } else if (_reviewing && !_choosingPhotos) {
+      setState(() => _choosingPhotos = true);
+    } else if (widget.roomId != null) {
+      _finish();
     } else {
-      _selectedIndices
-        ..clear()
-        ..addAll([for (var i = 0; i < _photos.length; i++) i]);
-      _choosingPhotos = false;
+      unawaited(_changeLayout());
     }
   }
 
@@ -1092,7 +955,7 @@ class _SessionPageState extends State<_SessionPage>
     setState(() {
       if (_selectedIndices.contains(index)) {
         _selectedIndices.remove(index);
-      } else if (_selectedIndices.length < widget.layout.requiredPhotos) {
+      } else if (_selectedIndices.length < _layout.requiredPhotos) {
         _selectedIndices.add(index);
       } else {
         _selectedIndices.removeLast();
@@ -1316,12 +1179,10 @@ class _SessionPageState extends State<_SessionPage>
       final hasMotion = gif != null;
       if (_galleryHasMotion != hasMotion) _printTicket = null;
       final resuming = _printTicket != null;
-      _printTicket ??=
-          await OnlineBooth.request('share_begin', {
-                'originals': originals.length,
-                'hasMotion': hasMotion,
-              })
-              as Map<String, dynamic>;
+      _printTicket ??= await OnlineBooth.request('share_begin', {
+        'originals': originals.length,
+        'hasMotion': hasMotion,
+      }) as Map<String, dynamic>;
       _galleryHasMotion = hasMotion;
       final ticket = _printTicket!;
       if (!mounted || _ending) return;
@@ -1408,9 +1269,10 @@ class _SessionPageState extends State<_SessionPage>
     setState(() => _sharing = true);
     final payload = {'id': widget.roomId};
     try {
-      final ticket =
-          await OnlineBooth.request('room_prepare_final', payload)
-              as Map<String, dynamic>;
+      final ticket = await OnlineBooth.request(
+        'room_prepare_final',
+        payload,
+      ) as Map<String, dynamic>;
       if (ticket['complete'] != true) {
         await OnlineBooth.upload(ticket, png, 'image/png');
         await OnlineBooth.request('room_finish', {
@@ -1468,24 +1330,19 @@ class _SessionPageState extends State<_SessionPage>
   Widget build(BuildContext context) {
     final png = _png;
     return PopScope(
-      canPop: png == null && !_choosingPhotos,
+      canPop: _ending,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
-          if (_png != null && !_preparingMotion && !_sharing) {
-            _editStrip();
-          } else if (_choosingPhotos) {
-            setState(() => _choosingPhotos = false);
-          }
-        }
+        if (!didPop) _back();
       },
       child: Scaffold(
         appBar: _BoothHeader(
           step: png != null
               ? '04 / FINISH'
               : _captured
-              ? (_choosingPhotos ? '03 / CHOOSE PHOTOS' : '03 / DESIGN')
+              ? (_choosingPhotos ? '02 / PHOTOS' : '03 / DESIGN')
               : '02 / CAPTURE',
           onAction: _finish,
+          onHome: _finish,
           actionLabel: 'End session',
         ),
         body: SafeArea(
@@ -1493,20 +1350,57 @@ class _SessionPageState extends State<_SessionPage>
             behavior: HitTestBehavior.translucent,
             onPointerDown: (_) => _keepAlive(),
             onPointerMove: (_) => _keepAlive(),
-            child: png != null
-                ? _preview(png)
-                : _captured
-                ? (_choosingPhotos ? _selectionView() : _editor())
-                : CapturePage(
-                    captured: _photos.length,
-                    total: _targetCaptureCount,
-                    minRequired: widget.layout.requiredPhotos,
-                    onPhoto: _onPhoto,
-                    onFinishEarly:
-                        _photos.length >= widget.layout.requiredPhotos
-                        ? _finishCaptureEarly
-                        : null,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _StepBack(
+                    number: png != null
+                        ? 4
+                        : _reviewing && !_choosingPhotos
+                        ? 3
+                        : 2,
+                    onBack: _back,
                   ),
+                ),
+                if (!_reviewing)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Wrap(
+                      spacing: 8,
+                      children: [
+                        TextButton(
+                          onPressed: () => setState(() {
+                            _reviewing = true;
+                            _choosingPhotos = true;
+                          }),
+                          child: const Text('Gallery & review'),
+                        ),
+                        TextButton(
+                          onPressed: _pickingImages ? null : _addGallery,
+                          child: const Text('Add photos'),
+                        ),
+                      ],
+                    ),
+                  ),
+                Expanded(
+                  child: png != null
+                      ? _preview(png)
+                      : _captured
+                      ? (_choosingPhotos ? _selectionView() : _editor())
+                      : CapturePage(
+                          captured: _activeCount,
+                          total: _targetCaptureCount,
+                          minRequired: _layout.requiredPhotos,
+                          onPhoto: _onPhoto,
+                          onFinishEarly:
+                              _photos.length >= _layout.requiredPhotos
+                              ? _finishCaptureEarly
+                              : null,
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
         bottomNavigationBar: _captured && png == null
@@ -1515,15 +1409,18 @@ class _SessionPageState extends State<_SessionPage>
                 child: _choosingPhotos
                     ? FilledButton(
                         onPressed:
-                            _selectedIndices.length ==
-                                widget.layout.requiredPhotos
-                            ? () => setState(() => _choosingPhotos = false)
+                            !_pickingImages &&
+                                _selectedIndices.length ==
+                                    _layout.requiredPhotos
+                            ? () => setState(() {
+                                _cropPhoto = 0;
+                                _choosingPhotos = false;
+                              })
                             : null,
                         child: Text(
-                          _selectedIndices.length ==
-                                  widget.layout.requiredPhotos
+                          _selectedIndices.length == _layout.requiredPhotos
                               ? 'Next: Decorate strip'
-                              : 'Select ${widget.layout.requiredPhotos - _selectedIndices.length} more',
+                              : 'Select ${_layout.requiredPhotos - _selectedIndices.length} more',
                         ),
                       )
                     : FilledButton(
@@ -1539,7 +1436,7 @@ class _SessionPageState extends State<_SessionPage>
   }
 
   Widget _selectionView() {
-    final required = widget.layout.requiredPhotos;
+    final required = _layout.requiredPhotos;
     final selectedCount = _selectedIndices.length;
 
     return ListView(
@@ -1547,9 +1444,25 @@ class _SessionPageState extends State<_SessionPage>
       padding: const EdgeInsets.all(20),
       children: [
         _Heading(
-          'STEP 03 OF 04',
-          'Pick your favorites.',
+          '',
+          'Your photos, your order.',
           'Choose $required ${required == 1 ? 'photo' : 'photos'} for your strip ($selectedCount/$required selected).',
+        ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _pickingImages ? null : _addGallery,
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+              label: Text(_pickingImages ? 'Preparing photos…' : 'Add photos'),
+            ),
+            OutlinedButton.icon(
+              onPressed: _takeMore,
+              icon: const Icon(Icons.camera_alt_outlined),
+              label: const Text('Take photos'),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         Container(
@@ -1566,14 +1479,16 @@ class _SessionPageState extends State<_SessionPage>
                 children: [
                   const Icon(Icons.auto_awesome, size: 16, color: purple),
                   const SizedBox(width: 6),
-                  Text(
-                    'LIVE STRIP PREVIEW ($selectedCount/$required)',
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.5,
-                      color: purple,
+                  Flexible(
+                    child: Text(
+                      'LIVE STRIP PREVIEW ($selectedCount/$required)',
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.5,
+                        color: purple,
+                      ),
                     ),
                   ),
                 ],
@@ -1587,8 +1502,9 @@ class _SessionPageState extends State<_SessionPage>
           ),
         ),
         const SizedBox(height: 20),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
           children: const [
             Text(
               'All captured shots',
@@ -1622,11 +1538,40 @@ class _SessionPageState extends State<_SessionPage>
               runSpacing: spacing,
               children: [
                 for (var i = 0; i < _photos.length; i++)
-                  _photoCard(i, cardWidth, cardHeight),
+                  if (!_removedPhotos.contains(i))
+                    _photoCard(i, cardWidth, cardHeight),
               ],
             );
           },
         ),
+        const SizedBox(height: 16),
+        for (final index in _selectedIndices)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              'Shot ${index + 1} · position ${_selectedIndices.indexOf(index) + 1}',
+            ),
+            trailing: Wrap(
+              children: [
+                IconButton(
+                  tooltip: 'Move shot ${index + 1} up',
+                  onPressed: () => _moveSelected(index, -1),
+                  icon: const Icon(Icons.arrow_upward),
+                ),
+                IconButton(
+                  tooltip: 'Move shot ${index + 1} down',
+                  onPressed: () => _moveSelected(index, 1),
+                  icon: const Icon(Icons.arrow_downward),
+                ),
+              ],
+            ),
+          ),
+        for (var i = 0; i < _photos.length; i++)
+          if (!_removedPhotos.contains(i))
+            TextButton(
+              onPressed: () => _removePhoto(i),
+              child: Text('Remove shot ${i + 1}'),
+            ),
         const SizedBox(height: 20),
       ],
     );
@@ -1756,12 +1701,12 @@ class _SessionPageState extends State<_SessionPage>
           children: [
             const Expanded(
               child: _Heading(
-                'STEP 03 OF 04',
+                '',
                 'Make it yours.',
                 'Choose a frame and decorate your strip.',
               ),
             ),
-            if (_photos.length > widget.layout.requiredPhotos)
+            if (widget.roomId == null)
               TextButton.icon(
                 onPressed: () => setState(() => _choosingPhotos = true),
                 icon: const Icon(Icons.swap_horiz, size: 18),
@@ -1770,6 +1715,45 @@ class _SessionPageState extends State<_SessionPage>
           ],
         ),
         const SizedBox(height: 16),
+        Wrap(
+          children: [
+            for (final (index, tabLabel) in [
+              'Frames',
+              'Photos',
+              'Stickers',
+            ].indexed)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: InkWell(
+                  onTap: () => setState(() {
+                    _editorTab = index;
+                    _selected = null;
+                  }),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _editorTab == index ? wash : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      tabLabel,
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.w600,
+                        color: _editorTab == index ? purple : muted,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+
         _Stage(
           child: SizedBox(
             height: math.min(MediaQuery.sizeOf(context).height * .46, 440),
@@ -1794,21 +1778,34 @@ class _SessionPageState extends State<_SessionPage>
                         painter: StripPainter(design, selected: selected),
                       ),
                     ),
-                    for (var i = 0; i < _stickers.length; i++)
-                      StickerControls(
-                        key: ValueKey(i),
-                        sticker: _stickers[i],
-                        stripSize: design.size,
-                        bounds: _scaleRect(
-                          StripPainter.stickerBounds(design, _stickers[i]),
-                          scale,
-                        ).shift(origin),
-                        scale: scale,
-                        selected: selected == i,
-                        enabled: !_exporting,
-                        onSelect: () => setState(() => _selected = i),
-                        onChanged: (sticker) => _updateSticker(i, sticker),
-                      ),
+                    if (_editorTab == 1)
+                      for (var i = 0; i < design.photos.length; i++)
+                        PhotoCropControls(
+                          key: ValueKey('crop-$i'),
+                          design: design,
+                          index: i,
+                          scale: scale,
+                          origin: origin,
+                          selected: _cropPhoto == i,
+                          onSelect: () => setState(() => _cropPhoto = i),
+                          onChanged: (crop) => _setCrop(i, crop),
+                        ),
+                    if (_editorTab != 1)
+                      for (var i = 0; i < _stickers.length; i++)
+                        StickerControls(
+                          key: ValueKey(i),
+                          sticker: _stickers[i],
+                          stripSize: design.size,
+                          bounds: _scaleRect(
+                            StripPainter.stickerBounds(design, _stickers[i]),
+                            scale,
+                          ).shift(origin),
+                          scale: scale,
+                          selected: selected == i,
+                          enabled: !_exporting,
+                          onSelect: () => setState(() => _selected = i),
+                          onChanged: (sticker) => _updateSticker(i, sticker),
+                        ),
                   ],
                 );
               },
@@ -1816,66 +1813,67 @@ class _SessionPageState extends State<_SessionPage>
           ),
         ),
         const SizedBox(height: 16),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: line),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DropdownButtonFormField<StripFont>(
-                initialValue: _stripFont,
-                decoration: const InputDecoration(labelText: 'Strip font'),
-                items: [
-                  for (final font in StripFont.values)
-                    DropdownMenuItem(value: font, child: Text(font.family)),
-                ],
-                onChanged: _exporting
-                    ? null
-                    : (font) {
-                        if (font == null) return;
-                        setState(() => _stripFont = font);
-                        _keepAlive();
-                      },
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _captionController,
-                enabled: !_exporting,
-                maxLength: _captionLimit,
-                textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(
-                  labelText: 'Caption under LumiBooth (optional)',
-                  hintText: 'Write a short caption',
+        if (_editorTab != 1)
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: line),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DropdownButtonFormField<StripFont>(
+                  initialValue: _stripFont,
+                  decoration: const InputDecoration(labelText: 'Strip font'),
+                  items: [
+                    for (final font in StripFont.values)
+                      DropdownMenuItem(value: font, child: Text(font.family)),
+                  ],
+                  onChanged: _exporting
+                      ? null
+                      : (font) {
+                          if (font == null) return;
+                          setState(() => _stripFont = font);
+                          _keepAlive();
+                        },
                 ),
-                onChanged: (value) {
-                  setState(() => _caption = value);
-                  _keepAlive();
-                },
-              ),
-              Wrap(
-                spacing: 8,
-                children: [
-                  TextButton(
-                    onPressed: _exporting || design.footerCaption.isEmpty
-                        ? null
-                        : () => _setCaption(''),
-                    child: const Text('Remove caption'),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _captionController,
+                  enabled: !_exporting,
+                  maxLength: _captionLimit,
+                  textInputAction: TextInputAction.done,
+                  decoration: const InputDecoration(
+                    labelText: 'Caption under LumiBooth (optional)',
+                    hintText: 'Write a short caption',
                   ),
-                  TextButton(
-                    onPressed: _exporting || _caption == null
-                        ? null
-                        : () => _setCaption(null),
-                    child: const Text('Use frame caption'),
-                  ),
-                ],
-              ),
-            ],
+                  onChanged: (value) {
+                    setState(() => _caption = value);
+                    _keepAlive();
+                  },
+                ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: _exporting || design.footerCaption.isEmpty
+                          ? null
+                          : () => _setCaption(''),
+                      child: const Text('Remove caption'),
+                    ),
+                    TextButton(
+                      onPressed: _exporting || _caption == null
+                          ? null
+                          : () => _setCaption(null),
+                      child: const Text('Use frame caption'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
         const SizedBox(height: 16),
         Container(
           decoration: BoxDecoration(
@@ -1887,43 +1885,6 @@ class _SessionPageState extends State<_SessionPage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Tab buttons: Frames and Stickers
-              Row(
-                children: [
-                  for (final (index, tabLabel) in [
-                    'Frames',
-                    'Stickers',
-                  ].indexed)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: InkWell(
-                        onTap: () => setState(() => _editorTab = index),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _editorTab == index
-                                ? wash
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            tabLabel,
-                            style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w600,
-                              color: _editorTab == index ? purple : muted,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
               const SizedBox(height: 14),
               if (_editorTab == 0) ...[
                 // Frame categories filter
@@ -1989,6 +1950,52 @@ class _SessionPageState extends State<_SessionPage>
                             ? null
                             : (_) => _chooseFrame(frame),
                       ),
+                  ],
+                ),
+              ] else if (_editorTab == 1) ...[
+                Text(
+                  'Adjust photo ${_cropPhoto + 1}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const Text(
+                  'Drag inside the photo opening or pinch to zoom. Originals stay unchanged.',
+                ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (var i = 0; i < _selectedIndices.length; i++)
+                      ChoiceChip(
+                        label: Text('Photo ${i + 1}'),
+                        selected: _cropPhoto == i,
+                        onSelected: (_) => setState(() => _cropPhoto = i),
+                      ),
+                  ],
+                ),
+                const Text('Zoom'),
+                Slider(
+                  label: 'Zoom',
+                  min: 1,
+                  max: 3,
+                  value: _design.cropAt(_cropPhoto).zoom,
+                  onChanged: (zoom) {
+                    final crop = _design.cropAt(_cropPhoto);
+                    _setCrop(
+                      _cropPhoto,
+                      PhotoCrop(x: crop.x, y: crop.y, zoom: zoom),
+                    );
+                  },
+                ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    OutlinedButton(
+                      onPressed: () => _setCrop(_cropPhoto, const PhotoCrop()),
+                      child: const Text('Reset crop'),
+                    ),
+                    FilledButton(
+                      onPressed: () => setState(() => _editorTab = 0),
+                      child: const Text('Done'),
+                    ),
                   ],
                 ),
               ] else ...[
@@ -2159,7 +2166,7 @@ class _SessionPageState extends State<_SessionPage>
       padding: const EdgeInsets.all(20),
       children: [
         const _Heading(
-          'STEP 04 OF 04',
+          '',
           'Your strip is ready.',
           'Share it, save it, or print a copy.',
         ),
@@ -2403,6 +2410,7 @@ class BoothHeader extends StatelessWidget implements PreferredSizeWidget {
     this.onAction,
     this.actionLabel,
     this.trailing,
+    this.onHome,
   });
 
   final String step;
@@ -2410,6 +2418,7 @@ class BoothHeader extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onAction;
   final String? actionLabel;
   final Widget? trailing;
+  final VoidCallback? onHome;
 
   @override
   Size get preferredSize => const Size.fromHeight(66);
@@ -2434,79 +2443,94 @@ class BoothHeader extends StatelessWidget implements PreferredSizeWidget {
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               ),
-            InkWell(
-              onTap: () {
-                if (Navigator.of(context).canPop()) {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                }
-              },
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Image.asset(
-                    'assets/images/logo_mark.png',
-                    width: 22,
-                    height: 22,
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text.rich(
-                    TextSpan(
-                      children: [
+            Expanded(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: InkWell(
+                  onTap: () {
+                    if (onHome != null) {
+                      onHome!();
+                      return;
+                    }
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).popUntil((route) => route.isFirst);
+                    }
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/images/logo_mark.png',
+                        width: 22,
+                        height: 22,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text.rich(
                         TextSpan(
-                          text: 'LumiBooth',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w700,
-                            fontSize: 18,
-                            color: ink,
-                          ),
+                          children: [
+                            TextSpan(
+                              text: 'LumiBooth',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w700,
+                                fontSize: 18,
+                                color: ink,
+                              ),
+                            ),
+                            TextSpan(
+                              text: '.',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.w700,
+                                fontSize: 18,
+                                color: purple,
+                              ),
+                            ),
+                          ],
                         ),
-                        TextSpan(
-                          text: '.',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w700,
-                            fontSize: 18,
-                            color: purple,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
-            const Spacer(),
-            Text(
-              step,
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1.8,
-                color: purple,
+            const SizedBox(width: 8),
+            if (onAction == null || MediaQuery.sizeOf(context).width > 420)
+              Expanded(
+                child: Text(
+                  step,
+                  textAlign: TextAlign.end,
+                  maxLines: 2,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.8,
+                    color: purple,
+                  ),
+                ),
               ),
-            ),
             if (onAction != null && actionLabel != null) ...[
               const SizedBox(width: 8),
-              TextButton(
-                onPressed: onAction,
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
+              SizedBox(
+                width: 105,
+                child: TextButton(
+                  onPressed: onAction,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  child: Text(actionLabel!, textAlign: TextAlign.center),
                 ),
-                child: Text(actionLabel!),
               ),
             ],
-            if (trailing != null) ...[
-              const SizedBox(width: 8),
-              trailing!,
-            ],
+            if (trailing != null) ...[const SizedBox(width: 8), trailing!],
           ],
         ),
       ),
@@ -2549,6 +2573,32 @@ class _BoothFooter extends StatelessWidget {
   }
 }
 
+class _StepBack extends StatelessWidget {
+  const _StepBack({required this.number, required this.onBack});
+  final int number;
+  final VoidCallback onBack;
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      IconButton(
+        tooltip: 'Back to previous step',
+        onPressed: onBack,
+        icon: const Icon(Icons.arrow_back),
+      ),
+      const SizedBox(width: 8),
+      Text(
+        'STEP 0$number OF 04',
+        style: const TextStyle(
+          color: purple,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.5,
+          fontSize: 11,
+        ),
+      ),
+    ],
+  );
+}
+
 class _Heading extends StatelessWidget {
   const _Heading(this.step, this.title, this.subtitle);
 
@@ -2561,16 +2611,17 @@ class _Heading extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          step,
-          style: const TextStyle(
-            fontFamily: 'Outfit',
-            color: purple,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.8,
-            fontSize: 11,
+        if (step.isNotEmpty)
+          Text(
+            step,
+            style: const TextStyle(
+              fontFamily: 'Outfit',
+              color: purple,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.8,
+              fontSize: 11,
+            ),
           ),
-        ),
         const SizedBox(height: 8),
         Text(
           title,

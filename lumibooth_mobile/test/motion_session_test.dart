@@ -48,16 +48,8 @@ void main() {
       });
       await tester.pump();
 
-      final cameraScroll = find.descendant(
-        of: find.byType(CapturePage),
-        matching: find.byType(Scrollable),
-      ).first;
-      await tester.scrollUntilVisible(
-        find.text('Done shooting (3/5)'),
-        200,
-        scrollable: cameraScroll,
-      );
-      await tester.tap(find.text('Done shooting (3/5)'));
+      expect(find.text('Your photos, your order.'), findsOneWidget);
+      await tester.tap(find.text('Next: Decorate strip'));
       await tester.pump();
 
       await tester.runAsync(() async {
@@ -91,7 +83,11 @@ void main() {
       });
       await tester.pump();
       final animated = find.byType(MotionStripView);
-      await tester.scrollUntilVisible(animated, -100, scrollable: previewScroll);
+      await tester.scrollUntilVisible(
+        animated,
+        -100,
+        scrollable: previewScroll,
+      );
       expect(animated, findsOneWidget);
       StripPainter painter() =>
           tester
@@ -115,13 +111,21 @@ void main() {
       }
       expect(painter().motionFrames.keys, [2]);
       expect(painter().design.photos, hasLength(3));
-      await tester.scrollUntilVisible(find.text('Stop strip'), 100, scrollable: previewScroll);
+      await tester.scrollUntilVisible(
+        find.text('Stop strip'),
+        100,
+        scrollable: previewScroll,
+      );
       await tester.tap(find.text('Stop strip'));
       await tester.pump();
       expect(animated, findsNothing);
       await tester.tap(playStrip);
       await tester.pump();
-      await tester.scrollUntilVisible(animated, -100, scrollable: previewScroll);
+      await tester.scrollUntilVisible(
+        animated,
+        -100,
+        scrollable: previewScroll,
+      );
       expect(animated, findsOneWidget);
 
       await tester.scrollUntilVisible(
@@ -137,7 +141,10 @@ void main() {
         100,
         scrollable: previewScroll,
       );
-      await Scrollable.ensureVisible(tester.element(find.text('Play')), alignment: .5);
+      await Scrollable.ensureVisible(
+        tester.element(find.text('Play')),
+        alignment: .5,
+      );
       await tester.pump();
       await tester.tap(find.text('Play'));
       await tester.pump();

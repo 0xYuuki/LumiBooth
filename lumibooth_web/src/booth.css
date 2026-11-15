@@ -420,22 +420,30 @@
 .standard-photo-cell { position: relative; width: 100%; aspect-ratio: 3 / 4; overflow: hidden; }
 .photo-aperture { display: block; position: relative; width: 100%; height: 100%; overflow: hidden; }
 .photo-aperture > img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; max-width: none; }
-.photo-adjustable { touch-action: none; cursor: grab; }
-.photo-adjustable:active { cursor: grabbing; }
-.photo-adjusting::after { content: ''; position: absolute; inset: 2px; border: 2px solid white; outline: 2px solid var(--accent); pointer-events: none; }
-.adjusting-photos .strip-sticker { pointer-events: none; }
-.adjusting-photos .strip-sticker * { pointer-events: none; }
-.photo-crop-tools { display: grid; gap: 1rem; }
-.photo-crop-tools h2 { font-size: 1.1rem; }
-.photo-crop-tools p { font-size: 0.9rem; color: var(--muted); }
-.photo-crop-tools > label { display: grid; gap: 0.6rem; }
-.photo-crop-tools input { width: 100%; accent-color: var(--accent); min-height: 44px; }
-.photo-crop-thumbnails { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-.photo-crop-thumbnails button { position: relative; width: 64px; height: 64px; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: white; cursor: pointer; }
-.photo-crop-thumbnails button[aria-pressed="true"] { border: 2px solid var(--accent); }
-.photo-crop-thumbnails img { width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
-.photo-crop-thumbnails span { position: absolute; bottom: 3px; right: 3px; padding: 1px 5px; background: white; color: var(--ink); border-radius: 3px; }
 .motion-export-layer .photo-aperture img { visibility: hidden; }
-@media (max-width: 690px) {
-  .adjusting-photos .design-tools { grid-row: auto; }
-}
+
+.photo-selectable { cursor: pointer; }
+.photo-selectable:hover { outline: 2px solid var(--accent); outline-offset: -2px; }
+.photo-transform-dialog { --accent: #523884; --ink: #23202a; --line: #e4dfe6; --wash: #eee8f7; --paper: #faf8f4; box-sizing: border-box; width: min(900px, calc(100vw - 24px)); max-width: none; max-height: calc(100dvh - 24px); margin: auto; padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); color: var(--ink); font: inherit; overflow: auto; }
+.photo-transform-dialog::backdrop { background: #17121ed9; }
+.photo-transform-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.photo-transform-heading h2 { font: 400 1.7rem Georgia, serif; }
+.photo-transform-heading p { margin-top: 8px; font-size: .9rem; color: #615a68; }
+.photo-transform-heading > button { flex-shrink: 0; }
+.photo-transform-workspace { position: relative; height: min(56dvh, 480px); min-height: 160px; margin-block: 16px; background: #24202c; border-radius: 12px; overflow: hidden; }
+.photo-transform-workspace img { position: absolute; display: block; max-width: none; pointer-events: none; user-select: none; }
+.transform-ghost { opacity: .3; }
+.transform-window { position: absolute; overflow: hidden; outline: 2px solid white; box-shadow: 0 0 0 4px #b7a1dc; pointer-events: none; }
+.transform-image-bounds { position: absolute; outline: 1px solid #dbcbfa; cursor: grab; touch-action: none; }
+.transform-image-bounds:active { cursor: grabbing; }
+.photo-transform-handle { position: absolute; width: 44px; height: 44px; background: transparent; border: 0; touch-action: none; }
+.photo-transform-handle::after { content: ''; display: block; width: 14px; height: 14px; margin: auto; background: white; border: 2px solid #523884; border-radius: 3px; }
+.photo-transform-handle.top-left { left: -22px; top: -22px; cursor: nwse-resize; }
+.photo-transform-handle.top-right { right: -22px; top: -22px; cursor: nesw-resize; }
+.photo-transform-handle.bottom-left { left: -22px; bottom: -22px; cursor: nesw-resize; }
+.photo-transform-handle.bottom-right { right: -22px; bottom: -22px; cursor: nwse-resize; }
+.photo-transform-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
+.photo-transform-toolbar label { display: flex; align-items: center; gap: 12px; flex: 1; }
+.photo-transform-toolbar input { min-width: 80px; width: 100%; min-height: 44px; accent-color: var(--accent); }
+.photo-transform-dialog :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 420px) { .photo-transform-dialog { padding: 14px; } .photo-transform-heading h2 { font-size: 1.4rem; } }

@@ -28,3 +28,17 @@ test('crops follow photos through reordering, deselection and layout changes and
   state = sessionReducer(state, { type: 'changeLayout', layout: layouts[2] });
   assert.deepEqual(state.crops[1], { x: 0, y: 1, zoom: 2 });
 });
+
+test('corner resizing preserves the opposite corner until the frame coverage limit', async () => {
+  const { resizeCrop, panCrop } = await import('../src/pages/user/photoCrop.js');
+  const initial = { x: .5, y: .5, zoom: 1.5 };
+  for (const corner of ['top-left', 'top-right', 'bottom-left', 'bottom-right']) {
+    const before = cropGeometry(600, 400, 200, 200, initial);
+    const adjusted = resizeCrop(initial, 600, 400, 200, 200, corner, corner.includes('left') ? -20 : 20, corner.includes('top') ? -20 : 20);
+    const after = cropGeometry(600, 400, 200, 200, adjusted);
+    assert.ok(after.width > before.width);
+    assert.ok(Math.abs((corner.includes('left') ? after.x + after.width : after.x) - (corner.includes('left') ? before.x + before.width : before.x)) < 1e-8);
+    assert.ok(Math.abs((corner.includes('top') ? after.y + after.height : after.y) - (corner.includes('top') ? before.y + before.height : before.y)) < 1e-8);
+  }
+  assert.equal(panCrop(initial, 600, 400, 200, 200, 10000, 0).x, 0);
+});

@@ -122,24 +122,20 @@ void main() {
         .whereType<StripPainter>()
         .singleWhere((p) => p.design.photos.length == 2)
         .design;
-    final scroll = find
-        .descendant(
-          of: find.byKey(const ValueKey('editor')),
-          matching: find.byType(Scrollable),
-        )
-        .first;
-    await tester.scrollUntilVisible(
-      find.text('Photos'),
-      100,
-      scrollable: scroll,
+    expect(find.text('Photos'), findsNothing);
+    final photoTap = find.descendant(
+      of: find.byType(PhotoCropControls).first,
+      matching: find.byType(GestureDetector),
     );
-    await tester.tap(find.text('Photos'));
-    await tester.pump();
+    await tester.ensureVisible(photoTap);
+    await tester.tap(photoTap);
+    await tester.pumpAndSettle();
     final zoom = find.byType(Slider);
-    await tester.scrollUntilVisible(zoom, 100, scrollable: scroll);
     tester.widget<Slider>(zoom).onChanged!(2);
     await tester.pump();
     expect(design().cropAt(0).zoom, 2);
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Back to previous step'));
     await tester.pump();
     final review = find
@@ -173,80 +169,82 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('crop surface drags and pinches without moving the scroll view', (
-    tester,
-  ) async {
-    final photo = (await tester.runAsync(stripes))!;
-    addTearDown(photo.dispose);
-    final crop = ValueNotifier(const PhotoCrop(zoom: 2));
-    addTearDown(crop.dispose);
-    final scroll = ScrollController();
-    addTearDown(scroll.dispose);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: ListView(
-            controller: scroll,
-            children: [
-              SizedBox(
-                height: 520,
-                child: ValueListenableBuilder(
-                  valueListenable: crop,
-                  builder: (context, value, _) {
-                    final design = StripDesign(
-                      layout: StripLayout.choices.first,
-                      photos: [photo],
-                      crops: [value],
-                    );
-                    return Stack(
-                      children: [
-                        PhotoCropControls(
-                          design: design,
-                          index: 0,
-                          scale: .8,
-                          origin: Offset.zero,
-                          selected: true,
-                          onSelect: () {},
-                          onChanged: (value) => crop.value = value,
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(height: 1000),
-            ],
+  testWidgets(
+    'full-image transform supports drag, pinch, four corners and reset on a narrow screen',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final photo = (await tester.runAsync(stripes))!;
+      addTearDown(photo.dispose);
+      PhotoCrop crop = const PhotoCrop(zoom: 1.5);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PhotoTransformEditor(
+              image: photo,
+              aspect: .75,
+              crop: crop,
+              onChanged: (value) => crop = value,
+            ),
           ),
         ),
-      ),
-    );
-    final surface = find.descendant(
-      of: find.byType(PhotoCropControls),
-      matching: find.byType(GestureDetector),
-    );
-    await tester.drag(surface, const Offset(-70, 30));
-    await tester.pump();
-    expect(crop.value.x, greaterThan(.5));
-    expect(scroll.offset, 0);
-    final center = tester.getCenter(surface);
-    final first = await tester.startGesture(
-      center - const Offset(20, 0),
-      pointer: 1,
-    );
-    final second = await tester.startGesture(
-      center + const Offset(20, 0),
-      pointer: 2,
-    );
-    await first.moveBy(const Offset(-15, 0));
-    await second.moveBy(const Offset(15, 0));
-    await tester.pump();
-    await first.moveBy(const Offset(-20, 0));
-    await second.moveBy(const Offset(20, 0));
-    await tester.pump();
-    await first.up();
-    await second.up();
-    expect(crop.value.zoom, greaterThan(2));
-  });
+      );
+      await tester.pumpAndSettle();
+      final surface = find.byKey(const ValueKey('reposition-photo'));
+      await tester.drag(surface, const Offset(-20, 0));
+      await tester.pump();
+      expect(crop.x, greaterThan(.5));
+      final center = tester.getCenter(surface);
+      final first = await tester.startGesture(
+        center - const Offset(10, 0),
+        pointer: 1,
+      );
+      final second = await tester.startGesture(
+        center + const Offset(10, 0),
+        pointer: 2,
+      );
+      await first.moveBy(const Offset(-10, 0));
+      await second.moveBy(const Offset(10, 0));
+      await tester.pump();
+      await first.moveBy(const Offset(-10, 0));
+      await second.moveBy(const Offset(10, 0));
+      await tester.pump();
+      await first.up();
+      await second.up();
+      expect(crop.zoom, greaterThan(1.5));
+      await tester.tap(find.text('Reset crop'));
+      await tester.pump();
+      expect(crop.zoom, 1);
+      for (final corner in [
+        'top-left',
+        'top-right',
+        'bottom-left',
+        'bottom-right',
+      ]) {
+        final handle = find.byKey(ValueKey('resize-photo-$corner'));
+        expect(handle, findsOneWidget);
+        final box = tester.getRect(handle);
+        expect(box.left, greaterThanOrEqualTo(0));
+        expect(box.right, lessThanOrEqualTo(360));
+      }
+      await tester.drag(
+        find.byKey(const ValueKey('resize-photo-top-left')),
+        const Offset(-25, -25),
+      );
+      await tester.pump();
+      expect(crop.zoom, greaterThan(1));
+      final beforeFit = crop;
+      await tester.tap(find.text('Fit image'));
+      await tester.pump();
+      expect(crop.zoom, beforeFit.zoom);
+      expect(crop.x, beforeFit.x);
+      expect(crop.y, beforeFit.y);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   testWidgets('camera returns through layout without losing captured photos', (
     tester,

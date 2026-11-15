@@ -18,6 +18,12 @@ flutter run
 
 Select your phone if Flutter lists multiple devices. For iOS, configure a signing team in Xcode before installing on a physical device. For Android, enable USB debugging if using a USB connection.
 
+## Navigation and guest profile
+
+- **Photo tab:** The main photo booth experience is immediately available with one tap and no login required. Active camera capture and strip editing states are preserved when switching tabs.
+- **Me tab:** Minimal guest profile view highlighting local-first privacy, session lifetime, and quick access to photo booth actions and gallery link management.
+- **Settings:** Accessible from the top right of the Me tab. Features camera framing and timer details, image memory cache controls, online backend status, and transparent deferrals for upcoming features (no paywalls or fake subscriptions).
+
 ## Capture and export
 
 - Allow camera access when prompted. If access is denied, enable Camera in the device's app settings and tap **Retry camera**.

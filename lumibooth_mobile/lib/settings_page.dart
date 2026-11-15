@@ -181,7 +181,7 @@ class _DeferredSettingsSection extends StatelessWidget {
         _SettingsTile(
           icon: Icons.cloud_sync_outlined,
           title: 'Cloud Sync & Accounts',
-          subtitle: 'Deferred • 100% private guest mode today',
+          subtitle: 'Deferred • Guest mode available today',
           badge: 'Planned',
           onTap: (ctx) => _SettingsDialogs.showInfo(
             ctx,
@@ -258,9 +258,10 @@ class _LegalSettingsSection extends StatelessWidget {
             title: 'Privacy Policy',
             message:
                 'A formal hosted privacy policy is deferred. LumiBooth is built local-first '
-                'by default: camera captures and rendered strips stay on your device, '
-                'temporary memory caches clear after 5 minutes of inactivity, and photos '
-                'leave your device only when you choose to upload or share a web gallery link.',
+                'by default: standard booth photos stay on your device unless you upload '
+                'or share them. Remote Booth automatically uploads captured photos to '
+                'the online service during the shared session. Active session images '
+                'are cleared after five minutes of inactivity.',
           ),
         ),
         _SettingsTile(

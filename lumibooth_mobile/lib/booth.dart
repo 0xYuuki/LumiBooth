@@ -4,7 +4,9 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:flutter/services.dart'
+    show Clipboard, ClipboardData, PlatformException;
+import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'camera_framing.dart';
@@ -142,9 +144,114 @@ class LumiBooth extends StatelessWidget {
 }
 
 /// The primary welcome screen and entrypoint to the photo booth workflow.
-class WelcomePage extends StatelessWidget {
-  /// Creates the [WelcomePage].
+class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
+
+  @override
+  State<WelcomePage> createState() => _WelcomePageState();
+}
+
+class _WelcomePageState extends State<WelcomePage> {
+  final ImagePicker _imagePicker = ImagePicker();
+  bool _selectingGallery = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_restoreGallerySelection());
+    });
+  }
+
+  Future<void> _restoreGallerySelection() async {
+    try {
+      final result = await _imagePicker.retrieveLostData();
+      if (result.exception != null) {
+        if (mounted) {
+          _showMessage(
+            'The previous photo selection was interrupted. Choose your photos again.',
+          );
+        }
+        return;
+      }
+      final files = result.files;
+      if (result.isEmpty || files == null || files.isEmpty || !mounted) return;
+      await _openGalleryFiles(files);
+    } catch (_) {
+      if (mounted) {
+        _showMessage('Could not restore the photo selection. Try again.');
+      }
+    }
+  }
+
+  Future<void> _chooseFromGallery() async {
+    if (_selectingGallery) return;
+    setState(() => _selectingGallery = true);
+    try {
+      final files = await _imagePicker.pickMultiImage(
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 92,
+      );
+      if (files.isEmpty || !mounted) return;
+      await _openGalleryFiles(files);
+    } on PlatformException {
+      if (mounted) {
+        _showMessage(
+          'Photo access was interrupted. Check photo permissions and try again.',
+        );
+      }
+    } catch (_) {
+      if (mounted) _showMessage('Could not open the photo library. Try again.');
+    } finally {
+      if (mounted) setState(() => _selectingGallery = false);
+    }
+  }
+
+  Future<void> _openGalleryFiles(List<XFile> files) async {
+    if (files.length > 12) {
+      _showMessage('Choose up to 12 photos at a time.');
+      return;
+    }
+
+    setState(() => _selectingGallery = true);
+    final images = <ui.Image>[];
+    var failed = 0;
+    for (final file in files) {
+      try {
+        images.add(await _decodeGalleryImage(file));
+      } catch (_) {
+        failed++;
+      }
+    }
+
+    if (!mounted) {
+      for (final image in images) {
+        image.dispose();
+      }
+      return;
+    }
+    if (images.isEmpty) {
+      _showMessage(
+        'No supported photos could be opened. Choose JPEG, PNG, or WebP images.',
+      );
+      setState(() => _selectingGallery = false);
+      return;
+    }
+    setState(() => _selectingGallery = false);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            _GalleryImportPage(images: images, skippedCount: failed),
+      ),
+    );
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -216,6 +323,19 @@ class WelcomePage extends StatelessWidget {
               ),
               icon: const Icon(Icons.arrow_forward),
               label: const Text('Start photo booth'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _selectingGallery ? null : _chooseFromGallery,
+              icon: _selectingGallery
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.photo_library_outlined),
+              label: Text(
+                _selectingGallery ? 'Preparing photos…' : 'Choose from gallery',
+              ),
             ),
             if (OnlineBooth.remoteEnabled) ...[
               const SizedBox(height: 10),
@@ -335,7 +455,304 @@ class WelcomePage extends StatelessWidget {
   }
 }
 
-typedef _WelcomePage = WelcomePage;
+Future<ui.Image> _decodeGalleryImage(XFile file) async {
+  final bytes = await file.readAsBytes();
+  if (bytes.isEmpty) throw const FormatException('The photo is empty.');
+  final codec = await ui.instantiateImageCodec(
+    bytes,
+    targetWidth: 1600,
+    targetHeight: 1600,
+    allowUpscaling: false,
+  );
+  try {
+    return (await codec.getNextFrame()).image;
+  } finally {
+    codec.dispose();
+  }
+}
+
+class _GalleryImportPage extends StatefulWidget {
+  const _GalleryImportPage({required this.images, this.skippedCount = 0});
+
+  final List<ui.Image> images;
+  final int skippedCount;
+
+  @override
+  State<_GalleryImportPage> createState() => _GalleryImportPageState();
+}
+
+class _GalleryImportPageState extends State<_GalleryImportPage> {
+  final ImagePicker _imagePicker = ImagePicker();
+  late final List<ui.Image> _images = List.of(widget.images);
+  late StripLayout _layout = StripLayout.choices.firstWhere(
+    (layout) => layout.requiredPhotos == _images.length,
+    orElse: () => StripLayout.choices.first,
+  );
+  bool _busy = false;
+  bool _transferred = false;
+
+  @override
+  void dispose() {
+    if (!_transferred) {
+      for (final image in _images) {
+        image.dispose();
+      }
+    }
+    super.dispose();
+  }
+
+  Future<void> _addPhotos({int? replaceIndex}) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final files = replaceIndex == null
+          ? await _imagePicker.pickMultiImage(
+              maxWidth: 1600,
+              maxHeight: 1600,
+              imageQuality: 92,
+            )
+          : await _pickOneImage();
+      if (files.isEmpty || !mounted) return;
+      if (replaceIndex == null && _images.length + files.length > 12) {
+        _showMessage(
+          'Choose up to 12 photos for one strip. Remove a photo first.',
+        );
+        return;
+      }
+
+      final decoded = <ui.Image>[];
+      var failed = 0;
+      for (final file in files) {
+        try {
+          decoded.add(await _decodeGalleryImage(file));
+        } catch (_) {
+          failed++;
+        }
+      }
+      if (!mounted) {
+        for (final image in decoded) {
+          image.dispose();
+        }
+        return;
+      }
+      if (failed > 0) {
+        _showMessage(
+          '$failed photo${failed == 1 ? '' : 's'} could not be opened.',
+        );
+      }
+      if (decoded.isEmpty) return;
+
+      setState(() {
+        if (replaceIndex != null) {
+          _images[replaceIndex].dispose();
+          _images[replaceIndex] = decoded.first;
+          for (final extra in decoded.skip(1)) {
+            extra.dispose();
+          }
+        } else {
+          _images.addAll(decoded);
+        }
+      });
+    } on PlatformException {
+      if (mounted) {
+        _showMessage(
+          'Photo access was interrupted. Check photo permissions and try again.',
+        );
+      }
+    } catch (_) {
+      if (mounted) _showMessage('Could not read those photos. Try again.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<List<XFile>> _pickOneImage() async {
+    final file = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1600,
+      maxHeight: 1600,
+      imageQuality: 92,
+    );
+    return file == null ? const [] : [file];
+  }
+
+  void _move(int index, int offset) {
+    final target = index + offset;
+    if (target < 0 || target >= _images.length) return;
+    setState(() {
+      final image = _images.removeAt(index);
+      _images.insert(target, image);
+    });
+  }
+
+  void _remove(int index) {
+    setState(() => _images.removeAt(index).dispose());
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _continue() {
+    if (_images.length != _layout.requiredPhotos) return;
+    _transferred = true;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => _SessionPage(
+          layout: _layout,
+          initialPhotos: List.unmodifiable(_images),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final required = _layout.requiredPhotos;
+    final exactCount = _images.length == required;
+    return Scaffold(
+      appBar: _BoothHeader(
+        step: 'GALLERY IMPORT',
+        onBack: () => Navigator.of(context).pop(),
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            _Heading(
+              'CHOOSE FROM GALLERY',
+              'Build your strip.',
+              'Photos stay on this device. Reorder, replace, or remove them before editing.',
+            ),
+            if (widget.skippedCount > 0) ...[
+              const SizedBox(height: 10),
+              Text(
+                '${widget.skippedCount} photo${widget.skippedCount == 1 ? '' : 's'} could not be opened. Replace them or choose a matching layout.',
+                style: const TextStyle(color: Color(0xff8a3030)),
+              ),
+            ],
+            const SizedBox(height: 16),
+            const Text(
+              'Choose a layout',
+              style: TextStyle(fontWeight: FontWeight.w700, color: ink),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final layout in StripLayout.choices)
+                  ChoiceChip(
+                    label: Text(
+                      '${layout.count} photo${layout.count == 1 ? '' : 's'}',
+                    ),
+                    selected: layout == _layout,
+                    onSelected: _busy
+                        ? null
+                        : (_) => setState(() => _layout = layout),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              exactCount
+                  ? '${_images.length} photos ready in strip order.'
+                  : _images.length < required
+                  ? 'Add ${required - _images.length} more or choose a smaller layout.'
+                  : 'Remove ${_images.length - required} photos or choose a larger layout.',
+              style: const TextStyle(color: muted),
+            ),
+            const SizedBox(height: 12),
+            for (var i = 0; i < _images.length; i++)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 72,
+                            height: 64,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: RawImage(
+                                image: _images[i],
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Photo ${i + 1}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            tooltip: 'Move photo up',
+                            onPressed: _busy || i == 0
+                                ? null
+                                : () => _move(i, -1),
+                            icon: const Icon(Icons.arrow_upward),
+                          ),
+                          IconButton(
+                            tooltip: 'Move photo down',
+                            onPressed: _busy || i == _images.length - 1
+                                ? null
+                                : () => _move(i, 1),
+                            icon: const Icon(Icons.arrow_downward),
+                          ),
+                          IconButton(
+                            tooltip: 'Replace photo ${i + 1}',
+                            onPressed: _busy
+                                ? null
+                                : () => _addPhotos(replaceIndex: i),
+                            icon: const Icon(Icons.swap_horiz),
+                          ),
+                          IconButton(
+                            tooltip: 'Remove photo ${i + 1}',
+                            onPressed: _busy ? null : () => _remove(i),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            OutlinedButton.icon(
+              onPressed: _busy || _images.length >= 12
+                  ? null
+                  : () => _addPhotos(),
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+              label: Text(_busy ? 'Reading photos…' : 'Add photos'),
+            ),
+            const SizedBox(height: 90),
+          ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+        child: FilledButton(
+          onPressed: exactCount && !_busy ? _continue : null,
+          child: Text(
+            exactCount ? 'Start editing' : 'Choose exactly $required photos',
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _LayoutPage extends StatelessWidget {
   const _LayoutPage();
@@ -350,9 +767,7 @@ class _LayoutPage extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => _SessionPage(layout: layout),
-          ),
+          MaterialPageRoute<void>(builder: (_) => _SessionPage(layout: layout)),
         ),
         child: Padding(
           padding: const EdgeInsets.all(12),
@@ -878,10 +1293,12 @@ class _SessionPageState extends State<_SessionPage>
       final hasMotion = gif != null;
       if (_galleryHasMotion != hasMotion) _printTicket = null;
       final resuming = _printTicket != null;
-      _printTicket ??= await OnlineBooth.request('share_begin', {
-        'originals': originals.length,
-        'hasMotion': hasMotion,
-      }) as Map<String, dynamic>;
+      _printTicket ??=
+          await OnlineBooth.request('share_begin', {
+                'originals': originals.length,
+                'hasMotion': hasMotion,
+              })
+              as Map<String, dynamic>;
       _galleryHasMotion = hasMotion;
       final ticket = _printTicket!;
       if (!mounted || _ending) return;
@@ -968,10 +1385,9 @@ class _SessionPageState extends State<_SessionPage>
     setState(() => _sharing = true);
     final payload = {'id': widget.roomId};
     try {
-      final ticket = await OnlineBooth.request(
-        'room_prepare_final',
-        payload,
-      ) as Map<String, dynamic>;
+      final ticket =
+          await OnlineBooth.request('room_prepare_final', payload)
+              as Map<String, dynamic>;
       if (ticket['complete'] != true) {
         await OnlineBooth.upload(ticket, png, 'image/png');
         await OnlineBooth.request('room_finish', {
@@ -1065,8 +1481,8 @@ class _SessionPageState extends State<_SessionPage>
                     onPhoto: _onPhoto,
                     onFinishEarly:
                         _photos.length >= widget.layout.requiredPhotos
-                            ? _finishCaptureEarly
-                            : null,
+                        ? _finishCaptureEarly
+                        : null,
                   ),
           ),
         ),
@@ -1078,8 +1494,8 @@ class _SessionPageState extends State<_SessionPage>
                         onPressed:
                             _selectedIndices.length ==
                                 widget.layout.requiredPhotos
-                                ? () => setState(() => _choosingPhotos = false)
-                                : null,
+                            ? () => setState(() => _choosingPhotos = false)
+                            : null,
                         child: Text(
                           _selectedIndices.length ==
                                   widget.layout.requiredPhotos
@@ -1142,9 +1558,7 @@ class _SessionPageState extends State<_SessionPage>
               const SizedBox(height: 12),
               SizedBox(
                 height: math.min(MediaQuery.sizeOf(context).height * .28, 220),
-                child: Center(
-                  child: StripPreview(_design, maxWidth: 100),
-                ),
+                child: Center(child: StripPreview(_design, maxWidth: 100)),
               ),
             ],
           ),
@@ -1229,14 +1643,9 @@ class _SessionPageState extends State<_SessionPage>
             child: Stack(
               fit: StackFit.expand,
               children: [
-                RawImage(
-                  image: _photos[index],
-                  fit: BoxFit.cover,
-                ),
+                RawImage(image: _photos[index], fit: BoxFit.cover),
                 if (!isSelected)
-                  Container(
-                    color: Colors.black.withValues(alpha: 0.15),
-                  ),
+                  Container(color: Colors.black.withValues(alpha: 0.15)),
                 Positioned(
                   top: 8,
                   right: 8,
@@ -1272,11 +1681,7 @@ class _SessionPageState extends State<_SessionPage>
                                 fontSize: 14,
                               ),
                             )
-                          : const Icon(
-                              Icons.add,
-                              size: 16,
-                              color: muted,
-                            ),
+                          : const Icon(Icons.add, size: 16, color: muted),
                     ),
                   ),
                 ),
@@ -1284,8 +1689,10 @@ class _SessionPageState extends State<_SessionPage>
                   bottom: 6,
                   left: 6,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(6),
@@ -1398,9 +1805,7 @@ class _SessionPageState extends State<_SessionPage>
             children: [
               DropdownButtonFormField<StripFont>(
                 initialValue: _stripFont,
-                decoration: const InputDecoration(
-                  labelText: 'Strip font',
-                ),
+                decoration: const InputDecoration(labelText: 'Strip font'),
                 items: [
                   for (final font in StripFont.values)
                     DropdownMenuItem(value: font, child: Text(font.family)),
@@ -1462,7 +1867,10 @@ class _SessionPageState extends State<_SessionPage>
               // Tab buttons: Frames and Stickers
               Row(
                 children: [
-                  for (final (index, tabLabel) in ['Frames', 'Stickers'].indexed)
+                  for (final (index, tabLabel) in [
+                    'Frames',
+                    'Stickers',
+                  ].indexed)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: InkWell(
@@ -1474,7 +1882,9 @@ class _SessionPageState extends State<_SessionPage>
                             vertical: 8,
                           ),
                           decoration: BoxDecoration(
-                            color: _editorTab == index ? wash : Colors.transparent,
+                            color: _editorTab == index
+                                ? wash
+                                : Colors.transparent,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -1525,31 +1935,31 @@ class _SessionPageState extends State<_SessionPage>
                                 excludeFromSemantics: true,
                               )
                             : (frame.gradient != null
-                                ? Container(
-                                    width: 18,
-                                    height: 18,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      gradient: LinearGradient(
-                                        colors: frame.gradient!,
+                                  ? Container(
+                                      width: 18,
+                                      height: 18,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: LinearGradient(
+                                          colors: frame.gradient!,
+                                        ),
                                       ),
-                                    ),
-                                  )
-                                : CircleAvatar(
-                                    backgroundColor: frame.paper,
-                                    radius: 9,
-                                    child: frame.border != null
-                                        ? Container(
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              border: Border.all(
-                                                color: frame.border!,
-                                                width: 1.5,
+                                    )
+                                  : CircleAvatar(
+                                      backgroundColor: frame.paper,
+                                      radius: 9,
+                                      child: frame.border != null
+                                          ? Container(
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: frame.border!,
+                                                  width: 1.5,
+                                                ),
                                               ),
-                                            ),
-                                          )
-                                        : null,
-                                  )),
+                                            )
+                                          : null,
+                                    )),
                         label: Text(frame.label),
                         selected: _frame == frame,
                         onSelected: _exporting || _loadingFrame

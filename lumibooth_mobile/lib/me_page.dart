@@ -112,9 +112,9 @@ class _GuestProfileHeader extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           const Text(
-            'LumiBooth is 100% private and local-first by default. '
-            'Your photos and strips remain on your device, and selected '
-            'strips only leave your device when you choose to upload or share them.',
+            'The standard photo booth keeps photos and strips on your device '
+            'unless you choose to upload or share them. Remote Booth automatically '
+            'uploads captured photos to the online service during the shared session.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Outfit',
@@ -290,7 +290,7 @@ class _PrivacyInfoCard extends StatelessWidget {
           SizedBox(height: 8),
           Text(
             '• Unsaved camera captures stay in memory and are discarded after 5 minutes of inactivity.\n'
-            '• Strip renders export directly to your device by default (leaving your device only when you choose to upload or share a web gallery link).\n'
+            '• Standard booth photos stay local unless you upload or share them. Remote Booth automatically uploads captures during the shared session.\n'
             '• No credentials, ads, or tracking cookies.',
             style: TextStyle(
               fontFamily: 'Outfit',

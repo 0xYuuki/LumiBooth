@@ -76,6 +76,20 @@
 .booth-secondary { border-color: var(--line); background: white; color: var(--ink); }
 .booth-secondary:hover { background: var(--wash); }
 .booth-shell :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.gallery-file-input { display: none; }
+.gallery-message { color: #7b2f2f; font-size: 0.9rem; margin-top: 0.75rem; }
+.gallery-layout-label { display: block; margin-top: 1.5rem; font-weight: 700; }
+.gallery-import-page > select { display: block; width: min(100%, 420px); min-height: 46px; margin-top: 0.45rem; padding: 0.55rem 0.75rem; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); font: inherit; }
+.gallery-count { color: var(--muted); margin: 0.8rem 0; }
+.gallery-import-list { display: grid; gap: 0.75rem; margin-top: 0.8rem; }
+.gallery-import-card { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; align-items: center; gap: 0.8rem; padding: 0.55rem; border: 1px solid var(--line); border-radius: 10px; background: white; }
+.gallery-import-card > img { display: block; width: 88px; height: 72px; border-radius: 6px; object-fit: cover; background: var(--wash); }
+.gallery-import-details { display: grid; min-width: 0; gap: 0.3rem; }
+.gallery-import-details strong { overflow-wrap: anywhere; font-size: 0.92rem; }
+.gallery-import-details span { color: var(--muted); font-size: 0.82rem; }
+.gallery-import-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 0.2rem; }
+.gallery-import-actions .booth-link { min-width: 42px; padding: 0 0.3rem; }
+.gallery-import-footer { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.65rem; margin: 1rem -0.5rem -0.5rem; padding: 0.8rem 0.5rem; border-top: 1px solid var(--line); background: var(--paper); }
 
 .booth-content { width: min(1100px, 100%); margin: 0 auto; padding: clamp(2rem, 5vw, 4rem) clamp(1rem, 4vw, 2rem); }
 .booth-title, .hero-copy h1 {
@@ -277,6 +291,11 @@
   .booth-step { font-size: 0.66rem; }
   .design-tools { grid-row: 1; }
   .strip-preview { margin-top: 0; }
+  .gallery-import-card { grid-template-columns: 72px minmax(0, 1fr); }
+  .gallery-import-card > img { width: 72px; height: 64px; }
+  .gallery-import-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .gallery-import-footer { justify-content: stretch; }
+  .gallery-import-footer .booth-button { flex: 1 1 100%; }
 }
 
 @media print {

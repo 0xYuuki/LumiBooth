@@ -1,44 +1,87 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import 'booth.dart';
-import 'online_booth.dart';
 
-/// Settings screen for LumiBooth mobile.
+/// Clears only transient Flutter image decoding/rendering caches.
+Future<void> confirmClearImageCache(BuildContext context) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Clear image cache?'),
+      content: const Text(
+        'This removes temporary image previews from memory. '
+        'Your saved photos and strips will not be deleted.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          child: const Text('Clear'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+  PaintingBinding.instance.imageCache.clear();
+  PaintingBinding.instance.imageCache.clearLiveImages();
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Temporary image cache cleared')),
+  );
+}
+
+/// Legal information currently available inside the app.
 ///
-/// Provides lightweight navigation to implemented features (gallery links,
-/// cache controls), transparent privacy and terms notices, and honest deferrals
-/// for upcoming cloud, account, and feedback features without deceptive paywalls
-/// or fake premium tiers.
-class SettingsPage extends StatelessWidget {
-  /// Creates the [SettingsPage].
-  const SettingsPage({super.key});
+/// Formal Privacy Policy and Terms documents are not shipped by this build;
+/// do not present an explanatory notice as a published legal agreement.
+class LegalDocumentsPage extends StatelessWidget {
+  const LegalDocumentsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: paper,
-      appBar: BoothHeader(
-        step: 'SETTINGS',
-        onBack: () => Navigator.of(context).pop(),
-      ),
+      appBar: AppBar(title: const Text('Legal documents')),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          children: const [
-            _CameraSettingsSection(),
-            SizedBox(height: 20),
-            _StorageSettingsSection(),
-            SizedBox(height: 20),
-            _OnlineSettingsSection(),
-            SizedBox(height: 20),
-            _DeferredSettingsSection(),
-            SizedBox(height: 20),
-            _FeedbackSettingsSection(),
-            SizedBox(height: 20),
-            _LegalSettingsSection(),
-            SizedBox(height: 20),
-            _AboutSettingsSection(),
-            SizedBox(height: 24),
+          children: [
+            ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined, color: purple),
+              title: const Text('Privacy information'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => showDialog<void>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('Privacy information'),
+                  content: const Text(
+                    'Standard photo booth images are processed on your device '
+                    'unless you choose to upload or share them. '
+                    'Remote Booth uploads photos for the shared session. '
+                    'This notice is not a formal Privacy Policy.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 1, color: line),
+            ListTile(
+              leading: const Icon(Icons.article_outlined, color: purple),
+              title: const Text('Open-source licenses'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => showLicensePage(
+                context: context,
+                applicationName: 'LumiBooth',
+                applicationVersion: '0.1.0',
+              ),
+            ),
           ],
         ),
       ),
@@ -46,459 +89,59 @@ class SettingsPage extends StatelessWidget {
   }
 }
 
-/// Camera framing, delay timer, and motion photo preferences.
-class _CameraSettingsSection extends StatelessWidget {
-  const _CameraSettingsSection();
+/// Minimal app information with a usable feedback destination.
+class AboutLumiBoothPage extends StatelessWidget {
+  const AboutLumiBoothPage({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return _SettingsSection(
-      title: 'CAMERA & CAPTURE',
-      children: [
-        _SettingsTile(
-          icon: Icons.aspect_ratio_outlined,
-          title: 'Camera Framing',
-          subtitle: 'Fixed 4:3 ratio auto-cropped to frame openings',
-          onTap: (ctx) => _SettingsDialogs.showInfo(
-            ctx,
-            title: 'Fixed 4:3 Camera Framing',
-            message:
-                'LumiBooth uses a fixed 4:3 aspect ratio stream across all devices. '
-                'When you pick a frame, your photos are automatically cropped to fill '
-                'each slot without distortion, matching classic physical booths.',
-          ),
-        ),
-        _SettingsTile(
-          icon: Icons.timer_outlined,
-          title: 'Shutter Timer',
-          subtitle: 'Off, 3s, 5s, or 10s countdown delay',
-          onTap: (ctx) => _SettingsDialogs.showInfo(
-            ctx,
-            title: 'Shutter Countdown Timer',
-            message:
-                'Tap the timer icon on the capture screen to cycle through Off, 3s, 5s, '
-                'and 10s delays. The countdown gives you time to pose before each shutter.',
-          ),
-        ),
-        _SettingsTile(
-          icon: Icons.motion_photos_on_outlined,
-          title: 'Motion Photos',
-          subtitle: 'Up to 5s pre-shutter motion for animated GIFs',
-          onTap: (ctx) => _SettingsDialogs.showInfo(
-            ctx,
-            title: 'Motion Photos & Animated GIFs',
-            message:
-                'LumiBooth maintains a silent rolling 5-second video buffer before each shutter. '
-                'After shooting, you can preview motion in the frame and export animated GIFs.',
-          ),
-        ),
-      ],
-    );
-  }
-}
+  static const issueTracker = 'https://github.com/0xYuuki/LumiBooth/issues';
 
-/// Cache clearing and in-memory session lifetime controls.
-class _StorageSettingsSection extends StatelessWidget {
-  const _StorageSettingsSection();
-
-  void _clearImageCache(BuildContext context) {
-    PaintingBinding.instance.imageCache.clear();
-    PaintingBinding.instance.imageCache.clearLiveImages();
+  Future<void> _copyFeedbackLink(BuildContext context) async {
+    await Clipboard.setData(const ClipboardData(text: issueTracker));
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Image memory cache cleared.'),
-        duration: Duration(seconds: 2),
-      ),
+      const SnackBar(content: Text('Feedback link copied')),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return _SettingsSection(
-      title: 'STORAGE & MEMORY',
-      children: [
-        const _SettingsTile(
-          icon: Icons.hourglass_empty_outlined,
-          title: 'Session Lifetime',
-          subtitle: 'Photos clear after 5m idle or ending session',
-        ),
-        _SettingsTile(
-          icon: Icons.cleaning_services_outlined,
-          title: 'Clear Image Cache',
-          subtitle: 'Evict in-memory preview textures',
-          onTap: _clearImageCache,
-        ),
-      ],
-    );
-  }
-}
-
-/// Supabase online backend configuration and gallery links.
-class _OnlineSettingsSection extends StatelessWidget {
-  const _OnlineSettingsSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return _SettingsSection(
-      title: 'ONLINE & SHARING',
-      children: [
-        _SettingsTile(
-          icon: Icons.cloud_outlined,
-          title: 'Online Services',
-          subtitle: OnlineBooth.isConfigured
-              ? 'Supabase backend configured'
-              : 'Local standalone mode (backend optional)',
-          onTap: (ctx) => _SettingsDialogs.showInfo(
-            ctx,
-            title: 'Backend Configuration',
-            message: OnlineBooth.isConfigured
-                ? 'Supabase backend credentials are configured in this build. Web sharing and gallery link management are available.'
-                : 'LumiBooth is running in local standalone mode. Core photo booth features work without online backend configuration.',
-          ),
-        ),
-        _SettingsTile(
-          icon: Icons.qr_code_outlined,
-          title: 'Manage Gallery Links',
-          subtitle: 'View and revoke uploaded web strips',
-          onTap: (ctx) => Navigator.of(ctx).push(
-            MaterialPageRoute<void>(builder: (_) => const PrintLinksPage()),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Honest deferrals explaining future cloud sync without fake paywalls.
-class _DeferredSettingsSection extends StatelessWidget {
-  const _DeferredSettingsSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return _SettingsSection(
-      title: 'ACCOUNT & CLOUD (DEFERRED)',
-      children: [
-        _SettingsTile(
-          icon: Icons.cloud_sync_outlined,
-          title: 'Cloud Sync & Accounts',
-          subtitle: 'Deferred • Guest mode available today',
-          badge: 'Planned',
-          onTap: (ctx) => _SettingsDialogs.showInfo(
-            ctx,
-            title: 'No Login Required',
-            message:
-                'LumiBooth is built local-first for guests. All photo booth features, '
-                'frames, stickers, and exports work without an account. Cloud account sync '
-                'is deferred to a future release—no fake paywalls or subscriptions.',
-          ),
-        ),
-        _SettingsTile(
-          icon: Icons.branding_watermark_outlined,
-          title: 'Custom Studio Watermarks',
-          subtitle: 'Deferred • Built-in frames fully unlocked',
-          badge: 'Planned',
-          onTap: (ctx) => _SettingsDialogs.showInfo(
-            ctx,
-            title: 'All Frames Unlocked',
-            message:
-                'Custom brand watermarks are deferred for a future update. '
-                'All 19 illustrated frames and sticker packs are 100% free and unlocked '
-                'for every guest.',
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Feedback and support destinations or transparent deferrals.
-class _FeedbackSettingsSection extends StatelessWidget {
-  const _FeedbackSettingsSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return _SettingsSection(
-      title: 'FEEDBACK & SUPPORT',
-      children: [
-        _SettingsTile(
-          icon: Icons.feedback_outlined,
-          title: 'Send Feedback',
-          subtitle: 'Deferred • Issue tracker and feedback channels',
-          badge: 'Planned',
-          onTap: (ctx) => _SettingsDialogs.showInfo(
-            ctx,
-            title: 'Feedback & Bug Reports',
-            message:
-                'In-app feedback submission is deferred to a future update. '
-                'Bugs and feature suggestions can be reported directly on our '
-                'GitHub repository at github.com/0xYuuki/LumiBooth/issues.',
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Legal notices, privacy policy, and terms of service deferrals.
-class _LegalSettingsSection extends StatelessWidget {
-  const _LegalSettingsSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return _SettingsSection(
-      title: 'PRIVACY & TERMS',
-      children: [
-        _SettingsTile(
-          icon: Icons.privacy_tip_outlined,
-          title: 'Privacy Policy',
-          subtitle: 'Local-first guest privacy • Web policy deferred',
-          badge: 'Planned',
-          onTap: (ctx) => _SettingsDialogs.showInfo(
-            ctx,
-            title: 'Privacy Policy',
-            message:
-                'A formal hosted privacy policy is deferred. LumiBooth is built local-first '
-                'by default: standard booth photos stay on your device unless you upload '
-                'or share them. Remote Booth automatically uploads captured photos to '
-                'the online service during the shared session. Active session images '
-                'are cleared after five minutes of inactivity.',
-          ),
-        ),
-        _SettingsTile(
-          icon: Icons.gavel_outlined,
-          title: 'Terms of Service',
-          subtitle: 'Deferred • Open source guest terms',
-          badge: 'Planned',
-          onTap: (ctx) => _SettingsDialogs.showInfo(
-            ctx,
-            title: 'Terms of Service',
-            message:
-                'Commercial terms of service are deferred while LumiBooth is provided as a '
-                'free, open-source photo booth utility. All frames, stickers, and layout '
-                'features are free without hidden subscriptions or usage tiers.',
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Version info, repository link, and open source licenses.
-class _AboutSettingsSection extends StatelessWidget {
-  const _AboutSettingsSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return _SettingsSection(
-      title: 'ABOUT LUMIBOOTH',
-      children: [
-        const _SettingsTile(
-          icon: Icons.info_outline,
-          title: 'LumiBooth Mobile',
-          subtitle: 'Version 0.1.0 (Build 1)',
-        ),
-        const _SettingsTile(
-          icon: Icons.code_outlined,
-          title: 'Open Source',
-          subtitle: 'github.com/0xYuuki/LumiBooth',
-        ),
-        _SettingsTile(
-          icon: Icons.description_outlined,
-          title: 'Third-party Licenses',
-          subtitle: 'View legal notices and open-source licenses',
-          onTap: (ctx) => showLicensePage(
-            context: ctx,
-            applicationName: 'LumiBooth',
-            applicationVersion: '0.1.0',
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Reusable section card grouping settings tiles.
-class _SettingsSection extends StatelessWidget {
-  const _SettingsSection({required this.title, required this.children});
-
-  final String title;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w700,
-              fontSize: 11,
-              letterSpacing: 1.5,
-              color: purple,
-            ),
-          ),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: line),
-          ),
-          child: Column(
-            children: [
-              for (var i = 0; i < children.length; i++) ...[
-                if (i > 0) const Divider(height: 1, thickness: 1, color: line),
-                children[i],
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Standardized settings tile row.
-class _SettingsTile extends StatelessWidget {
-  const _SettingsTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.badge,
-    this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final String? badge;
-  final void Function(BuildContext context)? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final interactive = onTap != null;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: interactive ? () => onTap!(context) : null,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Icon(icon, size: 22, color: purple),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            title,
-                            style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.w600,
-                              fontSize: 15,
-                              color: ink,
-                            ),
-                          ),
-                        ),
-                        if (badge != null) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: wash,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: purple.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Text(
-                              badge!,
-                              style: const TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: purple,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
+    return Scaffold(
+      backgroundColor: paper,
+      appBar: AppBar(title: const Text('About LumiBooth')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          children: [
+            const Center(
+              child: Column(
+                children: [
+                  Icon(Icons.photo_camera_outlined, color: purple, size: 44),
+                  SizedBox(height: 12),
+                  Text(
+                    'LumiBooth',
+                    style: TextStyle(
+                      fontFamily: 'Playfair Display',
+                      color: ink,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 13,
-                        color: muted,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  SizedBox(height: 4),
+                  Text('Version 0.1.0 (Build 1)',
+                      style: TextStyle(color: muted, fontSize: 13)),
+                ],
               ),
-              if (interactive) ...[
-                const SizedBox(width: 8),
-                const Icon(Icons.chevron_right, size: 20, color: muted),
-              ],
-            ],
-          ),
+            ),
+            const SizedBox(height: 24),
+            const Divider(height: 1, color: line),
+            ListTile(
+              leading: const Icon(Icons.feedback_outlined, color: purple),
+              title: const Text('Send feedback'),
+              trailing: const Icon(Icons.copy_outlined, color: muted),
+              onTap: () => _copyFeedbackLink(context),
+            ),
+          ],
         ),
-      ),
-    );
-  }
-}
-
-/// Dialog helpers for settings descriptions.
-class _SettingsDialogs {
-  static void showInfo(
-    BuildContext context, {
-    required String title,
-    required String message,
-  }) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: line),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-            color: ink,
-          ),
-        ),
-        content: Text(
-          message,
-          style: const TextStyle(
-            fontFamily: 'Outfit',
-            fontSize: 14,
-            height: 1.45,
-            color: muted,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Got it'),
-          ),
-        ],
       ),
     );
   }

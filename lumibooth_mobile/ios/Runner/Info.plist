@@ -4,6 +4,8 @@
 <dict>
 	<key>NSCameraUsageDescription</key>
 	<string>LumiBooth uses the camera to take photos for your strip.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose photos from your library to create a LumiBooth strip.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { PhotoboothContext } from './photoboothContext';
 import { sessionReducer } from './photoboothSession';
 
@@ -9,6 +9,22 @@ export function PhotoboothProvider({ children }) {
   const hasSession = session !== null;
   const motionWorker = useRef(null);
   const motionId = useRef(0);
+  const galleryUrls = useRef(new Set());
+
+  const releaseGalleryUrls = useCallback(() => {
+    for (const url of galleryUrls.current) URL.revokeObjectURL(url);
+    galleryUrls.current.clear();
+  }, []);
+
+  const dispatchAction = useCallback((action) => {
+    if (action.type === 'galleryStart') {
+      releaseGalleryUrls();
+      galleryUrls.current = new Set(action.photos.filter((photo) => photo.startsWith('blob:')));
+    } else if (['start', 'remoteStart', 'reset'].includes(action.type)) {
+      releaseGalleryUrls();
+    }
+    dispatch(action);
+  }, [dispatch, releaseGalleryUrls]);
 
   const stopWorker = () => {
     motionWorker.current?.terminate();
@@ -46,12 +62,17 @@ export function PhotoboothProvider({ children }) {
     let timeout;
     function restartTimeout() {
       clearTimeout(timeout);
-      timeout = setTimeout(() => dispatch({ type: 'reset' }), IDLE_TIMEOUT);
+      timeout = setTimeout(() => dispatchAction({ type: 'reset' }), IDLE_TIMEOUT);
     }
 
     const discard = () => {
       stopWorker();
       dispatch({ type: 'discardMotion' });
+    };
+    const releaseOnPageHide = () => {
+      stopWorker();
+      releaseGalleryUrls();
+      dispatch({ type: 'reset' });
     };
     const discardWhenHidden = () => {
       if (document.hidden) discard();
@@ -59,7 +80,7 @@ export function PhotoboothProvider({ children }) {
 
     restartTimeout();
     document.addEventListener('visibilitychange', discardWhenHidden);
-    window.addEventListener('pagehide', discard);
+    window.addEventListener('pagehide', releaseOnPageHide);
     window.addEventListener('pointerdown', restartTimeout);
     window.addEventListener('keydown', restartTimeout);
     return () => {
@@ -67,13 +88,13 @@ export function PhotoboothProvider({ children }) {
       window.removeEventListener('pointerdown', restartTimeout);
       window.removeEventListener('keydown', restartTimeout);
       document.removeEventListener('visibilitychange', discardWhenHidden);
-      window.removeEventListener('pagehide', discard);
+      window.removeEventListener('pagehide', releaseOnPageHide);
       stopWorker();
     };
-  }, [hasSession]);
+  }, [dispatchAction, hasSession, releaseGalleryUrls]);
 
   return (
-    <PhotoboothContext.Provider value={{ session, dispatch, capturePhoto }}>
+    <PhotoboothContext.Provider value={{ session, dispatch: dispatchAction, capturePhoto }}>
       {children}
     </PhotoboothContext.Provider>
   );

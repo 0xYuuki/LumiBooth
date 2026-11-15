@@ -1,6 +1,6 @@
 # LumiBooth Mobile
 
-A Flutter photo booth for Android and iOS. Choose a layout with 1, 2, 3, 4, or 6 photos, capture them with the device camera, then decorate the strip with one of 19 frames, including Tube TV, Camera Film, Vinyl Instant, Love Scrapbook, and Retro Zine. Choose Emoji or one of seven image packs. Tap a sticker to add it, drag it into place, and use its corner handles to resize or rotate it. Edit the optional caption under LumiBooth with up to 32 characters, or remove it. **Strip font** applies your choice to both the name and the caption.
+A Flutter photo booth for Android and iOS. Choose a layout with 1, 2, 3, 4, or 6 photos, capture them with the device camera or choose existing photos from your gallery, then decorate the strip with one of 19 frames, including Tube TV, Camera Film, Vinyl Instant, Love Scrapbook, and Retro Zine. Choose Emoji or one of seven image packs. Tap a sticker to add it, drag it into place, and use its corner handles to resize or rotate it. Edit the optional caption under LumiBooth with up to 32 characters, or remove it. **Strip font** applies your choice to both the name and the caption.
 
 ## Run on a phone
 
@@ -25,6 +25,14 @@ Select your phone if Flutter lists multiple devices. For iOS, configure a signin
 - The camera uses a fixed 4:3 view. Choose a frame after taking your photos, and the editor crops them to fill each opening without stretching.
 - Select **Preview strip** to render a PNG. **Save or share PNG** opens the system share sheet, where the available save destinations depend on the device. **Print photo** opens the system print interface.
 - Photos stay in the active session. **End session**, leaving the session, or five minutes of inactivity releases the session images. Sharing hands a temporary PNG to the platform and can create copies outside the app.
+
+## Choose from gallery
+
+- On Android, the system photo picker is used where available; on iOS, the native Photos picker opens. The platform picker may show only selected or limited photos, and cancelling returns to the booth without changing the camera flow.
+- Choose 1, 2, 3, 4, or 6 photos. Before editing, reorder, replace, add, or remove photos. The editor opens only when the selected count matches the layout.
+- Imported images are decoded to a maximum 1600-pixel edge to bound memory use while retaining the full photo composition for crop and frame changes. The source file is not modified.
+- Import and editing work offline and do not upload photos. Gallery selection is temporary: photos are released when the session ends or after five minutes of inactivity. Remote Booth is a separate online feature.
+- If Android closes the app while the system picker is open, LumiBooth attempts to recover the picker result when the app restarts. Unsupported or damaged images are reported so they can be replaced.
 
 ## Motion photos
 

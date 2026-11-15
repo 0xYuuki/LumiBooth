@@ -6,6 +6,7 @@ import TemplateManager from './pages/TemplateManager';
 import PrintLogs from './pages/PrintLogs';
 import WebWelcome from './pages/user/WebWelcome';
 import WebLayoutSelection from './pages/user/WebLayoutSelection';
+import WebGallerySelection from './pages/user/WebGallerySelection';
 import WebCamera from './pages/user/WebCamera';
 import WebEditor from './pages/user/WebEditor';
 import WebPreview from './pages/user/WebPreview';
@@ -67,6 +68,7 @@ const App = () => {
           {/* User Photobooth App */}
           <Route path="/" element={<WebWelcome />} />
           <Route path="/layout" element={<WebLayoutSelection />} />
+          <Route path="/gallery" element={<WebGallerySelection />} />
           <Route path="/camera" element={<GuestStep step="camera"><WebCamera /></GuestStep>} />
           <Route path="/editor" element={<GuestStep step="editor"><WebEditor /></GuestStep>} />
           <Route path="/preview" element={<GuestStep step="preview"><WebPreview /></GuestStep>} />

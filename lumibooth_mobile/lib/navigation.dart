@@ -8,7 +8,7 @@ import 'me_page.dart';
 ///
 /// Implements a bottom navigation bar with two primary destinations:
 /// - **Photo**: Instant access to camera capture, layout selection, and strip editing.
-/// - **Me**: Minimal guest profile, session info, and Settings action.
+/// - **Me**: Minimal guest profile, legal notices, cache, and about.
 ///
 /// Uses [IndexedStack] with nested [Navigator]s to preserve active camera
 /// and editing state across tab switches.
@@ -81,9 +81,7 @@ class MainNavigationScaffoldState extends State<MainNavigationScaffold> {
               key: _meNavKey,
               onGenerateRoute: (settings) => MaterialPageRoute<void>(
                 settings: settings,
-                builder: (_) => MePage(
-                  onStartPhotoBooth: () => selectTab(0),
-                ),
+                builder: (_) => const MePage(),
               ),
             ),
           ],
@@ -140,7 +138,7 @@ class LumiBoothBottomBar extends StatelessWidget {
                   icon: Icons.person_outline,
                   activeIcon: Icons.person,
                   label: 'Me',
-                  tooltip: 'Guest profile and settings',
+                  tooltip: 'Guest profile and app information',
                   selected: currentIndex == 1,
                   onTap: () => onTap(1),
                 ),

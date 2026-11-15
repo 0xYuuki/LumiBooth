@@ -1136,7 +1136,7 @@ class _SessionPageState extends State<_SessionPage>
       builder: (context) => AlertDialog(
         title: const Text('Remove this photo?'),
         content: const Text(
-          'It will be removed from this strip. Your original photo stays on your device.',
+          'This removes the photo from your strip. Photos in your gallery will not be deleted. You can undo this change.',
         ),
         actions: [
           TextButton(

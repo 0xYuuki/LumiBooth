@@ -130,7 +130,7 @@ function RemovePhotoDialog({ onCancel, onRemove }) {
   const ref = useRef(null);
   useEffect(() => { const dialog = ref.current; dialog.showModal(); return () => dialog.close(); }, []);
   return <dialog className="remove-photo-dialog" ref={ref} onCancel={onCancel} aria-labelledby="remove-title">
-    <h2 id="remove-title">Remove this photo?</h2><p>It will be removed from this strip. Your original photo stays on your device.</p>
+    <h2 id="remove-title">Remove this photo?</h2><p>This removes the photo from your strip. Photos in your gallery will not be deleted. You can undo this change.</p>
     <div><button className="booth-button booth-secondary" onClick={onCancel} autoFocus>Keep photo</button><button className="booth-button" onClick={onRemove}>Remove photo</button></div>
   </dialog>;
 }

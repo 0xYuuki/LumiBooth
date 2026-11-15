@@ -369,7 +369,6 @@ class _SettingsTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.badge,
-    this.trailing,
     this.onTap,
   });
 
@@ -377,7 +376,6 @@ class _SettingsTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final String? badge;
-  final Widget? trailing;
   final void Function(BuildContext context)? onTap;
 
   @override
@@ -450,10 +448,7 @@ class _SettingsTile extends StatelessWidget {
                   ],
                 ),
               ),
-              if (trailing != null) ...[
-                const SizedBox(width: 8),
-                trailing!,
-              ] else if (interactive) ...[
+              if (interactive) ...[
                 const SizedBox(width: 8),
                 const Icon(Icons.chevron_right, size: 20, color: muted),
               ],

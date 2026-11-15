@@ -14,6 +14,18 @@ export function BoothHeader({ step, back, onCancel }) {
   );
 }
 
+export function BoothStep({ number, back, backLabel = 'Back to previous step', disabled = false }) {
+  return (
+    <nav className="booth-step-navigation" aria-label="Photo booth steps">
+      <Link className="booth-back" to={back} aria-label={backLabel}
+        aria-disabled={disabled || undefined} onClick={(event) => { if (disabled) event.preventDefault(); }}>
+        <ArrowLeft size={20} aria-hidden="true" />
+      </Link>
+      <p className="booth-eyebrow">STEP {String(number).padStart(2, '0')} OF 04</p>
+    </nav>
+  );
+}
+
 export function MiniStrip({ count, columns, style }) {
   return (
     <span className="mini-strip" data-count={count} aria-hidden="true" style={{ ...style, gridTemplateColumns: `repeat(${columns}, 1fr)` }}>

@@ -15,10 +15,14 @@ Open the localhost URL printed by Vite and grant camera permission. The admin ro
 
 ## Choose from gallery
 
-- **Choose from Gallery** opens the browser's image selection control; its appearance and available sources depend on the browser and operating system.
-- Multiple photos can be selected, then reordered, replaced, added, or removed before choosing a 1, 2, 3, 4, or 6-photo layout.
+- **Start photo booth** and **Choose from Gallery** open the same layout selection. After choosing a layout, the first opens the camera and the second opens an empty gallery/review page. Use **Add photos** to open the device picker.
+- Step 2 shares camera and gallery/review views. Camera capture opens review when the strip is full. Add up to 12 photos from either source, select exactly the layout’s photo count, and reorder or remove photos before **Start editing**. Extra camera shots stay available as alternatives. Back arrows beside each step label preserve the active photos and design when returning to previous steps.
 - Files larger than 20 MB are skipped with a message. Images are processed locally and downscaled to a maximum 2048-pixel edge for memory use. They are not uploaded unless the user later chooses an existing sharing feature.
 - The source files are not edited. Canceling the picker returns to the home page; corrupt or unsupported images are reported and can be replaced.
+
+## Adjust photos inside frames
+
+In Step 3, open **Photos**, select a thumbnail or photo opening, and drag to reposition. Use **Zoom** (1–3×), pinch on mobile, or arrow keys to adjust the crop; **Reset crop** restores the centered fit and **Done** returns to frames. Sticker gestures are disabled while adjusting photos. Originals stay unchanged. Crops follow photos through review and reordering, adapt to new frames, and apply to PNG and animated strip exports.
 
 ## Verify changes
 

@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Download, Printer } from 'lucide-react';
 import { PhotoboothContext } from '../../context/photoboothContext';
-import { BoothHeader } from '../../components/BoothUI';
+import { BoothHeader, BoothStep } from '../../components/BoothUI';
 import MotionPhotos from '../../motion/MotionPhotos';
 import MotionStrip from '../../motion/MotionStrip';
 import { exportMotionStrip } from '../../motion/exportMotionStrip';
@@ -133,7 +133,7 @@ export default function WebPreview() {
       <BoothHeader step="04 / FINISH" />
       <main className="booth-content strip-preview">
         <div className="preview-copy">
-          <p className="booth-eyebrow">STEP 04 OF 04</p>
+          <BoothStep number={4} back={'/editor'} disabled={sending} />
           <h1 className="booth-title">Your strip is ready.</h1>
           <p className="booth-intro">Save a copy or print it to keep.</p>
           <div className="preview-actions">

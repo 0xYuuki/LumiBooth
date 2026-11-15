@@ -1,3 +1,4 @@
+import { cropGeometry } from '../pages/user/photoCrop';
 import { applyPalette, GIFEncoder, quantize } from 'gifenc';
 import { decompressFrames, parseGIF } from 'gifuct-js';
 import { motionDuration, motionFrameInterval } from './motionBuffer';
@@ -26,7 +27,7 @@ function paintTrack(context, track, time, overlay, scale) {
   }
   const { x, y, width, height, radius, angle, pivotX, pivotY } = track.slot;
   const image = track.canvas;
-  const ratio = Math.max(width / image.width, height / image.height);
+  const crop = cropGeometry(image.width, image.height, width, height, track.slot.crop);
   context.save();
   context.scale(scale, scale);
   if (angle) {
@@ -37,8 +38,7 @@ function paintTrack(context, track, time, overlay, scale) {
   context.beginPath();
   context.roundRect(x, y, width, height, radius);
   context.clip();
-  context.drawImage(image, x + (width - image.width * ratio) / 2,
-    y + (height - image.height * ratio) / 2, image.width * ratio, image.height * ratio);
+  context.drawImage(image, x + crop.x, y + crop.y, crop.width, crop.height);
   context.resetTransform();
   context.drawImage(overlay, 0, 0);
   context.restore();

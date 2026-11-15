@@ -20,6 +20,12 @@ export function sessionReducer(session, action) {
   switch (action.type) {
     case 'start':
       return createSession(action.layout);
+    case 'galleryStart':
+      return {
+        ...createSession(action.layout),
+        photos: action.photos,
+        motions: action.photos.map(() => null),
+      };
     case 'remoteStart': {
       if (action.photos?.length !== requiredPhotos(remoteLayout) || !action.roomId) return session;
       return {

@@ -13,6 +13,13 @@ npm run dev
 
 Open the localhost URL printed by Vite and grant camera permission. The admin routes display demo data.
 
+## Choose from gallery
+
+- **Choose from Gallery** opens the browser's image selection control; its appearance and available sources depend on the browser and operating system.
+- Multiple photos can be selected, then reordered, replaced, added, or removed before choosing a 1, 2, 3, 4, or 6-photo layout.
+- Files larger than 20 MB are skipped with a message. Images are processed locally and downscaled to a maximum 2048-pixel edge for memory use. They are not uploaded unless the user later chooses an existing sharing feature.
+- The source files are not edited. Canceling the picker returns to the home page; corrupt or unsupported images are reported and can be replaced.
+
 ## Verify changes
 
 ```sh

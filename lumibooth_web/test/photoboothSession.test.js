@@ -6,13 +6,16 @@ function startSession(state = null) {
   return sessionReducer(state, { type: 'start', layout: layouts[0] });
 }
 
-test('only valid captures fill the selected layout', () => {
+test('valid captures fill the layout and extra shots stay in the review collection', () => {
   const session = startSession();
   assert.equal(sessionReducer(session, { type: 'capture', photo: null }), session);
 
   const captured = sessionReducer(session, { type: 'capture', photo: 'first-photo' });
   assert.deepEqual(captured.photos, ['first-photo']);
-  assert.equal(sessionReducer(captured, { type: 'capture', photo: 'extra-photo' }), captured);
+  const extra = sessionReducer(captured, { type: 'capture', photo: 'extra-photo' });
+  assert.deepEqual(extra.photos, ['first-photo']);
+  assert.equal(extra.reviewItems[1].photo, 'extra-photo');
+  assert.equal(extra.reviewItems[1].selected, false);
 });
 
 test('an edit invalidates a rendered strip', () => {
@@ -57,4 +60,32 @@ test('motion results stay with their shot and do not invalidate a concurrent str
   assert.equal(discarded.motions[5].gif, null);
   assert.equal(sessionReducer(discarded, { type: 'motionResult', id: 1, gif: 'stale' }), discarded);
   assert.equal(sessionReducer(null, { type: 'motionResult', id: 1, gif: 'stale' }), null);
+});
+
+test('review selects and orders a mixed photo pool while preserving motion and design', () => {
+  let session = sessionReducer(null, { type: 'start', layout: layouts[1] });
+  session = sessionReducer(session, { type: 'capture', photo: 'camera', motion: { id: 42, status: 'pending' } });
+  session = sessionReducer(session, { type: 'addGallery', images: [{ url: 'gallery-1', name: 'One' }, { url: 'gallery-2', name: 'Two' }] });
+  assert.deepEqual(session.photos, ['camera', 'gallery-1']);
+  session = sessionReducer(session, { type: 'reviewSelect', index: 1 });
+  session = sessionReducer(session, { type: 'reviewSelect', index: 2 });
+  session = sessionReducer(session, { type: 'reviewMove', index: 2, offset: -1 });
+  session = sessionReducer(session, { type: 'reviewMove', index: 1, offset: -1 });
+  assert.deepEqual(session.photos, ['gallery-2', 'camera']);
+  session = sessionReducer(session, { type: 'motionResult', id: 42, gif: 'camera-motion' });
+  assert.equal(session.motions[0], null);
+  assert.equal(session.motions[1].gif, 'camera-motion');
+  session = sessionReducer(session, { type: 'edit', changes: { caption: 'Keep me', frame: 'custom' } });
+  session = sessionReducer(session, { type: 'changeLayout', layout: layouts[0], source: 'gallery' });
+  assert.equal(session.caption, 'Keep me');
+  assert.equal(session.frame, 'custom');
+  assert.equal(session.reviewItems.length, 3);
+  assert.deepEqual(session.photos, ['gallery-2']);
+  // A late result for a deselected shot must update the pool too.
+  session = sessionReducer(session, { type: 'discardMotion' });
+  assert.equal(session.reviewItems[1].motion.gif, null);
+  session = sessionReducer(session, { type: 'reviewSelect', index: 0 });
+  session = sessionReducer(session, { type: 'reviewSelect', index: 1 });
+  assert.deepEqual(session.photos, ['camera']);
+  assert.equal(session.motions[0].status, 'unavailable');
 });

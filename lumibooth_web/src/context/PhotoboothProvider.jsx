@@ -11,15 +11,24 @@ export function PhotoboothProvider({ children }) {
   const motionId = useRef(0);
   const galleryUrls = useRef(new Set());
 
+  useEffect(() => {
+    const retained = new Set([...(session?.photos ?? []), ...(session?.reviewItems ?? []).map((item) => item.photo)]);
+    for (const url of galleryUrls.current) {
+      if (!retained.has(url)) {
+        URL.revokeObjectURL(url);
+        galleryUrls.current.delete(url);
+      }
+    }
+  }, [session]);
+
   const releaseGalleryUrls = useCallback(() => {
     for (const url of galleryUrls.current) URL.revokeObjectURL(url);
     galleryUrls.current.clear();
   }, []);
 
   const dispatchAction = useCallback((action) => {
-    if (action.type === 'galleryStart') {
-      releaseGalleryUrls();
-      galleryUrls.current = new Set(action.photos.filter((photo) => photo.startsWith('blob:')));
+    if (action.type === 'addGallery') {
+      for (const image of action.images) galleryUrls.current.add(image.url);
     } else if (['start', 'remoteStart', 'reset'].includes(action.type)) {
       releaseGalleryUrls();
     }

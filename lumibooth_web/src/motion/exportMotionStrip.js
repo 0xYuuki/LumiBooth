@@ -29,7 +29,7 @@ export async function exportMotionStrip(strip, session, signal) {
   const tracks = await Promise.all(session.motions.flatMap((motion, index) => motion?.gif
     ? [motion.gif.arrayBuffer().then((bytes) => ({
         bytes,
-        slot: aperture(strip.querySelector(`[data-photo-index="${index}"]`), frame, index),
+        slot: { ...aperture(strip.querySelector(`[data-photo-index="${index}"]`), frame, index), crop: session.crops?.[index] },
       }))]
     : []));
   if (!tracks.length) throw new Error('Motion is unavailable.');

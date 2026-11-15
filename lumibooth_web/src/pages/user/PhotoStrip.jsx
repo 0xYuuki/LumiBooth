@@ -1,12 +1,17 @@
 import { frameBackground, frameLibrary } from './frameLibrary';
 import StickerArt from './StickerArt';
+import AdjustablePhoto from './AdjustablePhoto';
 
-export function PhotoStrip({ session, motionUrls = [], stripRef, onPointerDown, children }) {
+export function PhotoStrip({ session, motionUrls = [], stripRef, onPointerDown, children, photoEditing }) {
   const { layout, photos, stickers } = session;
   const paired = layout.photosPerCell === 2;
   const frame = session.frame ?? frameLibrary.Templates[0];
   const font = session.signatureFont ?? 'Outfit';
   const caption = session.caption ?? frame.caption ?? 'THE PHOTO BOOTH';
+  const renderPhoto = (index, photo, alt, onError, angle = 0) => <AdjustablePhoto
+    src={photo} alt={alt} onError={onError} crop={session.crops?.[index]} angle={angle}
+    editing={Boolean(photoEditing)} selected={photoEditing?.selected === index}
+    onSelect={() => photoEditing?.onSelect(index)} onChange={(crop) => photoEditing?.onChange(index, crop)} />;
   return (
     <div
       ref={stripRef}
@@ -24,8 +29,8 @@ export function PhotoStrip({ session, motionUrls = [], stripRef, onPointerDown, 
       {frame.header && <img className="illustrated-header" src={frame.header} alt="" />}
       {paired ? Array.from({ length: layout.count }, (_, index) => {
         const pair = <span className="paired-photos">
-          <img src={photos[index * 2]} alt={`Round ${index + 1}, host photo`} />
-          <img src={photos[index * 2 + 1]} alt={`Round ${index + 1}, guest photo`} />
+          {renderPhoto(index * 2, photos[index * 2], `Round ${index + 1}, host photo`)}
+          {renderPhoto(index * 2 + 1, photos[index * 2 + 1], `Round ${index + 1}, guest photo`)}
         </span>;
         return frame.artwork
           ? <IllustratedPhoto key={index} frame={frame} index={index}>{pair}</IllustratedPhoto>
@@ -37,9 +42,8 @@ export function PhotoStrip({ session, motionUrls = [], stripRef, onPointerDown, 
           if (currentTarget.src !== still) currentTarget.src = still;
         } : undefined;
         return frame.artwork
-          ? <IllustratedPhoto key={index} frame={frame} photo={photo} index={index} onError={fallback} />
-          : <img key={index} data-photo-index={index} src={photo} alt={`Captured photo ${index + 1}`} onError={fallback}
-              style={{ borderRadius: frame.radius ?? 4 }} />;
+          ? <IllustratedPhoto key={index} frame={frame} index={index} photoIndex={index}>{renderPhoto(index, photo, `Captured photo ${index + 1}`, fallback, (index % 2 ? 1 : -1) * (frame.tilt ?? 0))}</IllustratedPhoto>
+          : <div className="standard-photo-cell" key={index} data-photo-index={index} style={{ borderRadius: frame.radius ?? 4 }}>{renderPhoto(index, photo, `Captured photo ${index + 1}`, fallback)}</div>;
       })}
       <div className="strip-signature" style={{
         fontFamily: `"${font}", sans-serif`,
@@ -75,10 +79,10 @@ export function StickerLayer({ sticker, layerRef, children, ...events }) {
   );
 }
 
-export function IllustratedPhoto({ frame, photo, index = 0, onError, children }) {
+export function IllustratedPhoto({ frame, photo, index = 0, onError, children, photoIndex }) {
   const [x, y, width, height, radius] = frame.window;
   return (
-    <div className="illustrated-photo" data-photo-index={photo ? index : undefined}
+    <div className="illustrated-photo" data-photo-index={photoIndex ?? (photo ? index : undefined)}
       style={{ transform: (photo || children) && frame.tilt ? `rotate(${index % 2 ? frame.tilt : -frame.tilt}deg)` : undefined }}>
       <span className="illustrated-window" style={{
         left: `${x / 4}%`, top: `${y / 3}%`, width: `${width / 4}%`, height: `${height / 3}%`,

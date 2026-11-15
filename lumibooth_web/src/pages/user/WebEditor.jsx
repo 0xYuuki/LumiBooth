@@ -1,13 +1,14 @@
 import { useContext, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PhotoboothContext } from '../../context/photoboothContext';
-import { BoothHeader, MiniStrip } from '../../components/BoothUI';
+import { BoothHeader, BoothStep, MiniStrip } from '../../components/BoothUI';
 import { toPng } from 'html-to-image';
 
 import { frameBackground, frameLibrary } from './frameLibrary';
 import { IllustratedPhoto, PhotoStrip, StickerLayer } from './PhotoStrip';
 
 import StickerArt from './StickerArt';
+import { normalizeCrop } from './photoCrop';
 import { stickerPacks } from './stickerPacks';
 
 const captionLimit = 32;
@@ -20,6 +21,7 @@ const WebEditor = () => {
   const signatureFont = session.signatureFont ?? signatureFonts[0];
   const caption = session.caption ?? selectedFrame.caption ?? 'THE PHOTO BOOTH';
   const navigate = useNavigate();
+  const [selectedPhoto, setSelectedPhoto] = useState(0);
   const [activeTab, setActiveTab] = useState('Frames');
   const [stickerPack, setStickerPack] = useState(stickerPacks[0]);
   const [activeCategory, setActiveCategory] = useState(() =>
@@ -89,7 +91,7 @@ const WebEditor = () => {
       <main className="booth-content">
         <div className="design-heading">
           <div>
-            <p className="booth-eyebrow">STEP 03 OF 04</p>
+            <BoothStep number={3} back={session.roomId ? '/room' : '/gallery'} disabled={exporting} />
             <h1 className="booth-title">Make it yours.</h1>
             <p className="booth-intro">Choose a frame and add stickers to your strip.</p>
           </div>
@@ -97,9 +99,13 @@ const WebEditor = () => {
         </div>
         {exportError && <p role="alert" className="editor-error">{exportError}</p>}
 
-        <div className="design-workspace">
+        <div className={`design-workspace${activeTab === 'Photos' ? ' adjusting-photos' : ''}`}>
           <div className="design-stage">
             <PhotoStrip session={session} stripRef={constraintsRef}
+              photoEditing={activeTab === 'Photos' && !exporting ? {
+                selected: selectedPhoto, onSelect: setSelectedPhoto,
+                onChange: (index, crop) => dispatch({ type: 'crop', index, crop }),
+              } : undefined}
               onPointerDown={() => setSelectedStickerId(null)}>
               {placedStickers.map((sticker) => (
                 <StripSticker
@@ -107,7 +113,7 @@ const WebEditor = () => {
                   sticker={sticker}
                   selected={selectedStickerId === sticker.id}
                   constraintsRef={constraintsRef}
-                  disabled={exporting}
+                  disabled={exporting || activeTab === 'Photos'}
                   onSelect={() => setSelectedStickerId(sticker.id)}
                   onChange={(changes) => updateSticker(sticker.id, changes)}
                   onDelete={() => deleteSticker(sticker.id)}
@@ -118,10 +124,29 @@ const WebEditor = () => {
 
           <fieldset className="design-tools" disabled={exporting} aria-label="Strip design">
             <div className="design-tabs">
-              {['Frames', 'Stickers'].map((tab) => (
-                <button key={tab} aria-pressed={activeTab === tab} onClick={() => setActiveTab(tab)}>{tab}</button>
+              {['Frames', 'Photos', 'Stickers'].map((tab) => (
+                <button key={tab} aria-pressed={activeTab === tab} onClick={() => { setActiveTab(tab); setSelectedStickerId(null); }}>{tab}</button>
               ))}
             </div>
+            {activeTab === 'Photos' && (
+              <div className="photo-crop-tools">
+                <h2>Adjust photo {selectedPhoto + 1}</h2>
+                <p>Drag the photo inside its frame. Pinch or use Zoom to crop. Arrow keys also adjust its position.</p>
+                <div className="photo-crop-thumbnails">
+                  {session.photos.map((photo, index) => <button type="button" key={index}
+                    aria-label={`Select photo ${index + 1}`} aria-pressed={selectedPhoto === index}
+                    onClick={() => setSelectedPhoto(index)}><img src={photo} alt="" /><span>{index + 1}</span></button>)}
+                </div>
+                <label>Zoom
+                  <input type="range" min="1" max="3" step="0.01" value={normalizeCrop(session.crops?.[selectedPhoto]).zoom}
+                    onChange={(event) => dispatch({ type: 'crop', index: selectedPhoto, crop: { ...normalizeCrop(session.crops?.[selectedPhoto]), zoom: Number(event.target.value) } })} />
+                </label>
+                <div className="caption-actions">
+                  <button className="booth-button booth-secondary" type="button" onClick={() => dispatch({ type: 'crop', index: selectedPhoto, crop: {} })}>Reset crop</button>
+                  <button className="booth-button" type="button" onClick={() => setActiveTab('Frames')}>Done</button>
+                </div>
+              </div>
+            )}
             {activeTab === 'Frames' && (
               <>
                 <div className="frame-categories">

@@ -1,9 +1,10 @@
 import { useRef, useContext, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Timer } from 'lucide-react';
-import { BoothHeader } from '../../components/BoothUI';
+import { BoothHeader, BoothStep } from '../../components/BoothUI';
 import Webcam from 'react-webcam';
 import { PhotoboothContext } from '../../context/photoboothContext';
+import { reviewItems } from '../../context/photoboothSession';
 import { useMotionCapture } from '../../motion/useMotionCapture';
 import { motionSeconds } from '../../motion/motionBuffer';
 import { cameraAspectRatio, drawCameraFrame } from './cameraFraming';
@@ -51,6 +52,7 @@ const WebCamera = () => {
       }
       setError('');
       capturePhoto(canvas.toDataURL('image/jpeg', 0.92), motion);
+      if (photos.length + 1 >= layout.count) navigate('/gallery');
     } catch {
       setError('Could not capture a photo. Try again.');
     }
@@ -93,9 +95,11 @@ const WebCamera = () => {
     <div className="booth-shell">
       <BoothHeader step="02 / CAPTURE" onCancel={cancel} />
       <main className="booth-content capture-page">
-        <p className="booth-eyebrow">STEP 02 OF 04</p>
+        <BoothStep number={2} back="/layout" />
         <h1 className="booth-title">Ready for your close-up?</h1>
         <p className="booth-intro" aria-live="polite">{photos.length} of {layout.count} photos captured</p>
+        {photos.length === layout.count && <p className="gallery-count">Your strip is full. Take another photo to add an alternative, then choose your favorites in review.</p>}
+        {reviewItems(session).length >= 12 && <p className="gallery-message" role="status">Your collection has 12 photos. Remove a photo in review before taking more.</p>}
         <div className="camera-view" style={{ aspectRatio: cameraAspectRatio }}>
           <Webcam
             key={cameraKey}
@@ -126,6 +130,10 @@ const WebCamera = () => {
           </div>
         )}
 
+        <div className="photo-source-switch" aria-label="Photo source">
+          <span aria-current="page">Take photos</span>
+          <Link to="/gallery">Choose from Gallery / Review photos ({photos.length})</Link>
+        </div>
         <p className="capture-motion-note">Automatically keeps up to {motionSeconds} seconds of motion before each shot.</p>
         <div className="capture-controls">
           <button className="booth-button booth-secondary" aria-label={timer ? `Timer: ${timer} seconds` : 'Timer off'}
@@ -134,7 +142,7 @@ const WebCamera = () => {
             <Timer size={17} aria-hidden="true" /> {timer ? `${timer}s` : 'Timer'}
           </button>
           <button className="booth-button" onClick={handleCaptureClick} aria-label="Take photo"
-            disabled={!ready || countdown > 0}>Take photo</button>
+            disabled={!ready || countdown > 0 || reviewItems(session).length >= 12}>Take photo</button>
         </div>
       </main>
     </div>

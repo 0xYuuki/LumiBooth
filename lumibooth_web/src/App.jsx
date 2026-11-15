@@ -54,8 +54,7 @@ function GuestStep({ step, children }) {
   if (!session) return <Navigate to="/" replace />;
 
   const complete = session.photos.length === requiredPhotos(session.layout);
-  if (step === 'camera' && complete) return <Navigate to="/editor" replace />;
-  if (step !== 'camera' && !complete) return <Navigate to="/camera" replace />;
+  if (!['camera', 'review'].includes(step) && !complete) return <Navigate to="/camera" replace />;
   if (step === 'preview' && !session.output) return <Navigate to="/editor" replace />;
   return children;
 }
@@ -68,7 +67,7 @@ const App = () => {
           {/* User Photobooth App */}
           <Route path="/" element={<WebWelcome />} />
           <Route path="/layout" element={<WebLayoutSelection />} />
-          <Route path="/gallery" element={<WebGallerySelection />} />
+          <Route path="/gallery" element={<GuestStep step="review"><WebGallerySelection /></GuestStep>} />
           <Route path="/camera" element={<GuestStep step="camera"><WebCamera /></GuestStep>} />
           <Route path="/editor" element={<GuestStep step="editor"><WebEditor /></GuestStep>} />
           <Route path="/preview" element={<GuestStep step="preview"><WebPreview /></GuestStep>} />

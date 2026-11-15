@@ -1,96 +1,52 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { BoothHeader } from '../../components/BoothUI';
+import { Link, useNavigate } from 'react-router-dom';
+import { Camera, ImagePlus, ArrowRight } from 'lucide-react';
+import { BoothHeader, BoothStep, MiniStrip } from '../../components/BoothUI';
 import { PhotoboothContext } from '../../context/photoboothContext';
-import { layouts, requiredPhotos } from '../../context/photoboothSession';
+import { requiredPhotos, reviewItems } from '../../context/photoboothSession';
 import { prepareGalleryFiles, releaseGalleryFiles } from './galleryImport';
 
 const MAX_PHOTOS = 12;
 
 export default function WebGallerySelection() {
-  const location = useLocation();
   const navigate = useNavigate();
-  const { dispatch } = useContext(PhotoboothContext);
-  const [images, setImages] = useState(() => location.state?.images ?? []);
-  const imagesRef = useRef(images);
-  const [layoutId, setLayoutId] = useState(() => {
-    const initial = location.state?.images ?? [];
-    return layouts.find((layout) => layout.count === initial.length)?.id ?? layouts[0].id;
-  });
-  const [message, setMessage] = useState(() => location.state?.message ?? '');
+  const { session, dispatch } = useContext(PhotoboothContext);
+  const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const [replaceIndex, setReplaceIndex] = useState(null);
   const inputRef = useRef(null);
-  const transferred = useRef(false);
-  const layout = layouts.find((item) => item.id === layoutId) ?? layouts[0];
-  const required = requiredPhotos(layout);
-
+  const mounted = useRef(false);
   useEffect(() => {
-    if (!location.state?.images?.length) navigate('/', { replace: true });
-  }, [location.state, navigate]);
-
-  useEffect(() => {
-    imagesRef.current = images;
-  }, [images]);
-
-  useEffect(() => () => {
-    if (!transferred.current) releaseGalleryFiles(imagesRef.current);
+    mounted.current = true;
+    return () => { mounted.current = false; };
   }, []);
-
-  const openPicker = (replace = null) => {
-    setReplaceIndex(replace);
-    if (inputRef.current) {
-      inputRef.current.multiple = replace === null;
-      inputRef.current.click();
-    }
-  };
+  const images = reviewItems(session);
+  const required = requiredPhotos(session.layout);
+  const exactCount = session.photos.length === required;
 
   const onFilesSelected = async (event) => {
-    const files = event.target.files;
+    const files = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (!files?.length) return;
-    if (replaceIndex === null && images.length + files.length > MAX_PHOTOS) {
+    if (!files.length) return;
+    if (images.length + files.length > MAX_PHOTOS) {
       setMessage('Choose up to 12 photos. Remove a photo before adding more.');
       return;
     }
-
     setBusy(true);
     setMessage('');
-    const result = await prepareGalleryFiles(files);
-    setBusy(false);
-    if (!result.images.length) {
-      setMessage(result.message ?? 'No supported photos could be opened. Choose JPEG, PNG, or WebP images.');
-      return;
+    try {
+      const result = await prepareGalleryFiles(files);
+      if (!mounted.current) {
+        releaseGalleryFiles(result.images);
+        return;
+      }
+      if (result.images.length) dispatch({ type: 'addGallery', images: result.images });
+      if (!result.images.length) setMessage(result.message ?? 'No supported photos could be opened. Choose JPEG, PNG, or WebP images.');
+      else if (result.skipped) setMessage(`${result.skipped} photos could not be opened or exceeded the size limit.`);
+    } catch {
+      if (mounted.current) setMessage('Could not open those photos. Please try again.');
+    } finally {
+      if (mounted.current) setBusy(false);
     }
-    if (result.skipped) {
-      setMessage(`${result.skipped} photo${result.skipped === 1 ? '' : 's'} could not be opened or exceeded the size limit.`);
-    }
-    if (replaceIndex === null) {
-      setImages((current) => [...current, ...result.images]);
-    } else {
-      const replacement = result.images[0];
-      releaseGalleryFiles([images[replaceIndex], ...result.images.slice(1)]);
-      setImages((current) => current.map((image, index) =>
-        index === replaceIndex ? replacement : image));
-    }
-    setReplaceIndex(null);
-  };
-
-  const move = (index, offset) => {
-    const target = index + offset;
-    if (target < 0 || target >= images.length) return;
-    setImages((current) => {
-      const next = [...current];
-      const [item] = next.splice(index, 1);
-      next.splice(target, 0, item);
-      return next;
-    });
-  };
-
-  const remove = (index) => {
-    const removed = images[index];
-    releaseGalleryFiles([removed]);
-    setImages((current) => current.filter((_, itemIndex) => itemIndex !== index));
   };
 
   const cancel = () => {
@@ -98,61 +54,62 @@ export default function WebGallerySelection() {
     navigate('/', { replace: true });
   };
 
-  const continueToEditor = () => {
-    if (images.length !== required || busy) return;
-    dispatch({ type: 'galleryStart', layout, photos: images.map((image) => image.url) });
-    transferred.current = true;
-    navigate('/editor', { replace: true });
-  };
-
-  const exactCount = images.length === required;
   return (
     <div className="booth-shell">
-      <BoothHeader step="01 / GALLERY" onCancel={cancel} />
+      <BoothHeader step="02 / PHOTOS" onCancel={cancel} />
       <main className="booth-content gallery-import-page">
-        <p className="booth-eyebrow">CHOOSE FROM GALLERY</p>
-        <h1 className="booth-title">Build your strip.</h1>
-        <p className="booth-intro">Choose a layout, arrange your photos, and replace or remove any image before editing. Photos are processed in this browser and are not uploaded.</p>
-
-        <label className="gallery-layout-label" htmlFor="gallery-layout">Strip layout</label>
-        <select id="gallery-layout" value={layoutId} onChange={(event) => setLayoutId(event.target.value)}>
-          {layouts.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.count} {item.count === 1 ? 'photo' : 'photos'}</option>)}
-        </select>
-
+        <BoothStep number={2} back="/layout" disabled={busy} />
+        <h1 className="booth-title">Your photos, your order.</h1>
+        <p className="booth-intro">Add photos from your gallery or take them here. Select the photos for your strip, then arrange them in order. Everything stays in this browser.</p>
+        <div className="review-layout-summary">
+          <MiniStrip count={session.layout.count} columns={session.layout.columns} />
+          <div><strong>{session.layout.name}</strong><p>{required} {required === 1 ? 'photo' : 'photos'} in your strip</p></div>
+          <Link className="booth-link" to="/layout">Change layout</Link>
+        </div>
+        <div className="photo-source-switch" aria-label="Photo source">
+          <Link to="/camera"><Camera size={17} aria-hidden="true" /> Take photos</Link>
+          <span aria-current="page">Gallery &amp; review</span>
+        </div>
         <p className="gallery-count" aria-live="polite">
-          {exactCount
-            ? `${images.length} photos ready in strip order.`
-            : images.length < required
-              ? `Add ${required - images.length} more or choose a smaller layout.`
-              : `Remove ${images.length - required} or choose a larger layout.`}
+          {session.photos.length} of {required} photos selected.{exactCount ? ' Ready to edit.' : ` Select ${required - session.photos.length} more.`}
         </p>
-
         {message && <p className="gallery-message" role="status">{message}</p>}
         <input ref={inputRef} className="gallery-file-input" type="file" accept="image/*" multiple onChange={onFilesSelected} aria-label="Choose image files" />
+        {!images.length && <div className="review-empty">
+          <ImagePlus size={32} aria-hidden="true" />
+          <h2>Let’s fill your strip.</h2>
+          <p>Add photos below, or switch to the camera to take a new one.</p>
+        </div>}
         <div className="gallery-import-list">
-          {images.map((image, index) => (
-            <article className="gallery-import-card" key={`${image.url}-${index}`}>
-              <img src={image.url} alt={`Selected photo ${index + 1}`} />
-              <div className="gallery-import-details">
-                <strong>{image.name}</strong>
-                <span>Position {index + 1}</span>
-              </div>
-              <div className="gallery-import-actions">
-                <button className="booth-link" type="button" onClick={() => move(index, -1)} disabled={busy || index === 0} aria-label={`Move photo ${index + 1} up`}>↑</button>
-                <button className="booth-link" type="button" onClick={() => move(index, 1)} disabled={busy || index === images.length - 1} aria-label={`Move photo ${index + 1} down`}>↓</button>
-                <button className="booth-link" type="button" onClick={() => openPicker(index)} disabled={busy} aria-label={`Replace photo ${index + 1}`}>Replace</button>
-                <button className="booth-link" type="button" onClick={() => remove(index)} disabled={busy} aria-label={`Remove photo ${index + 1}`}>Remove</button>
-              </div>
-            </article>
-          ))}
+          {images.map((image, index) => {
+            const position = images.slice(0, index + 1).filter((item) => item.selected).length;
+            return (
+              <article className="gallery-import-card" data-selected={image.selected} key={`${image.photo}-${index}`}>
+                <img src={image.photo} alt={`Photo ${index + 1}`} />
+                <div className="gallery-import-details">
+                  <strong>{image.name}</strong>
+                  <span>{image.selected ? `Strip position ${position}` : 'Not in strip'}</span>
+                  <label className="review-selection">
+                    <input type="checkbox" checked={image.selected} disabled={busy || (!image.selected && exactCount)}
+                      onChange={() => dispatch({ type: 'reviewSelect', index })} aria-label={`Include photo ${index + 1}`} />
+                    Include in strip
+                  </label>
+                </div>
+                <div className="gallery-import-actions">
+                  <button className="booth-link" type="button" onClick={() => dispatch({ type: 'reviewMove', index, offset: -1 })} disabled={busy || index === 0} aria-label={`Move photo ${index + 1} up`}>↑</button>
+                  <button className="booth-link" type="button" onClick={() => dispatch({ type: 'reviewMove', index, offset: 1 })} disabled={busy || index === images.length - 1} aria-label={`Move photo ${index + 1} down`}>↓</button>
+                  <button className="booth-link" type="button" onClick={() => dispatch({ type: 'reviewRemove', index })} disabled={busy} aria-label={`Remove photo ${index + 1}`}>Remove</button>
+                </div>
+              </article>
+            );
+          })}
         </div>
-
         <div className="gallery-import-footer">
-          <button className="booth-button booth-secondary" type="button" onClick={() => openPicker()} disabled={busy || images.length >= MAX_PHOTOS}>
-            {busy ? 'Preparing photos…' : 'Add photos'}
+          <button className="booth-button booth-secondary" type="button" onClick={() => inputRef.current?.click()} disabled={busy || images.length >= MAX_PHOTOS}>
+            <ImagePlus size={18} aria-hidden="true" /> {busy ? 'Preparing photos…' : 'Add photos'}
           </button>
-          <button className="booth-button" type="button" onClick={continueToEditor} disabled={!exactCount || busy}>
-            {exactCount ? 'Start editing' : `Choose exactly ${required} photos`}
+          <button className="booth-button" type="button" onClick={() => navigate('/editor')} disabled={!exactCount || busy}>
+            Start editing <ArrowRight size={18} aria-hidden="true" />
           </button>
         </div>
       </main>

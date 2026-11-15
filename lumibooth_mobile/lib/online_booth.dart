@@ -14,7 +14,21 @@ abstract final class OnlineBooth {
   static bool _initialized = false;
   static Future<AuthResponse>? _signIn;
 
+  /// Whether any online service capability (web sharing or remote booth) is configured and initialized.
+  ///
+  /// This indicates capability enablement based on environment configuration,
+  /// not verified live network reachability.
+  static bool get isConfigured => printEnabled || remoteEnabled;
+
+  /// Whether online services are enabled based on build-time configuration.
+  ///
+  /// Alias for [isConfigured] to provide explicit status without implying live backend connectivity.
+  static bool get enabled => isConfigured;
+
+  /// Whether web QR gallery upload and sharing capabilities are enabled.
   static bool get printEnabled => _initialized && _print;
+
+  /// Whether remote booth live sync capabilities are enabled.
   static bool get remoteEnabled => _initialized && _remote;
   static SupabaseClient get _client => Supabase.instance.client;
 

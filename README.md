@@ -49,4 +49,4 @@ See the [developer and deployment guide](lumibooth_web/README.md) for linting, b
 
 ## Mobile app
 
-The [Flutter mobile app](lumibooth_mobile/README.md) brings the guest photo booth flow to Android and iOS, including native camera capture, frame templates, PNG sharing, and printing.
+The [Flutter mobile app](lumibooth_mobile/README.md) brings the guest photo booth flow to Android and iOS with native bottom navigation (Photo and Me tabs), native camera capture, frame templates, PNG sharing, printing, and guest settings.

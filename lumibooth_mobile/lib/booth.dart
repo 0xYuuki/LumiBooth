@@ -15,6 +15,7 @@ import 'gallery_qr.dart';
 import 'motion_photo.dart';
 import 'motion_strip_export.dart';
 import 'motion_strip_view.dart';
+import 'navigation.dart';
 import 'online_booth.dart';
 import 'print_strip.dart';
 import 'remote_booth.dart';
@@ -137,19 +138,20 @@ class LumiBooth extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         ),
       ),
-      home: const _WelcomePage(),
+      home: const MainNavigationScaffold(),
     );
   }
 }
 
-class _WelcomePage extends StatefulWidget {
-  const _WelcomePage();
+/// The primary welcome screen and entrypoint to the photo booth workflow.
+class WelcomePage extends StatefulWidget {
+  const WelcomePage({super.key});
 
   @override
-  State<_WelcomePage> createState() => _WelcomePageState();
+  State<WelcomePage> createState() => _WelcomePageState();
 }
 
-class _WelcomePageState extends State<_WelcomePage> {
+class _WelcomePageState extends State<WelcomePage> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _selectingGallery = false;
 
@@ -2276,14 +2278,18 @@ class _SessionPageState extends State<_SessionPage>
   }
 }
 
-class _PrintLinksPage extends StatefulWidget {
-  const _PrintLinksPage();
+/// Screen for managing and revoking uploaded web QR gallery links.
+class PrintLinksPage extends StatefulWidget {
+  /// Creates the [PrintLinksPage].
+  const PrintLinksPage({super.key});
 
   @override
-  State<_PrintLinksPage> createState() => _PrintLinksPageState();
+  State<PrintLinksPage> createState() => _PrintLinksPageState();
 }
 
-class _PrintLinksPageState extends State<_PrintLinksPage> {
+typedef _PrintLinksPage = PrintLinksPage;
+
+class _PrintLinksPageState extends State<PrintLinksPage> {
   late Future<dynamic> _links = OnlineBooth.request('share_list');
   bool _revoking = false;
 
@@ -2364,18 +2370,23 @@ class _PrintLinksPageState extends State<_PrintLinksPage> {
   );
 }
 
-class _BoothHeader extends StatelessWidget implements PreferredSizeWidget {
-  const _BoothHeader({
+/// Standard brand header bar for LumiBooth with logo mark, step tag, and actions.
+class BoothHeader extends StatelessWidget implements PreferredSizeWidget {
+  /// Creates the [BoothHeader].
+  const BoothHeader({
+    super.key,
     required this.step,
     this.onBack,
     this.onAction,
     this.actionLabel,
+    this.trailing,
   });
 
   final String step;
   final VoidCallback? onBack;
   final VoidCallback? onAction;
   final String? actionLabel;
+  final Widget? trailing;
 
   @override
   Size get preferredSize => const Size.fromHeight(66);
@@ -2469,12 +2480,18 @@ class _BoothHeader extends StatelessWidget implements PreferredSizeWidget {
                 child: Text(actionLabel!),
               ),
             ],
+            if (trailing != null) ...[
+              const SizedBox(width: 8),
+              trailing!,
+            ],
           ],
         ),
       ),
     );
   }
 }
+
+typedef _BoothHeader = BoothHeader;
 
 class _BoothFooter extends StatelessWidget {
   const _BoothFooter();

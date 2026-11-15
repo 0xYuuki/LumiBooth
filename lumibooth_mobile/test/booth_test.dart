@@ -70,8 +70,6 @@ void main() {
     // Photo selection step (03 / CHOOSE PHOTOS)
     expect(find.text('Pick your favorites.'), findsOneWidget);
     expect(find.text('03 / CHOOSE PHOTOS'), findsOneWidget);
-    expect(find.text('Shot 1'), findsOneWidget);
-    expect(find.text('Shot 5'), findsOneWidget);
 
     // Swap shot 4 into selection
     final selectionScroll = find
@@ -82,6 +80,8 @@ void main() {
         .first;
     final shot4 = find.text('Shot 4');
     await tester.scrollUntilVisible(shot4, 120, scrollable: selectionScroll);
+    expect(find.text('Shot 1'), findsOneWidget);
+    expect(find.text('Shot 5'), findsOneWidget);
     await Scrollable.ensureVisible(tester.element(shot4), alignment: .4);
     await tester.pumpAndSettle();
     await tester.tap(shot4);

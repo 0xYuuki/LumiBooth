@@ -14,17 +14,18 @@ test('photo crop exports the chosen region and persists through frames and revie
   });
   await page.getByLabel('Choose image files').setInputFiles({ name: 'colors.png', mimeType: 'image/png', buffer: Buffer.from(bytes, 'base64') });
   await page.getByRole('button', { name: 'Start editing' }).click();
-  await page.getByRole('button', { name: 'Photos', exact: true }).click();
+  await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
   const zoom = page.getByRole('slider', { name: 'Zoom' });
   await zoom.fill('2');
-  const aperture = page.getByRole('button', { name: 'Adjust captured photo 1' });
+  const aperture = page.getByRole('button', { name: 'Reposition photo' });
+  const rendered = page.locator('.photo-strip .photo-aperture img');
   await aperture.focus();
-  for (let i = 0; i < 12; i++) await aperture.press('ArrowLeft');
-  await expect(aperture.locator('img')).toHaveCSS('object-position', '0% 50%');
+  for (let i = 0; i < 12; i++) await aperture.press('ArrowRight');
+  await expect(rendered).toHaveCSS('object-position', '0% 50%');
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByRole('button', { name: 'Colors', exact: true }).click();
   await page.getByRole('button', { name: 'Black', exact: true }).click();
-  await page.getByRole('button', { name: 'Photos', exact: true }).click();
+  await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
   await expect(zoom).toHaveValue('2');
   // Drag back toward the opposite edge.
   const box = await aperture.boundingBox();
@@ -32,10 +33,11 @@ test('photo crop exports the chosen region and persists through frames and revie
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 - 100, box.y + box.height / 2, { steps: 5 });
   await page.mouse.up();
-  await expect(aperture.locator('img')).not.toHaveCSS('object-position', '0% 50%');
-  for (let i = 0; i < 25; i++) await aperture.press('ArrowRight');
-  await expect(aperture.locator('img')).toHaveCSS('object-position', '100% 50%');
-  const point = await aperture.evaluate((node) => {
+  await expect(rendered).not.toHaveCSS('object-position', '0% 50%');
+  for (let i = 0; i < 25; i++) await aperture.press('ArrowLeft');
+  await expect(rendered).toHaveCSS('object-position', '100% 50%');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  const point = await page.locator('.photo-strip .photo-aperture').evaluate((node) => {
     const cell = node.getBoundingClientRect(), strip = node.closest('.photo-strip').getBoundingClientRect();
     return [(cell.x + cell.width / 2 - strip.x) / strip.width, (cell.y + cell.height / 2 - strip.y) / strip.height];
   });
@@ -50,14 +52,14 @@ test('photo crop exports the chosen region and persists through frames and revie
   await page.getByRole('button', { name: 'Edit Strip' }).click();
   await page.getByRole('link', { name: 'Back to previous step' }).click();
   await page.getByRole('button', { name: 'Start editing' }).click();
-  await page.getByRole('button', { name: 'Photos', exact: true }).click();
+  await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
   await expect(zoom).toHaveValue('2');
-  await expect(aperture.locator('img')).toHaveCSS('object-position', '100% 50%');
+  await expect(rendered).toHaveCSS('object-position', '100% 50%');
   await page.setViewportSize({ width: 360, height: 800 });
-  await expect(aperture.locator('img')).toHaveCSS('object-position', '100% 50%');
+  await expect(rendered).toHaveCSS('object-position', '100% 50%');
   await page.getByRole('button', { name: 'Reset crop' }).click();
   await expect(zoom).toHaveValue('1');
-  await expect(aperture.locator('img')).toHaveCSS('object-position', '50% 50%');
+  await expect(rendered).toHaveCSS('object-position', '50% 50%');
 });
 
 test('mobile pinch zooms a photo without scrolling the adjustment surface', async ({ page }) => {
@@ -66,8 +68,8 @@ test('mobile pinch zooms a photo without scrolling the adjustment surface', asyn
   await page.getByRole('button', { name: /Single Photo/ }).click();
   await page.getByRole('button', { name: 'Take photo', exact: true }).click();
   await page.getByRole('button', { name: 'Start editing' }).click();
-  await page.getByRole('button', { name: 'Photos', exact: true }).click();
-  const photo = page.getByRole('button', { name: 'Adjust captured photo 1' });
+  await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
+  const photo = page.getByRole('button', { name: 'Reposition photo' });
   await photo.scrollIntoViewIfNeeded();
   const box = await photo.boundingBox();
   const x = box.x + box.width / 2, y = box.y + box.height / 2;
@@ -96,11 +98,12 @@ test('animated export applies the same crop as the displayed strip', async ({ pa
   await page.getByRole('button', { name: /Single Photo/ }).click();
   await page.getByRole('button', { name: 'Take photo', exact: true }).click();
   await page.getByRole('button', { name: 'Start editing' }).click();
-  await page.getByRole('button', { name: 'Photos', exact: true }).click();
+  await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
   await page.getByRole('slider', { name: 'Zoom' }).fill('2');
-  const photo = page.getByRole('button', { name: 'Adjust captured photo 1' });
-  for (let i = 0; i < 12; i++) await photo.press('ArrowRight');
-  const point = await photo.evaluate(node => {
+  const photo = page.getByRole('button', { name: 'Reposition photo' });
+  for (let i = 0; i < 12; i++) await photo.press('ArrowLeft');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  const point = await page.locator('.photo-strip .photo-aperture').evaluate(node => {
     const cell = node.getBoundingClientRect(), strip = node.closest('.photo-strip').getBoundingClientRect();
     return [(cell.x + cell.width / 2 - strip.x) / strip.width, (cell.y + cell.height / 2 - strip.y) / strip.height];
   });
@@ -119,4 +122,36 @@ test('animated export applies the same crop as the displayed strip', async ({ pa
     const [r, g, b] = frame.patch.slice(offset, offset + 3);
     expect(b).toBeGreaterThan(230); expect(r).toBeLessThan(25); expect(g).toBeLessThan(25);
   }
+});
+
+test('tap-to-edit shows full bounds and four usable corner handles without a Photos tab', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto('/layout');
+  await page.getByRole('button', { name: /Single Photo/ }).click();
+  await page.getByRole('button', { name: 'Take photo', exact: true }).click();
+  await page.getByRole('button', { name: 'Start editing' }).click();
+  await expect(page.getByRole('button', { name: 'Photos', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
+  await expect(page.getByRole('img', { name: 'Full original photo' })).toBeVisible();
+  for (const corner of ['top-left', 'top-right', 'bottom-left', 'bottom-right']) {
+    const handle = page.getByRole('button', { name: `Resize photo ${corner}` });
+    await expect(handle).toBeVisible();
+    const box = await handle.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(360);
+  }
+  const handle = await page.getByRole('button', { name: 'Resize photo top-left' }).boundingBox();
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down(); await page.mouse.move(handle.x - 25, handle.y - 25, { steps: 5 }); await page.mouse.up();
+  await expect.poll(async () => Number(await page.getByRole('slider', { name: 'Zoom' }).inputValue())).toBeGreaterThan(1);
+  const window = page.locator('.transform-window');
+  const before = await window.boundingBox();
+  const image = await page.getByRole('button', { name: 'Reposition photo' }).boundingBox();
+  await page.mouse.move(image.x + image.width / 2, image.y + image.height / 2);
+  await page.mouse.down(); await page.mouse.move(image.x + image.width / 2 + 15, image.y + image.height / 2, { steps: 4 }); await page.mouse.up();
+  const after = await window.boundingBox();
+  expect(after.x).toBeCloseTo(before.x, 1); expect(after.y).toBeCloseTo(before.y, 1);
+  await page.getByRole('button', { name: 'Reset crop' }).click();
+  await expect(page.getByRole('slider', { name: 'Zoom' })).toHaveValue('1');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });

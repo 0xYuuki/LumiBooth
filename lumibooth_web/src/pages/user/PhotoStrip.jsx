@@ -8,10 +8,10 @@ export function PhotoStrip({ session, motionUrls = [], stripRef, onPointerDown, 
   const frame = session.frame ?? frameLibrary.Templates[0];
   const font = session.signatureFont ?? 'Outfit';
   const caption = session.caption ?? frame.caption ?? 'THE PHOTO BOOTH';
-  const renderPhoto = (index, photo, alt, onError, angle = 0) => <AdjustablePhoto
-    src={photo} alt={alt} onError={onError} crop={session.crops?.[index]} angle={angle}
-    editing={Boolean(photoEditing)} selected={photoEditing?.selected === index}
-    onSelect={() => photoEditing?.onSelect(index)} onChange={(crop) => photoEditing?.onChange(index, crop)} />;
+  const renderPhoto = (index, photo, alt, onError) => <AdjustablePhoto
+    src={photo} alt={alt} onError={onError} crop={session.crops?.[index]}
+    editing={Boolean(photoEditing)}
+    onSelect={(aspect) => photoEditing?.onSelect(index, aspect)} />;
   return (
     <div
       ref={stripRef}
@@ -42,7 +42,7 @@ export function PhotoStrip({ session, motionUrls = [], stripRef, onPointerDown, 
           if (currentTarget.src !== still) currentTarget.src = still;
         } : undefined;
         return frame.artwork
-          ? <IllustratedPhoto key={index} frame={frame} index={index} photoIndex={index}>{renderPhoto(index, photo, `Captured photo ${index + 1}`, fallback, (index % 2 ? 1 : -1) * (frame.tilt ?? 0))}</IllustratedPhoto>
+          ? <IllustratedPhoto key={index} frame={frame} index={index} photoIndex={index}>{renderPhoto(index, photo, `Captured photo ${index + 1}`, fallback)}</IllustratedPhoto>
           : <div className="standard-photo-cell" key={index} data-photo-index={index} style={{ borderRadius: frame.radius ?? 4 }}>{renderPhoto(index, photo, `Captured photo ${index + 1}`, fallback)}</div>;
       })}
       <div className="strip-signature" style={{

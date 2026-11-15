@@ -618,7 +618,6 @@ class _SessionPageState extends State<_SessionPage>
   final List<int> _selectedIndices = [];
   final Set<int> _removedPhotos = {};
   final Map<int, PhotoCrop> _crops = {};
-  int _cropPhoto = 0;
   int get _activeCount => _photos.length - _removedPhotos.length;
   bool _choosingPhotos = false;
   bool _reviewing = false;
@@ -880,6 +879,25 @@ class _SessionPageState extends State<_SessionPage>
     return index;
   }
 
+  Future<void> _openPhotoTransform(int index) async {
+    if (_exporting) return;
+    setState(() => _selected = null);
+    final design = _design;
+    final opening = StripPainter.photoOpening(design, index).bounds;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => PhotoTransformEditor(
+        image: design.photos[index],
+        aspect: opening.width / opening.height,
+        crop: design.cropAt(index),
+        onChanged: (crop) {
+          if (mounted && !_ending) _setCrop(index, crop);
+        },
+      ),
+    );
+    if (mounted) _keepAlive();
+  }
+
   void _setCrop(int index, PhotoCrop crop) {
     if (_exporting || index >= _selectedIndices.length) return;
     setState(() {
@@ -925,7 +943,6 @@ class _SessionPageState extends State<_SessionPage>
           _selectedIndices.length,
         );
       }
-      _cropPhoto = 0;
       _reviewing =
           !wasCamera || _selectedIndices.length == chosen.requiredPhotos;
       if (!_reviewing) {
@@ -1413,7 +1430,6 @@ class _SessionPageState extends State<_SessionPage>
                                 _selectedIndices.length ==
                                     _layout.requiredPhotos
                             ? () => setState(() {
-                                _cropPhoto = 0;
                                 _choosingPhotos = false;
                               })
                             : null,
@@ -1703,7 +1719,7 @@ class _SessionPageState extends State<_SessionPage>
               child: _Heading(
                 '',
                 'Make it yours.',
-                'Choose a frame and decorate your strip.',
+                'Tap a photo to adjust it. Choose a frame and decorate your strip.',
               ),
             ),
             if (widget.roomId == null)
@@ -1717,11 +1733,7 @@ class _SessionPageState extends State<_SessionPage>
         const SizedBox(height: 16),
         Wrap(
           children: [
-            for (final (index, tabLabel) in [
-              'Frames',
-              'Photos',
-              'Stickers',
-            ].indexed)
+            for (final (index, tabLabel) in ['Frames', 'Stickers'].indexed)
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: InkWell(
@@ -1778,34 +1790,30 @@ class _SessionPageState extends State<_SessionPage>
                         painter: StripPainter(design, selected: selected),
                       ),
                     ),
-                    if (_editorTab == 1)
-                      for (var i = 0; i < design.photos.length; i++)
-                        PhotoCropControls(
-                          key: ValueKey('crop-$i'),
-                          design: design,
-                          index: i,
-                          scale: scale,
-                          origin: origin,
-                          selected: _cropPhoto == i,
-                          onSelect: () => setState(() => _cropPhoto = i),
-                          onChanged: (crop) => _setCrop(i, crop),
-                        ),
-                    if (_editorTab != 1)
-                      for (var i = 0; i < _stickers.length; i++)
-                        StickerControls(
-                          key: ValueKey(i),
-                          sticker: _stickers[i],
-                          stripSize: design.size,
-                          bounds: _scaleRect(
-                            StripPainter.stickerBounds(design, _stickers[i]),
-                            scale,
-                          ).shift(origin),
-                          scale: scale,
-                          selected: selected == i,
-                          enabled: !_exporting,
-                          onSelect: () => setState(() => _selected = i),
-                          onChanged: (sticker) => _updateSticker(i, sticker),
-                        ),
+                    for (var i = 0; i < design.photos.length; i++)
+                      PhotoCropControls(
+                        key: ValueKey('crop-$i'),
+                        design: design,
+                        index: i,
+                        scale: scale,
+                        origin: origin,
+                        onSelect: () => _openPhotoTransform(i),
+                      ),
+                    for (var i = 0; i < _stickers.length; i++)
+                      StickerControls(
+                        key: ValueKey(i),
+                        sticker: _stickers[i],
+                        stripSize: design.size,
+                        bounds: _scaleRect(
+                          StripPainter.stickerBounds(design, _stickers[i]),
+                          scale,
+                        ).shift(origin),
+                        scale: scale,
+                        selected: selected == i,
+                        enabled: !_exporting,
+                        onSelect: () => setState(() => _selected = i),
+                        onChanged: (sticker) => _updateSticker(i, sticker),
+                      ),
                   ],
                 );
               },
@@ -1813,67 +1821,66 @@ class _SessionPageState extends State<_SessionPage>
           ),
         ),
         const SizedBox(height: 16),
-        if (_editorTab != 1)
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: line),
-            ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                DropdownButtonFormField<StripFont>(
-                  initialValue: _stripFont,
-                  decoration: const InputDecoration(labelText: 'Strip font'),
-                  items: [
-                    for (final font in StripFont.values)
-                      DropdownMenuItem(value: font, child: Text(font.family)),
-                  ],
-                  onChanged: _exporting
-                      ? null
-                      : (font) {
-                          if (font == null) return;
-                          setState(() => _stripFont = font);
-                          _keepAlive();
-                        },
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _captionController,
-                  enabled: !_exporting,
-                  maxLength: _captionLimit,
-                  textInputAction: TextInputAction.done,
-                  decoration: const InputDecoration(
-                    labelText: 'Caption under LumiBooth (optional)',
-                    hintText: 'Write a short caption',
-                  ),
-                  onChanged: (value) {
-                    setState(() => _caption = value);
-                    _keepAlive();
-                  },
-                ),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    TextButton(
-                      onPressed: _exporting || design.footerCaption.isEmpty
-                          ? null
-                          : () => _setCaption(''),
-                      child: const Text('Remove caption'),
-                    ),
-                    TextButton(
-                      onPressed: _exporting || _caption == null
-                          ? null
-                          : () => _setCaption(null),
-                      child: const Text('Use frame caption'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: line),
           ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DropdownButtonFormField<StripFont>(
+                initialValue: _stripFont,
+                decoration: const InputDecoration(labelText: 'Strip font'),
+                items: [
+                  for (final font in StripFont.values)
+                    DropdownMenuItem(value: font, child: Text(font.family)),
+                ],
+                onChanged: _exporting
+                    ? null
+                    : (font) {
+                        if (font == null) return;
+                        setState(() => _stripFont = font);
+                        _keepAlive();
+                      },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _captionController,
+                enabled: !_exporting,
+                maxLength: _captionLimit,
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(
+                  labelText: 'Caption under LumiBooth (optional)',
+                  hintText: 'Write a short caption',
+                ),
+                onChanged: (value) {
+                  setState(() => _caption = value);
+                  _keepAlive();
+                },
+              ),
+              Wrap(
+                spacing: 8,
+                children: [
+                  TextButton(
+                    onPressed: _exporting || design.footerCaption.isEmpty
+                        ? null
+                        : () => _setCaption(''),
+                    child: const Text('Remove caption'),
+                  ),
+                  TextButton(
+                    onPressed: _exporting || _caption == null
+                        ? null
+                        : () => _setCaption(null),
+                    child: const Text('Use frame caption'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 16),
         Container(
           decoration: BoxDecoration(
@@ -1950,52 +1957,6 @@ class _SessionPageState extends State<_SessionPage>
                             ? null
                             : (_) => _chooseFrame(frame),
                       ),
-                  ],
-                ),
-              ] else if (_editorTab == 1) ...[
-                Text(
-                  'Adjust photo ${_cropPhoto + 1}',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const Text(
-                  'Drag inside the photo opening or pinch to zoom. Originals stay unchanged.',
-                ),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    for (var i = 0; i < _selectedIndices.length; i++)
-                      ChoiceChip(
-                        label: Text('Photo ${i + 1}'),
-                        selected: _cropPhoto == i,
-                        onSelected: (_) => setState(() => _cropPhoto = i),
-                      ),
-                  ],
-                ),
-                const Text('Zoom'),
-                Slider(
-                  label: 'Zoom',
-                  min: 1,
-                  max: 3,
-                  value: _design.cropAt(_cropPhoto).zoom,
-                  onChanged: (zoom) {
-                    final crop = _design.cropAt(_cropPhoto);
-                    _setCrop(
-                      _cropPhoto,
-                      PhotoCrop(x: crop.x, y: crop.y, zoom: zoom),
-                    );
-                  },
-                ),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    OutlinedButton(
-                      onPressed: () => _setCrop(_cropPhoto, const PhotoCrop()),
-                      child: const Text('Reset crop'),
-                    ),
-                    FilledButton(
-                      onPressed: () => setState(() => _editorTab = 0),
-                      child: const Text('Done'),
-                    ),
                   ],
                 ),
               ] else ...[

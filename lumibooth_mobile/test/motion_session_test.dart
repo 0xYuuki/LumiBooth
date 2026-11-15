@@ -137,6 +137,8 @@ void main() {
         100,
         scrollable: previewScroll,
       );
+      await Scrollable.ensureVisible(tester.element(find.text('Play')), alignment: .5);
+      await tester.pump();
       await tester.tap(find.text('Play'));
       await tester.pump();
       expect(find.bySemanticsLabel('Motion from shot 3'), findsOneWidget);

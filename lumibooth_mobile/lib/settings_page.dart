@@ -128,7 +128,7 @@ class _StorageSettingsSection extends StatelessWidget {
   }
 }
 
-/// Supabase online backend connectivity and gallery links.
+/// Supabase online backend configuration and gallery links.
 class _OnlineSettingsSection extends StatelessWidget {
   const _OnlineSettingsSection();
 
@@ -140,15 +140,15 @@ class _OnlineSettingsSection extends StatelessWidget {
         _SettingsTile(
           icon: Icons.cloud_outlined,
           title: 'Online Services',
-          subtitle: OnlineBooth.enabled
-              ? 'Supabase backend connected'
+          subtitle: OnlineBooth.isConfigured
+              ? 'Supabase backend configured'
               : 'Local standalone mode (backend optional)',
           trailing: Container(
             width: 10,
             height: 10,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: OnlineBooth.enabled
+              color: OnlineBooth.isConfigured
                   ? const Color(0xff2e7d32)
                   : muted.withValues(alpha: 0.5),
             ),

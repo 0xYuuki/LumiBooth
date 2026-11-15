@@ -6,8 +6,9 @@ import 'online_booth.dart';
 /// Settings screen for LumiBooth mobile.
 ///
 /// Provides lightweight navigation to implemented features (gallery links,
-/// cache controls) and honest deferrals for future cloud/account features
-/// without deceptive paywalls or fake premium tiers.
+/// cache controls), transparent privacy and terms notices, and honest deferrals
+/// for upcoming cloud, account, and feedback features without deceptive paywalls
+/// or fake premium tiers.
 class SettingsPage extends StatelessWidget {
   /// Creates the [SettingsPage].
   const SettingsPage({super.key});
@@ -31,6 +32,10 @@ class SettingsPage extends StatelessWidget {
             _OnlineSettingsSection(),
             SizedBox(height: 20),
             _DeferredSettingsSection(),
+            SizedBox(height: 20),
+            _FeedbackSettingsSection(),
+            SizedBox(height: 20),
+            _LegalSettingsSection(),
             SizedBox(height: 20),
             _AboutSettingsSection(),
             SizedBox(height: 24),
@@ -143,15 +148,12 @@ class _OnlineSettingsSection extends StatelessWidget {
           subtitle: OnlineBooth.isConfigured
               ? 'Supabase backend configured'
               : 'Local standalone mode (backend optional)',
-          trailing: Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: OnlineBooth.isConfigured
-                  ? const Color(0xff2e7d32)
-                  : muted.withValues(alpha: 0.5),
-            ),
+          onTap: (ctx) => _SettingsDialogs.showInfo(
+            ctx,
+            title: 'Backend Configuration',
+            message: OnlineBooth.isConfigured
+                ? 'Supabase backend credentials are configured in this build. Web sharing and gallery link management are available.'
+                : 'LumiBooth is running in local standalone mode. Core photo booth features work without online backend configuration.',
           ),
         ),
         _SettingsTile(
@@ -159,9 +161,7 @@ class _OnlineSettingsSection extends StatelessWidget {
           title: 'Manage Gallery Links',
           subtitle: 'View and revoke uploaded web strips',
           onTap: (ctx) => Navigator.of(ctx).push(
-            MaterialPageRoute<void>(
-              builder: (_) => const PrintLinksPage(),
-            ),
+            MaterialPageRoute<void>(builder: (_) => const PrintLinksPage()),
           ),
         ),
       ],
@@ -204,6 +204,77 @@ class _DeferredSettingsSection extends StatelessWidget {
                 'Custom brand watermarks are deferred for a future update. '
                 'All 19 illustrated frames and sticker packs are 100% free and unlocked '
                 'for every guest.',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Feedback and support destinations or transparent deferrals.
+class _FeedbackSettingsSection extends StatelessWidget {
+  const _FeedbackSettingsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsSection(
+      title: 'FEEDBACK & SUPPORT',
+      children: [
+        _SettingsTile(
+          icon: Icons.feedback_outlined,
+          title: 'Send Feedback',
+          subtitle: 'Deferred • Issue tracker and feedback channels',
+          badge: 'Planned',
+          onTap: (ctx) => _SettingsDialogs.showInfo(
+            ctx,
+            title: 'Feedback & Bug Reports',
+            message:
+                'In-app feedback submission is deferred to a future update. '
+                'Bugs and feature suggestions can be reported directly on our '
+                'GitHub repository at github.com/0xYuuki/LumiBooth/issues.',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Legal notices, privacy policy, and terms of service deferrals.
+class _LegalSettingsSection extends StatelessWidget {
+  const _LegalSettingsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsSection(
+      title: 'PRIVACY & TERMS',
+      children: [
+        _SettingsTile(
+          icon: Icons.privacy_tip_outlined,
+          title: 'Privacy Policy',
+          subtitle: 'Local-first guest privacy • Web policy deferred',
+          badge: 'Planned',
+          onTap: (ctx) => _SettingsDialogs.showInfo(
+            ctx,
+            title: 'Privacy Policy',
+            message:
+                'A formal hosted privacy policy is deferred. LumiBooth is built local-first '
+                'by default: camera captures and rendered strips stay on your device, '
+                'temporary memory caches clear after 5 minutes of inactivity, and photos '
+                'leave your device only when you choose to upload or share a web gallery link.',
+          ),
+        ),
+        _SettingsTile(
+          icon: Icons.gavel_outlined,
+          title: 'Terms of Service',
+          subtitle: 'Deferred • Open source guest terms',
+          badge: 'Planned',
+          onTap: (ctx) => _SettingsDialogs.showInfo(
+            ctx,
+            title: 'Terms of Service',
+            message:
+                'Commercial terms of service are deferred while LumiBooth is provided as a '
+                'free, open-source photo booth utility. All frames, stickers, and layout '
+                'features are free without hidden subscriptions or usage tiers.',
           ),
         ),
       ],

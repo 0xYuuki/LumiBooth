@@ -26,11 +26,9 @@ class MePage extends StatelessWidget {
         trailing: IconButton(
           icon: const Icon(Icons.settings_outlined, color: ink),
           tooltip: 'Settings',
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => const SettingsPage(),
-            ),
-          ),
+          onPressed: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const SettingsPage())),
         ),
       ),
       body: SafeArea(
@@ -71,18 +69,17 @@ class _GuestProfileHeader extends StatelessWidget {
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: purple.withValues(alpha: 0.2), width: 2),
+              border: Border.all(
+                color: purple.withValues(alpha: 0.2),
+                width: 2,
+              ),
             ),
             child: Container(
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
                 color: wash,
               ),
-              child: const Icon(
-                Icons.person_outline,
-                size: 40,
-                color: purple,
-              ),
+              child: const Icon(Icons.person_outline, size: 40, color: purple),
             ),
           ),
           const SizedBox(height: 12),
@@ -115,8 +112,9 @@ class _GuestProfileHeader extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           const Text(
-            'LumiBooth is 100% private and local-first. '
-            'Your photos and strips remain on your device.',
+            'LumiBooth is 100% private and local-first by default. '
+            'Your photos and strips remain on your device, and selected '
+            'strips only leave your device when you choose to upload or share them.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'Outfit',
@@ -186,9 +184,7 @@ class _QuickActionsSection extends StatelessWidget {
                 title: 'Settings & Preferences',
                 subtitle: 'Camera framing, timers, and app details',
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const SettingsPage(),
-                  ),
+                  MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
                 ),
               ),
             ],
@@ -294,7 +290,7 @@ class _PrivacyInfoCard extends StatelessWidget {
           SizedBox(height: 8),
           Text(
             '• Unsaved camera captures stay in memory and are discarded after 5 minutes of inactivity.\n'
-            '• Strip renders export directly to your device.\n'
+            '• Strip renders export directly to your device by default (leaving your device only when you choose to upload or share a web gallery link).\n'
             '• No credentials, ads, or tracking cookies.',
             style: TextStyle(
               fontFamily: 'Outfit',

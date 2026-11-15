@@ -35,10 +35,14 @@ Select your phone if Flutter lists multiple devices. For iOS, configure a signin
 ## Choose from gallery
 
 - On Android, the system photo picker is used where available; on iOS, the native Photos picker opens. The platform picker may show only selected or limited photos, and cancelling returns to the booth without changing the camera flow.
-- Choose 1, 2, 3, 4, or 6 photos. Before editing, reorder, replace, add, or remove photos. The editor opens only when the selected count matches the layout.
+- Both **Start photo booth** and **Choose from gallery** open the same layout picker first. Gallery then opens an empty review page with **Add photos**; camera capture opens that same review page when the layout is filled. Mix gallery photos and camera shots, choose favorites, reorder selected shots, and remove unwanted ones before editing. The editor opens only when the selected count matches the layout. Back arrows beside the step label preserve the active photos, layout and design.
 - Imported images are decoded to a maximum 1600-pixel edge to bound memory use while retaining the full photo composition for crop and frame changes. The source file is not modified.
 - Import and editing work offline and do not upload photos. Gallery selection is temporary: photos are released when the session ends or after five minutes of inactivity. Remote Booth is a separate online feature.
 - If Android closes the app while the system picker is open, LumiBooth attempts to recover the picker result when the app restarts. Unsupported or damaged images are reported so they can be replaced.
+
+## Adjust photos in frames
+
+In Design, open **Photos** and tap a photo opening or a photo selector. Drag to reposition, pinch or use **Zoom** (1–3×), and choose **Reset crop** to restore the centered fit. **Done** returns to frames. Crops stay attached to their photos through review, reordering and frame changes; originals stay unchanged. The same crop is used by previews, PNG output, animated playback and GIF export. Sticker gestures are inactive while adjusting photos.
 
 ## Motion photos
 
@@ -54,4 +58,4 @@ flutter test
 flutter build apk --debug
 ```
 
-The tests cover layout selection, the three-photo transition to editing, and PNG dimensions and frame color. For a release, configure your own application identifier and signing credentials. On macOS, use `flutter build ios --no-codesign` for an unsigned build check or follow the Xcode signing workflow for distribution.
+The tests cover the shared layout and review flow, camera alternatives, back navigation, crop gestures and persistence, PNG/GIF crop pixels, artwork, stickers, and session cleanup. For a release, configure your own application identifier and signing credentials. On macOS, use `flutter build ios --no-codesign` for an unsigned build check or follow the Xcode signing workflow for distribution.

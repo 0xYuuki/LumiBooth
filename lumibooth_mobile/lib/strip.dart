@@ -276,13 +276,7 @@ enum StripFrame {
   ),
 
   // ── Pattern frames ────────────────────────────────────────────────────
-  pinkDots(
-    'Pink Dots',
-    'PHOTO STRIP',
-    Color(0xffffffff),
-    Color(0xff242424),
-    0,
-  ),
+  pinkDots('Pink Dots', 'PHOTO STRIP', Color(0xffffffff), Color(0xff242424), 0),
   blueStripes(
     'Blue Stripes',
     'PHOTO STRIP',
@@ -290,13 +284,7 @@ enum StripFrame {
     Color(0xff242424),
     0,
   ),
-  grid(
-    'Grid',
-    'PHOTO STRIP',
-    Color(0xffffffff),
-    Color(0xff242424),
-    0,
-  );
+  grid('Grid', 'PHOTO STRIP', Color(0xffffffff), Color(0xff242424), 0);
 
   const StripFrame(
     this.label,
@@ -336,12 +324,30 @@ enum StripFrame {
   static const Map<String, List<StripFrame>> categories = {
     'Illustrated': [tubeTV, cameraFilm, vinyl, scrapbook, zine],
     'Templates': [
-      studio, film, postcard, lavender, classic, instant, retro, vintage, diner,
-      arcade, disco, wedding, birthday, holiday,
+      studio,
+      film,
+      postcard,
+      lavender,
+      classic,
+      instant,
+      retro,
+      vintage,
+      diner,
+      arcade,
+      disco,
+      wedding,
+      birthday,
+      holiday,
     ],
     'Colors': [
-      colorWhite, colorBlack, pastelPink, pastelBlue, colorLavender, cream,
-      mint, coral,
+      colorWhite,
+      colorBlack,
+      pastelPink,
+      pastelBlue,
+      colorLavender,
+      cream,
+      mint,
+      coral,
     ],
     'Gradients': [sunset, candy, ocean, twilight, peach, minty],
     'Patterns': [pinkDots, blueStripes, grid],
@@ -467,11 +473,34 @@ enum StripFont {
   final String family;
 }
 
+/// Normalized, non-destructive crop shared by previews, PNGs and GIFs.
+class PhotoCrop {
+  const PhotoCrop({this.x = .5, this.y = .5, this.zoom = 1});
+  final double x, y, zoom;
+  PhotoCrop normalized() => PhotoCrop(
+    x: x.isFinite ? x.clamp(0, 1) : .5,
+    y: y.isFinite ? y.clamp(0, 1) : .5,
+    zoom: zoom.isFinite ? zoom.clamp(1, 3) : 1,
+  );
+  Rect sourceRect(Size source, Size destination) {
+    final value = normalized();
+    final fit = applyBoxFit(BoxFit.cover, source, destination).source;
+    final width = fit.width / value.zoom, height = fit.height / value.zoom;
+    return Rect.fromLTWH(
+      (source.width - width) * value.x,
+      (source.height - height) * value.y,
+      width,
+      height,
+    );
+  }
+}
+
 class StripDesign {
   const StripDesign({
     required this.layout,
     this.frame = StripFrame.studio,
     this.photos = const [],
+    this.crops = const [],
     this.stickers = const [],
     this.frameImages,
     this.caption,
@@ -481,6 +510,9 @@ class StripDesign {
   final StripLayout layout;
   final StripFrame frame;
   final List<ui.Image> photos;
+  final List<PhotoCrop> crops;
+  PhotoCrop cropAt(int index) =>
+      index < crops.length ? crops[index] : const PhotoCrop();
   final List<StripSticker> stickers;
   final FrameImages? frameImages;
   final String? caption;
@@ -544,6 +576,43 @@ class StripPainter extends CustomPainter {
   final StripDesign design;
   final int? selected;
   final Map<int, ui.Image> motionFrames;
+
+  static ({Rect bounds, Offset pivot, double angle}) photoOpening(
+    StripDesign design,
+    int index,
+  ) {
+    final cellIndex = index ~/ design.layout.photosPerCell;
+    final cell = Rect.fromLTWH(
+      24 + (cellIndex % design.layout.columns) * (design.cellWidth + 10),
+      24 +
+          design.headerHeight +
+          (cellIndex ~/ design.layout.columns) * (design.cellHeight + 10),
+      design.cellWidth,
+      design.cellHeight,
+    );
+    final art = design.frame.art;
+    var bounds = art == null
+        ? cell
+        : Rect.fromLTWH(
+            cell.left + art.window.left * cell.width / 400,
+            cell.top + art.window.top * cell.height / 300,
+            art.window.width * cell.width / 400,
+            art.window.height * cell.height / 300,
+          );
+    if (design.layout.photosPerCell == 2) {
+      bounds = Rect.fromLTWH(
+        bounds.left + (index % 2) * bounds.width / 2,
+        bounds.top,
+        bounds.width / 2,
+        bounds.height,
+      );
+    }
+    return (
+      bounds: bounds,
+      pivot: cell.center,
+      angle: (cellIndex.isEven ? -1 : 1) * (art?.tilt ?? 0) * math.pi / 180,
+    );
+  }
 
   static Rect stickerBounds(StripDesign design, StripSticker sticker) {
     return Rect.fromLTWH(
@@ -712,28 +781,36 @@ class StripPainter extends CustomPainter {
         canvas,
         design.photos[first],
         Rect.fromLTRB(rect.left, rect.top, middle, rect.bottom),
+        design.cropAt(first),
       );
       _drawPhotoCover(
         canvas,
         design.photos[first + 1],
         Rect.fromLTRB(middle, rect.top, rect.right, rect.bottom),
+        design.cropAt(first + 1),
       );
     } else {
       _drawPhotoCover(
         canvas,
         motionFrames[index] ?? design.photos[first],
         rect,
+        design.cropAt(first),
       );
     }
     canvas.restore();
   }
 
-  void _drawPhotoCover(Canvas canvas, ui.Image image, Rect destination) {
+  void _drawPhotoCover(
+    Canvas canvas,
+    ui.Image image,
+    Rect destination,
+    PhotoCrop adjustment,
+  ) {
     final source = Size(image.width.toDouble(), image.height.toDouble());
-    final crop = applyBoxFit(BoxFit.cover, source, destination.size).source;
+    final crop = adjustment.sourceRect(source, destination.size);
     canvas.drawImageRect(
       image,
-      Alignment.center.inscribe(crop, Offset.zero & source),
+      crop,
       destination,
       Paint()..filterQuality = FilterQuality.medium,
     );

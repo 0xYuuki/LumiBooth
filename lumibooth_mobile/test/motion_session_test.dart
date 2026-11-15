@@ -91,6 +91,7 @@ void main() {
       });
       await tester.pump();
       final animated = find.byType(MotionStripView);
+      await tester.scrollUntilVisible(animated, -100, scrollable: previewScroll);
       expect(animated, findsOneWidget);
       StripPainter painter() =>
           tester
@@ -114,11 +115,13 @@ void main() {
       }
       expect(painter().motionFrames.keys, [2]);
       expect(painter().design.photos, hasLength(3));
+      await tester.scrollUntilVisible(find.text('Stop strip'), 100, scrollable: previewScroll);
       await tester.tap(find.text('Stop strip'));
       await tester.pump();
       expect(animated, findsNothing);
       await tester.tap(playStrip);
       await tester.pump();
+      await tester.scrollUntilVisible(animated, -100, scrollable: previewScroll);
       expect(animated, findsOneWidget);
 
       await tester.scrollUntilVisible(

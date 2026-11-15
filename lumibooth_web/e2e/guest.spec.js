@@ -11,9 +11,17 @@ test('a guest can capture, decorate, download, and finish a private session', as
   const start = page.getByRole('link', { name: 'Start photo booth' });
   await expect(start).toBeVisible();
   await start.press('Enter');
-  await page.getByRole('button', { name: /Single Photo/ }).press('Enter');
-  await page.getByRole('button', { name: 'Timer off' }).click();
-  await page.getByRole('button', { name: 'Take photo' }).click();
+  await expect(page).toHaveURL(/\/layout$/);
+  const singlePhoto = page.getByRole('button', { name: /Single Photo/ });
+  await expect(singlePhoto).toBeVisible();
+  await singlePhoto.press('Enter');
+  await expect(page).toHaveURL(/\/camera$/);
+  const timer = page.getByRole('button', { name: 'Timer off' });
+  await expect(timer).toBeVisible();
+  await timer.click();
+  const shutter = page.getByRole('button', { name: 'Take photo' });
+  await expect(shutter).toBeEnabled();
+  await shutter.click();
   await expect(page).toHaveURL(/\/editor$/);
 
   const blackFrame = page.getByRole('button', { name: 'Black', exact: true });

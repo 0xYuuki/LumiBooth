@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -8,6 +9,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'local_draft.dart';
 import 'camera_framing.dart';
 import 'capture.dart';
 import 'gallery_qr.dart';
@@ -155,15 +157,21 @@ class _WelcomePageState extends State<WelcomePage> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _selectingGallery = false;
   bool _showSession = false;
+  bool _loadingDraft = true;
   Widget? _session;
 
-  void _createStrip([List<ui.Image> photos = const []]) {
+  void _createStrip([
+    List<ui.Image> photos = const [],
+    Map<String, dynamic>? draft,
+  ]) {
+    if (draft == null) unawaited(LocalDraft.clear().catchError((_) {}));
     setState(() {
       _showSession = true;
       _session = _SessionPage(
         key: UniqueKey(),
         layout: StripLayout.choices[2],
-        initialPhotos: photos,
+        initialPhotos: List.of(photos),
+        draft: draft,
         fromGallery: true,
         onHome: () => setState(() => _showSession = false),
       );
@@ -195,8 +203,41 @@ class _WelcomePageState extends State<WelcomePage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_restoreGallerySelection());
+      unawaited(_restoreDraft());
     });
+  }
+
+  Future<void> _restoreDraft() async {
+    final images = <ui.Image>[];
+    try {
+      final draft = await LocalDraft.load();
+      if (draft != null) {
+        for (final photo in (draft['photos'] as List).take(12)) {
+          final codec = await ui.instantiateImageCodec(
+            base64Decode(photo as String),
+          );
+          try {
+            images.add((await codec.getNextFrame()).image);
+          } finally {
+            codec.dispose();
+          }
+        }
+        if (mounted) {
+          _createStrip(images, draft);
+          _showSession = false;
+          images.clear();
+        }
+      }
+    } catch (_) {
+      /* A missing or damaged draft never blocks starting a booth. */
+    }
+    for (final image in images) {
+      image.dispose();
+    }
+    if (mounted) {
+      setState(() => _loadingDraft = false);
+      await _restoreGallerySelection();
+    }
   }
 
   Future<void> _restoreGallerySelection() async {
@@ -340,7 +381,7 @@ class _WelcomePageState extends State<WelcomePage> {
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
-              onPressed: _selectingGallery
+              onPressed: _selectingGallery || _loadingDraft
                   ? null
                   : () {
                       if (_session == null) {
@@ -351,7 +392,11 @@ class _WelcomePageState extends State<WelcomePage> {
                     },
               icon: const Icon(Icons.arrow_forward),
               label: Text(
-                _session == null ? 'Create photo strip' : 'Continue your strip',
+                _loadingDraft
+                    ? 'Opening your booth…'
+                    : _session == null
+                    ? 'Create photo strip'
+                    : 'Continue your strip',
               ),
             ),
             if (_session != null)
@@ -497,12 +542,14 @@ class _SessionPage extends StatefulWidget {
   const _SessionPage({
     super.key,
     this.onHome,
+    this.draft,
     required this.layout,
     this.initialPhotos = const [],
     this.fromGallery = false,
     this.roomId,
   });
 
+  final Map<String, dynamic>? draft;
   final VoidCallback? onHome;
   final StripLayout layout;
   final List<ui.Image> initialPhotos;
@@ -561,6 +608,254 @@ class _SessionPageState extends State<_SessionPage>
   bool? _galleryHasMotion;
   ({String url, String expiresAt})? _printLink;
 
+  final List<
+    ({
+      List<int> selected,
+      Set<int> removed,
+      Map<int, PhotoCrop> crops,
+      StripLayout layout,
+      StripFrame frame,
+      List<StripSticker> stickers,
+      String? caption,
+      StripFont font,
+    })
+  >
+  _history = [];
+  String? _undoGroup;
+  void _remember([String? group]) {
+    if (group != null && group == _undoGroup) return;
+    _undoGroup = group;
+    if (_history.length >= 20) _history.removeAt(0);
+    _history.add((
+      selected: List.of(_selectedIndices),
+      removed: Set.of(_removedPhotos),
+      crops: Map.of(_crops),
+      layout: _layout,
+      frame: _frame,
+      stickers: List.of(_stickers),
+      caption: _caption,
+      font: _stripFont,
+    ));
+  }
+
+  Future<void> _undo() async {
+    if (_history.isEmpty || _loadingFrame || _exporting) return;
+    final previous = _history.removeLast();
+    _undoGroup = null;
+    if (previous.frame != _frame) {
+      await _chooseFrame(previous.frame, remember: false);
+    }
+    if (!mounted) return;
+    setState(() {
+      _selectedIndices
+        ..clear()
+        ..addAll(previous.selected);
+      _removedPhotos
+        ..clear()
+        ..addAll(previous.removed);
+      _crops
+        ..clear()
+        ..addAll(previous.crops);
+      _layout = previous.layout;
+      _stickers
+        ..clear()
+        ..addAll(previous.stickers);
+      _caption = previous.caption;
+      _captionController.text = _caption ?? _frame.caption;
+      _stripFont = previous.font;
+      _png = null;
+      _motionStrip = null;
+      _selected = null;
+    });
+  }
+
+  Timer? _draftTimer;
+  late final int _draftGeneration;
+  int _saveVersion = 0;
+  bool _restoringDraft = false;
+  final Map<ui.Image, String> _encodedPhotos = {};
+  String? _draftError;
+  bool _draftSaving = false;
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(() {
+      fn();
+      if (widget.onHome != null && !_restoringDraft) _draftSaving = true;
+    });
+    if (widget.onHome != null && !_restoringDraft) {
+      _draftTimer?.cancel();
+      _draftTimer = Timer(
+        const Duration(milliseconds: 250),
+        () => unawaited(_saveDraft()),
+      );
+    }
+  }
+
+  Future<void> _saveDraft() async {
+    if (!mounted || _restoringDraft || widget.onHome == null) return;
+    final version = ++_saveVersion;
+    final indices = [
+      for (var i = 0; i < _photos.length; i++)
+        if (!_removedPhotos.contains(i)) i,
+    ];
+    final originals = [for (final i in indices) _photos[i]];
+    final clones = [for (final image in originals) image.clone()];
+    final data = <String, dynamic>{
+      'version': 1,
+      'layout': _layout.count,
+      'manualLayout': _manualLayout,
+      'selected': [for (final i in _selectedIndices) indices.indexOf(i)],
+      'crops': [
+        for (final i in indices)
+          {
+            'x': (_crops[i] ?? const PhotoCrop()).x,
+            'y': (_crops[i] ?? const PhotoCrop()).y,
+            'zoom': (_crops[i] ?? const PhotoCrop()).zoom,
+          },
+      ],
+      'frame': _frame.name,
+      'caption': _caption,
+      'font': _stripFont.name,
+      'stickers': [
+        for (final sticker in _stickers)
+          {
+            'symbol': sticker.symbol,
+            'x': sticker.position.dx,
+            'y': sticker.position.dy,
+            'size': sticker.size,
+            'angle': sticker.angle,
+            'pack': _stickerImages.entries
+                .where((entry) => entry.value == sticker.image)
+                .firstOrNull
+                ?.key,
+            'source': sticker.source == null
+                ? null
+                : [
+                    sticker.source!.left,
+                    sticker.source!.top,
+                    sticker.source!.width,
+                    sticker.source!.height,
+                  ],
+          },
+      ],
+    };
+    try {
+      final encoded = <String>[];
+      for (var i = 0; i < clones.length; i++) {
+        final cached = _encodedPhotos[originals[i]];
+        final bytes = cached == null
+            ? await clones[i].toByteData(format: ui.ImageByteFormat.png)
+            : null;
+        final value = cached ?? base64Encode(bytes!.buffer.asUint8List());
+        _encodedPhotos[originals[i]] = value;
+        encoded.add(value);
+      }
+      if (version != _saveVersion) return;
+      data['photos'] = encoded;
+      await LocalDraft.save(data, _draftGeneration);
+      if (mounted && version == _saveVersion) {
+        super.setState(() {
+          _draftError = null;
+          _draftSaving = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        super.setState(
+          () => _draftError = 'Could not save your draft. Keep the app open.',
+        );
+      }
+    } finally {
+      for (final image in clones) {
+        image.dispose();
+      }
+    }
+  }
+
+  Future<void> _applyDraft(Map<String, dynamic> draft) async {
+    _restoringDraft = true;
+    try {
+      _layout = StripLayout.choices.firstWhere(
+        (layout) => layout.count == draft['layout'],
+        orElse: () => StripLayout.choices[2],
+      );
+      _manualLayout = draft['manualLayout'] == true;
+      _selectedIndices
+        ..clear()
+        ..addAll(
+          (draft['selected'] as List)
+              .cast<int>()
+              .where((i) => i >= 0 && i < _photos.length)
+              .take(_layout.count),
+        );
+      final crops = draft['crops'] as List;
+      for (var i = 0; i < math.min(crops.length, _photos.length); i++) {
+        final crop = crops[i];
+        _crops[i] = PhotoCrop(
+          x: (crop['x'] as num).toDouble(),
+          y: (crop['y'] as num).toDouble(),
+          zoom: (crop['zoom'] as num).toDouble(),
+        ).normalized();
+      }
+      _caption = draft['caption'] as String?;
+      _stripFont = StripFont.values.firstWhere(
+        (font) => font.name == draft['font'],
+        orElse: () => StripFont.outfit,
+      );
+      final frame = StripFrame.values.firstWhere(
+        (frame) => frame.name == draft['frame'],
+        orElse: () => StripFrame.studio,
+      );
+      await _chooseFrame(frame, remember: false);
+      if (!mounted) return;
+      _captionController.text = _caption ?? _frame.caption;
+      for (final value in draft['stickers'] as List) {
+        final pack = value['pack'] as String?;
+        if (pack != null && !_stickerImages.containsKey(pack)) {
+          final catalog = await _stickerCatalog;
+          final image = await catalog
+              .firstWhere((entry) => entry.id == pack)
+              .loadImage();
+          if (!mounted) {
+            image.dispose();
+            return;
+          }
+          _stickerImages[pack] = image;
+        }
+        final rect = value['source'] as List?;
+        _stickers.add(
+          StripSticker(
+            value['symbol'],
+            Offset(
+              (value['x'] as num).toDouble(),
+              (value['y'] as num).toDouble(),
+            ),
+            (value['size'] as num).toDouble(),
+            angle: (value['angle'] as num).toDouble(),
+            image: _stickerImages[pack],
+            source: rect == null
+                ? null
+                : Rect.fromLTWH(
+                    (rect[0] as num).toDouble(),
+                    (rect[1] as num).toDouble(),
+                    (rect[2] as num).toDouble(),
+                    (rect[3] as num).toDouble(),
+                  ),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        _message(
+          'Some draft details could not be restored. Your photos are still available.',
+        );
+      }
+    } finally {
+      _restoringDraft = false;
+      if (mounted) setState(() {});
+    }
+  }
+
   int get _targetCaptureCount => _captureGoal;
   bool get _captured => _reviewing;
 
@@ -595,10 +890,12 @@ class _SessionPageState extends State<_SessionPage>
   @override
   void initState() {
     super.initState();
+    _draftGeneration = LocalDraft.generation;
     _photos.addAll(widget.initialPhotos);
     if (widget.initialPhotos.isNotEmpty || widget.fromGallery) {
       _initializeSelection(fill: true);
     }
+    if (widget.draft != null) unawaited(_applyDraft(widget.draft!));
     if (widget.roomId != null) _choosingPhotos = false;
     if (widget.roomId != null) {
       _caption = 'MILES APART, SAME MOMENT';
@@ -629,6 +926,7 @@ class _SessionPageState extends State<_SessionPage>
       _playingStrip = false;
       _playingMotion = null;
     });
+    unawaited(_saveDraft());
     widget.onHome!();
   }
 
@@ -655,6 +953,7 @@ class _SessionPageState extends State<_SessionPage>
     if (state == AppLifecycleState.hidden ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
+      unawaited(_saveDraft());
       setState(_discardMotion);
     }
   }
@@ -782,22 +1081,15 @@ class _SessionPageState extends State<_SessionPage>
     }
   }
 
-  void _moveSelected(int index, int offset) {
-    final at = _selectedIndices.indexOf(index),
-        target = _selectedIndices.indexOf(index) + offset;
-    if (at < 0 || target < 0 || target >= _selectedIndices.length) return;
-    setState(() {
-      _selectedIndices.removeAt(at);
-      _selectedIndices.insert(target, index);
-    });
-  }
-
   int _storePhoto(ui.Image image) {
+    _undoGroup = null;
     if (_removedPhotos.isEmpty) {
       _photos.add(image);
       return _photos.length - 1;
     }
+    _history.clear();
     final index = _removedPhotos.first;
+    _encodedPhotos.remove(_photos[index]);
     _photos[index].dispose();
     _photos[index] = image;
     _removedPhotos.remove(index);
@@ -811,6 +1103,7 @@ class _SessionPageState extends State<_SessionPage>
   Future<void> _openPhotoTransform(int index) async {
     if (_exporting) return;
     setState(() => _selected = null);
+    _remember();
     final design = _design;
     final opening = StripPainter.photoOpening(design, index).bounds;
     await showDialog<void>(
@@ -837,15 +1130,38 @@ class _SessionPageState extends State<_SessionPage>
     _keepAlive();
   }
 
-  void _removePhoto(int index) {
-    // Keep stable shot IDs for motion jobs; hide removed entries without renumbering the pool.
+  Future<void> _removePhoto(int index) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove this photo?'),
+        content: const Text(
+          'This removes the photo from your strip. Photos in your gallery will not be deleted. You can undo this change.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep photo'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove photo'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    _remember();
     setState(() {
       _selectedIndices.remove(index);
       _removedPhotos.add(index);
+      _png = null;
+      _motionStrip = null;
     });
   }
 
   void _selectLayout(StripLayout chosen) {
+    _remember();
     setState(() {
       _manualLayout = true;
       _layout = chosen;
@@ -883,13 +1199,18 @@ class _SessionPageState extends State<_SessionPage>
   void _toggleSelection(int index) {
     if (_exporting) return;
     _keepAlive();
+    if (!_selectedIndices.contains(index) &&
+        _selectedIndices.length >= _layout.requiredPhotos) {
+      _message('Tap a numbered photo to deselect it, or choose a new order.');
+      return;
+    }
+    _remember();
     setState(() {
+      _png = null;
+      _motionStrip = null;
       if (_selectedIndices.contains(index)) {
         _selectedIndices.remove(index);
       } else if (_selectedIndices.length < _layout.requiredPhotos) {
-        _selectedIndices.add(index);
-      } else {
-        _selectedIndices.removeLast();
         _selectedIndices.add(index);
       }
     });
@@ -930,19 +1251,22 @@ class _SessionPageState extends State<_SessionPage>
 
   void _addSticker(StripSticker sticker) {
     setState(() {
+      _remember();
       _stickers.add(sticker);
       _selected = _stickers.length - 1;
     });
   }
 
   void _setCaption(String? value) {
+    _remember('caption');
     setState(() => _caption = value);
     _captionController.text = value ?? _frame.caption;
     _keepAlive();
   }
 
-  Future<void> _chooseFrame(StripFrame frame) async {
+  Future<void> _chooseFrame(StripFrame frame, {bool remember = true}) async {
     if (_loadingFrame || _exporting || frame == _frame) return;
+    if (remember) _remember();
     final art = frame.art;
     if (art != null) setState(() => _loadingFrame = true);
     try {
@@ -1220,6 +1544,7 @@ class _SessionPageState extends State<_SessionPage>
   }
 
   void _updateSticker(int index, StripSticker sticker) {
+    _remember('sticker-$index');
     if (_exporting) return;
     _keepAlive();
     setState(() {
@@ -1230,6 +1555,7 @@ class _SessionPageState extends State<_SessionPage>
 
   @override
   void dispose() {
+    _draftTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _discardMotion();
     _idle?.cancel();
@@ -1259,6 +1585,20 @@ class _SessionPageState extends State<_SessionPage>
 
   @override
   Widget build(BuildContext context) {
+    if (_restoringDraft) {
+      return const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Restoring your strip…'),
+            ],
+          ),
+        ),
+      );
+    }
     final png = _png;
     return PopScope(
       canPop:
@@ -1275,6 +1615,11 @@ class _SessionPageState extends State<_SessionPage>
               ? (_choosingPhotos ? '01 / PHOTOS' : '02 / DESIGN')
               : '01 / PHOTOS',
           onHome: _home,
+          onAction:
+              _choosingPhotos || _history.isEmpty || _loadingFrame || _exporting
+              ? null
+              : _undo,
+          actionLabel: _choosingPhotos ? null : 'Undo',
         ),
         body: SafeArea(
           child: Listener(
@@ -1382,6 +1727,11 @@ class _SessionPageState extends State<_SessionPage>
             letterSpacing: -.7,
             color: ink,
           ),
+        ),
+        Text(
+          _draftError ??
+              (_draftSaving ? 'Saving draft…' : 'Saved on this device'),
+          style: const TextStyle(color: muted, fontSize: 12),
         ),
         const SizedBox(height: 12),
         const Text(
@@ -1502,7 +1852,7 @@ class _SessionPageState extends State<_SessionPage>
               ),
             ),
             Text(
-              'Tap to select or swap',
+              'Tap photos in the order you want',
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontSize: 13,
@@ -1512,6 +1862,29 @@ class _SessionPageState extends State<_SessionPage>
           ],
         ),
         const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          children: [
+            TextButton(
+              onPressed: _selectedIndices.isEmpty
+                  ? null
+                  : () {
+                      _remember();
+                      setState(() {
+                        _selectedIndices.clear();
+                        _png = null;
+                        _motionStrip = null;
+                      });
+                    },
+              child: const Text('Choose order'),
+            ),
+            TextButton.icon(
+              onPressed: _history.isEmpty ? null : _undo,
+              icon: const Icon(Icons.undo, size: 18),
+              label: const Text('Undo'),
+            ),
+          ],
+        ),
         LayoutBuilder(
           builder: (context, constraints) {
             final columns = constraints.maxWidth > 540 ? 3 : 2;
@@ -1531,33 +1904,6 @@ class _SessionPageState extends State<_SessionPage>
           },
         ),
         const SizedBox(height: 16),
-        for (final index in _selectedIndices)
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              'Shot ${index + 1} · position ${_selectedIndices.indexOf(index) + 1}',
-            ),
-            trailing: Wrap(
-              children: [
-                IconButton(
-                  tooltip: 'Move shot ${index + 1} up',
-                  onPressed: () => _moveSelected(index, -1),
-                  icon: const Icon(Icons.arrow_upward),
-                ),
-                IconButton(
-                  tooltip: 'Move shot ${index + 1} down',
-                  onPressed: () => _moveSelected(index, 1),
-                  icon: const Icon(Icons.arrow_downward),
-                ),
-              ],
-            ),
-          ),
-        for (var i = 0; i < _photos.length; i++)
-          if (!_removedPhotos.contains(i))
-            TextButton(
-              onPressed: () => _removePhoto(i),
-              child: Text('Remove shot ${i + 1}'),
-            ),
         const SizedBox(height: 20),
       ],
     );
@@ -1601,7 +1947,20 @@ class _SessionPageState extends State<_SessionPage>
                 if (!isSelected)
                   Container(color: Colors.black.withValues(alpha: 0.15)),
                 Positioned(
-                  top: 8,
+                  top: 4,
+                  right: 4,
+                  child: IconButton.filledTonal(
+                    tooltip: 'Remove shot ${index + 1}',
+                    onPressed: () => _removePhoto(index),
+                    icon: const Icon(Icons.close, size: 18),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white.withValues(alpha: .94),
+                      foregroundColor: ink,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 8,
                   right: 8,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
@@ -1678,324 +2037,363 @@ class _SessionPageState extends State<_SessionPage>
         ? StripFrame.values
         : StripFrame.categories[_frameCategory] ?? StripFrame.values;
 
-    return ListView(
-      key: const ValueKey('editor'),
-      padding: const EdgeInsets.all(20),
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Expanded(
-              child: _Heading(
-                '',
-                'Make it yours.',
-                'Tap a photo to adjust it. Choose a frame and decorate your strip.',
-              ),
-            ),
-            if (widget.roomId == null)
-              TextButton.icon(
-                onPressed: () => setState(() => _choosingPhotos = true),
-                icon: const Icon(Icons.swap_horiz, size: 18),
-                label: const Text('Change photos'),
-              ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          children: [
-            for (final (index, tabLabel) in ['Frames', 'Stickers'].indexed)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: InkWell(
-                  onTap: () => setState(() {
-                    _editorTab = index;
-                    _selected = null;
-                  }),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _editorTab == index ? wash : Colors.transparent,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
+    return LayoutBuilder(
+      builder: (context, bounds) {
+        final previewHeight = (bounds.maxHeight * .42).clamp(60.0, 300.0);
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const Expanded(
                     child: Text(
-                      tabLabel,
+                      'Make it yours.',
                       style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w600,
-                        color: _editorTab == index ? purple : muted,
-                        fontSize: 14,
+                        fontFamily: 'Playfair Display',
+                        fontSize: 24,
                       ),
                     ),
                   ),
-                ),
-              ),
-          ],
-        ),
-
-        _Stage(
-          child: SizedBox(
-            height: math.min(MediaQuery.sizeOf(context).height * .46, 440),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final width = math.min(
-                  constraints.maxWidth,
-                  constraints.maxHeight * design.size.aspectRatio,
-                );
-                final scale = width / design.width;
-                final height = design.size.height * scale;
-                final origin = Offset(
-                  (constraints.maxWidth - width) / 2,
-                  (constraints.maxHeight - height) / 2,
-                );
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Positioned.fromRect(
-                      rect: origin & Size(width, height),
-                      child: CustomPaint(
-                        painter: StripPainter(design, selected: selected),
-                      ),
+                  if (widget.roomId == null)
+                    TextButton(
+                      onPressed: () => setState(() => _choosingPhotos = true),
+                      child: const Text('Change photos'),
                     ),
-                    for (var i = 0; i < design.photos.length; i++)
-                      PhotoCropControls(
-                        key: ValueKey('crop-$i'),
-                        design: design,
-                        index: i,
-                        scale: scale,
-                        origin: origin,
-                        onSelect: () => _openPhotoTransform(i),
-                      ),
-                    for (var i = 0; i < _stickers.length; i++)
-                      StickerControls(
-                        key: ValueKey(i),
-                        sticker: _stickers[i],
-                        stripSize: design.size,
-                        bounds: _scaleRect(
-                          StripPainter.stickerBounds(design, _stickers[i]),
-                          scale,
-                        ).shift(origin),
-                        scale: scale,
-                        selected: selected == i,
-                        enabled: !_exporting,
-                        onSelect: () => setState(() => _selected = i),
-                        onChanged: (sticker) => _updateSticker(i, sticker),
-                      ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: line),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DropdownButtonFormField<StripFont>(
-                initialValue: _stripFont,
-                decoration: const InputDecoration(labelText: 'Strip font'),
-                items: [
-                  for (final font in StripFont.values)
-                    DropdownMenuItem(value: font, child: Text(font.family)),
                 ],
-                onChanged: _exporting
-                    ? null
-                    : (font) {
-                        if (font == null) return;
-                        setState(() => _stripFont = font);
-                        _keepAlive();
-                      },
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _captionController,
-                enabled: !_exporting,
-                maxLength: _captionLimit,
-                textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(
-                  labelText: 'Caption under LumiBooth (optional)',
-                  hintText: 'Write a short caption',
+              _Stage(
+                child: SizedBox(
+                  height: previewHeight - 32,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width = math.min(
+                        constraints.maxWidth,
+                        constraints.maxHeight * design.size.aspectRatio,
+                      );
+                      final scale = width / design.width;
+                      final height = design.size.height * scale;
+                      final origin = Offset(
+                        (constraints.maxWidth - width) / 2,
+                        (constraints.maxHeight - height) / 2,
+                      );
+                      return Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Positioned.fromRect(
+                            rect: origin & Size(width, height),
+                            child: CustomPaint(
+                              painter: StripPainter(design, selected: selected),
+                            ),
+                          ),
+                          for (var i = 0; i < design.photos.length; i++)
+                            PhotoCropControls(
+                              key: ValueKey('crop-$i'),
+                              design: design,
+                              index: i,
+                              scale: scale,
+                              origin: origin,
+                              onSelect: () => _openPhotoTransform(i),
+                            ),
+                          for (var i = 0; i < _stickers.length; i++)
+                            StickerControls(
+                              key: ValueKey(i),
+                              sticker: _stickers[i],
+                              stripSize: design.size,
+                              bounds: _scaleRect(
+                                StripPainter.stickerBounds(
+                                  design,
+                                  _stickers[i],
+                                ),
+                                scale,
+                              ).shift(origin),
+                              scale: scale,
+                              selected: selected == i,
+                              enabled: !_exporting,
+                              onSelect: () => setState(() => _selected = i),
+                              onChanged: (sticker) =>
+                                  _updateSticker(i, sticker),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
-                onChanged: (value) {
-                  setState(() => _caption = value);
-                  _keepAlive();
-                },
               ),
               Wrap(
-                spacing: 8,
                 children: [
-                  TextButton(
-                    onPressed: _exporting || design.footerCaption.isEmpty
-                        ? null
-                        : () => _setCaption(''),
-                    child: const Text('Remove caption'),
-                  ),
-                  TextButton(
-                    onPressed: _exporting || _caption == null
-                        ? null
-                        : () => _setCaption(null),
-                    child: const Text('Use frame caption'),
-                  ),
+                  for (final (index, tabLabel) in [
+                    'Frames',
+                    'Stickers',
+                  ].indexed)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: InkWell(
+                        onTap: () => setState(() {
+                          _editorTab = index;
+                          _selected = null;
+                        }),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _editorTab == index
+                                ? wash
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            tabLabel,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.w600,
+                              color: _editorTab == index ? purple : muted,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
+              ),
+              Expanded(
+                child: ListView(
+                  key: const ValueKey('editor'),
+                  padding: const EdgeInsets.only(bottom: 16),
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: line),
+                      ),
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 14),
+                          if (_editorTab == 0) ...[
+                            DropdownButtonFormField<String>(
+                              initialValue: _frameCategory,
+                              decoration: const InputDecoration(
+                                labelText: 'Frame category',
+                              ),
+                              items: [
+                                for (final category in categories)
+                                  DropdownMenuItem(
+                                    value: category,
+                                    child: Text(category),
+                                  ),
+                              ],
+                              onChanged: (category) {
+                                if (category != null) {
+                                  setState(() => _frameCategory = category);
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (final frame in displayedFrames)
+                                  ChoiceChip(
+                                    avatar: frame.art != null
+                                        ? Image.asset(
+                                            FrameArt.asset(frame.art!.name),
+                                            width: 22,
+                                            fit: BoxFit.contain,
+                                            excludeFromSemantics: true,
+                                          )
+                                        : (frame.gradient != null
+                                              ? Container(
+                                                  width: 18,
+                                                  height: 18,
+                                                  decoration: BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                    gradient: LinearGradient(
+                                                      colors: frame.gradient!,
+                                                    ),
+                                                  ),
+                                                )
+                                              : CircleAvatar(
+                                                  backgroundColor: frame.paper,
+                                                  radius: 9,
+                                                  child: frame.border != null
+                                                      ? Container(
+                                                          decoration:
+                                                              BoxDecoration(
+                                                                shape: BoxShape
+                                                                    .circle,
+                                                                border: Border.all(
+                                                                  color: frame
+                                                                      .border!,
+                                                                  width: 1.5,
+                                                                ),
+                                                              ),
+                                                        )
+                                                      : null,
+                                                )),
+                                    label: Text(frame.label),
+                                    selected: _frame == frame,
+                                    onSelected: _exporting || _loadingFrame
+                                        ? null
+                                        : (_) => _chooseFrame(frame),
+                                  ),
+                              ],
+                            ),
+                          ] else ...[
+                            const Text(
+                              'Drag a sticker to move it. Use its corner handles to rotate or resize it.',
+                              style: TextStyle(color: muted, fontSize: 13),
+                            ),
+                            _stickerPicker(),
+                            if (selected != null) ...[
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Sticker size',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              Slider(
+                                min: StripSticker.minSize,
+                                max: StripSticker.maxSize,
+                                label: 'Sticker size',
+                                activeColor: purple,
+                                value: _stickers[selected].size,
+                                onChanged: _exporting
+                                    ? null
+                                    : (size) => _updateSticker(
+                                        selected,
+                                        _stickers[selected].resizeTo(
+                                          size,
+                                          design.size,
+                                        ),
+                                      ),
+                              ),
+                              const Text(
+                                'Sticker rotation',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                              Slider(
+                                min: -180,
+                                max: 180,
+                                label: 'Sticker rotation',
+                                activeColor: purple,
+                                value: _stickers[selected].angle,
+                                onChanged: _exporting
+                                    ? null
+                                    : (angle) => _updateSticker(
+                                        selected,
+                                        _stickers[selected].copyWith(
+                                          angle: angle,
+                                        ),
+                                      ),
+                              ),
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  onPressed: _exporting
+                                      ? null
+                                      : () => setState(() {
+                                          _remember();
+                                          _stickers.removeAt(selected);
+                                          _selected = null;
+                                        }),
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: Color(0xffaa0000),
+                                  ),
+                                  label: const Text(
+                                    'Remove sticker',
+                                    style: TextStyle(color: Color(0xffaa0000)),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: line),
+                      ),
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          DropdownButtonFormField<StripFont>(
+                            key: ValueKey(_stripFont),
+                            initialValue: _stripFont,
+                            decoration: const InputDecoration(
+                              labelText: 'Strip font',
+                            ),
+                            items: [
+                              for (final font in StripFont.values)
+                                DropdownMenuItem(
+                                  value: font,
+                                  child: Text(font.family),
+                                ),
+                            ],
+                            onChanged: _exporting
+                                ? null
+                                : (font) {
+                                    if (font == null) return;
+                                    _remember();
+                                    setState(() => _stripFont = font);
+                                    _keepAlive();
+                                  },
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _captionController,
+                            enabled: !_exporting,
+                            maxLength: _captionLimit,
+                            textInputAction: TextInputAction.done,
+                            decoration: const InputDecoration(
+                              labelText: 'Caption under LumiBooth (optional)',
+                              hintText: 'Write a short caption',
+                            ),
+                            onChanged: (value) {
+                              _remember('caption');
+                              setState(() => _caption = value);
+                              _keepAlive();
+                            },
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              TextButton(
+                                onPressed:
+                                    _exporting || design.footerCaption.isEmpty
+                                    ? null
+                                    : () => _setCaption(''),
+                                child: const Text('Remove caption'),
+                              ),
+                              TextButton(
+                                onPressed: _exporting || _caption == null
+                                    ? null
+                                    : () => _setCaption(null),
+                                child: const Text('Use frame caption'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: line),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 14),
-              if (_editorTab == 0) ...[
-                // Frame categories filter
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final category in categories)
-                      ChoiceChip(
-                        label: Text(category),
-                        selected: _frameCategory == category,
-                        onSelected: (selected) {
-                          if (selected) {
-                            setState(() => _frameCategory = category);
-                          }
-                        },
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final frame in displayedFrames)
-                      ChoiceChip(
-                        avatar: frame.art != null
-                            ? Image.asset(
-                                FrameArt.asset(frame.art!.name),
-                                width: 22,
-                                fit: BoxFit.contain,
-                                excludeFromSemantics: true,
-                              )
-                            : (frame.gradient != null
-                                  ? Container(
-                                      width: 18,
-                                      height: 18,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        gradient: LinearGradient(
-                                          colors: frame.gradient!,
-                                        ),
-                                      ),
-                                    )
-                                  : CircleAvatar(
-                                      backgroundColor: frame.paper,
-                                      radius: 9,
-                                      child: frame.border != null
-                                          ? Container(
-                                              decoration: BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                border: Border.all(
-                                                  color: frame.border!,
-                                                  width: 1.5,
-                                                ),
-                                              ),
-                                            )
-                                          : null,
-                                    )),
-                        label: Text(frame.label),
-                        selected: _frame == frame,
-                        onSelected: _exporting || _loadingFrame
-                            ? null
-                            : (_) => _chooseFrame(frame),
-                      ),
-                  ],
-                ),
-              ] else ...[
-                const Text(
-                  'Drag a sticker to move it. Use its corner handles to rotate or resize it.',
-                  style: TextStyle(color: muted, fontSize: 13),
-                ),
-                _stickerPicker(),
-                if (selected != null) ...[
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Sticker size',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  Slider(
-                    min: StripSticker.minSize,
-                    max: StripSticker.maxSize,
-                    label: 'Sticker size',
-                    activeColor: purple,
-                    value: _stickers[selected].size,
-                    onChanged: _exporting
-                        ? null
-                        : (size) => _updateSticker(
-                            selected,
-                            _stickers[selected].resizeTo(size, design.size),
-                          ),
-                  ),
-                  const Text(
-                    'Sticker rotation',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  Slider(
-                    min: -180,
-                    max: 180,
-                    label: 'Sticker rotation',
-                    activeColor: purple,
-                    value: _stickers[selected].angle,
-                    onChanged: _exporting
-                        ? null
-                        : (angle) => _updateSticker(
-                            selected,
-                            _stickers[selected].copyWith(angle: angle),
-                          ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: _exporting
-                          ? null
-                          : () => setState(() {
-                              _stickers.removeAt(selected);
-                              _selected = null;
-                            }),
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: Color(0xffaa0000),
-                      ),
-                      label: const Text(
-                        'Remove sticker',
-                        style: TextStyle(color: Color(0xffaa0000)),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ],
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -2342,6 +2740,7 @@ class BoothHeader extends StatelessWidget implements PreferredSizeWidget {
     this.actionLabel,
     this.trailing,
     this.onHome,
+    this.draft,
   });
 
   final String step;
@@ -2349,6 +2748,7 @@ class BoothHeader extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onAction;
   final String? actionLabel;
   final Widget? trailing;
+  final Map<String, dynamic>? draft;
   final VoidCallback? onHome;
 
   @override

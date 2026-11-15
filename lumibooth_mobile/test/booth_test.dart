@@ -1,3 +1,7 @@
+import 'package:lumibooth_mobile/photo_crop_controls.dart';
+
+import 'draft_test_support.dart';
+
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -7,10 +11,13 @@ import 'package:lumibooth_mobile/capture.dart';
 import 'package:lumibooth_mobile/strip.dart';
 
 void main() {
+  setUp(useUnavailableDraftStorage);
   testWidgets('guest can choose any supported layout and return Home', (
     tester,
   ) async {
+    addTearDown(() => disposeBooth(tester));
     await tester.pumpWidget(const LumiBooth());
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Create photo strip'));
     await tester.pumpAndSettle();
 
@@ -68,7 +75,9 @@ void main() {
       });
       addTearDown(image!.dispose);
 
+      addTearDown(() => disposeBooth(tester));
       await tester.pumpWidget(const LumiBooth());
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Create photo strip'));
       await tester.pumpAndSettle();
       await tester.pumpAndSettle();
@@ -131,6 +140,8 @@ void main() {
       expect(find.text('Shot 4'), findsOneWidget);
       await Scrollable.ensureVisible(tester.element(shot4), alignment: .4);
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Shot 3'));
+      await tester.pumpAndSettle();
       await tester.tap(shot4);
       await tester.pump();
 
@@ -161,12 +172,16 @@ void main() {
         matching: find.byType(ChoiceChip),
       );
       expect(tester.widget<ChoiceChip>(chip).selected, isTrue);
+      final previewBefore = tester.getRect(
+        find.byType(PhotoCropControls).first,
+      );
+      final tabsBefore = tester.getRect(find.text('Frames'));
       final captionField = find.byType(TextField);
       String caption() =>
           tester.widget<TextField>(captionField).controller!.text;
       await tester.scrollUntilVisible(
         captionField,
-        -100,
+        100,
         scrollable: editorScroll,
       );
       await Scrollable.ensureVisible(
@@ -174,6 +189,11 @@ void main() {
         alignment: .4,
       );
       await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byType(PhotoCropControls).first),
+        previewBefore,
+      );
+      expect(tester.getRect(find.text('Frames')), tabsBefore);
       expect(caption(), StripFrame.postcard.caption);
       await tester.enterText(
         captionField,
@@ -226,7 +246,9 @@ void main() {
     });
     addTearDown(image!.dispose);
 
+    addTearDown(() => disposeBooth(tester));
     await tester.pumpWidget(const LumiBooth());
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Create photo strip'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('2 photos'));

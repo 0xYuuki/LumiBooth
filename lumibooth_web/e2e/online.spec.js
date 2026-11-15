@@ -257,7 +257,7 @@ test('two guests on simulated different networks capture an ordered, identical s
     await expect(windows).toHaveCount(3);
     await expect(host.getByRole('button', { name: 'Tube TV' })).toHaveAttribute('aria-pressed', 'true');
     await expect(host.getByLabel('Caption under LumiBooth (optional)')).toHaveValue('MILES APART, SAME MOMENT');
-    await host.getByRole('button', { name: 'Templates', exact: true }).click();
+    await host.getByLabel('Frame category', { exact: true }).selectOption('Templates');
     await host.getByRole('button', { name: 'Studio', exact: true }).click();
     await expect(host.locator('.photo-strip .paired-photo-cell')).toHaveCount(3);
     await host.getByRole('button', { name: 'Illustrated', exact: true }).click();

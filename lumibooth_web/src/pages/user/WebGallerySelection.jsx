@@ -1,18 +1,19 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PhotoStrip } from './PhotoStrip';
-import { Camera, ImagePlus, ArrowRight } from 'lucide-react';
+import { Camera, ImagePlus, ArrowRight, X, Undo2 } from 'lucide-react';
 import { BoothHeader, BoothStep, MiniStrip } from '../../components/BoothUI';
 import { PhotoboothContext } from '../../context/photoboothContext';
-import { layouts, requiredPhotos, reviewItems } from '../../context/photoboothSession';
+import { layouts, requiredPhotos, reviewItems, selectedItems } from '../../context/photoboothSession';
 import { prepareGalleryFiles, releaseGalleryFiles } from './galleryImport';
 
 const MAX_PHOTOS = 12;
 
 export default function WebGallerySelection() {
   const navigate = useNavigate();
-  const { session, dispatch } = useContext(PhotoboothContext);
+  const { session, dispatch, draftError, draftStatus } = useContext(PhotoboothContext);
   const [message, setMessage] = useState('');
+  const [removing, setRemoving] = useState(null);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef(null);
   const mounted = useRef(false);
@@ -22,6 +23,7 @@ export default function WebGallerySelection() {
   }, []);
   const images = reviewItems(session);
   const required = requiredPhotos(session.layout);
+  const ordered = selectedItems(images);
   const exactCount = session.photos.length === required;
 
   const onFilesSelected = async (event) => {
@@ -54,6 +56,7 @@ export default function WebGallerySelection() {
     <div className="booth-shell">
       <BoothHeader step="01 / PHOTOS" />
       <main className="booth-content gallery-import-page">
+        <p className="draft-status" role="status">{draftStatus}</p>
         <BoothStep number={1} back="/" backLabel="Back to home" disabled={busy} />
         <h1 className="booth-title">Your strip starts here.</h1>
         <p className="booth-intro">Take a photo or bring your favorites. Choose a layout, then put everything in order.</p>
@@ -81,6 +84,7 @@ export default function WebGallerySelection() {
           {session.photos.length} of {required} photos selected.{exactCount ? ' Ready to edit.' : ` Select ${required - session.photos.length} more.`}
         </p>
         {images.length === 5 && required === 6 && <p className="gallery-message">Add one more photo for this layout, or choose 4 photos and select your favorites.</p>}
+        {draftError && <p role="status">{draftError}</p>}
         {message && <p className="gallery-message" role="status">{message}</p>}
         <input ref={inputRef} className="gallery-file-input" type="file" accept="image/*" multiple onChange={onFilesSelected} aria-label="Choose image files" />
         {!images.length && <div className="review-empty">
@@ -88,30 +92,30 @@ export default function WebGallerySelection() {
           <h2>Let’s fill your strip.</h2>
           <p>Take photos or add from your gallery above. You can mix both.</p>
         </div>}
-        <div className="gallery-import-list">
+        {(images.length > 0 || session.history?.length > 0) && <div className="photo-order-toolbar">
+          <div><h2>Your photos</h2><p>Tap in the order you want. Tap a numbered photo to deselect it.</p></div>
+          <button className="booth-link" disabled={busy || !ordered.length} onClick={() => dispatch({ type: 'reviewClear' })}>Choose order</button>
+          <button className="booth-link" disabled={busy || !session.history?.length} onClick={() => dispatch({ type: 'undo' })}><Undo2 size={16} /> Undo</button>
+        </div>}
+        <div className="gallery-import-list shot-grid">
           {images.map((image, index) => {
-            const position = images.slice(0, index + 1).filter((item) => item.selected).length;
-            return (
-              <article className="gallery-import-card" data-selected={image.selected} key={`${image.photo}-${index}`}>
+            const position = ordered.indexOf(image) + 1;
+            return <article className="gallery-import-card shot-card" data-selected={image.selected} key={`${image.photo}-${index}`}>
+              <button className="shot-select" role="checkbox" aria-checked={image.selected} aria-label={`Include photo ${index + 1}`}
+                disabled={busy || (!image.selected && exactCount)} onClick={() => dispatch({ type: 'reviewSelect', index })}>
                 <img src={image.photo} alt={`Photo ${index + 1}`} />
-                <div className="gallery-import-details">
-                  <strong>{image.name}</strong>
-                  <span>{image.selected ? `Strip position ${position}` : 'Not in strip'}</span>
-                  <label className="review-selection">
-                    <input type="checkbox" checked={image.selected} disabled={busy || (!image.selected && exactCount)}
-                      onChange={() => dispatch({ type: 'reviewSelect', index })} aria-label={`Include photo ${index + 1}`} />
-                    Include in strip
-                  </label>
-                </div>
-                <div className="gallery-import-actions">
-                  <button className="booth-link" type="button" onClick={() => dispatch({ type: 'reviewMove', index, offset: -1 })} disabled={busy || index === 0} aria-label={`Move photo ${index + 1} up`}>↑</button>
-                  <button className="booth-link" type="button" onClick={() => dispatch({ type: 'reviewMove', index, offset: 1 })} disabled={busy || index === images.length - 1} aria-label={`Move photo ${index + 1} down`}>↓</button>
-                  <button className="booth-link" type="button" onClick={() => dispatch({ type: 'reviewRemove', index })} disabled={busy} aria-label={`Remove photo ${index + 1}`}>Remove</button>
-                </div>
-              </article>
-            );
+                <span className="shot-number" aria-label={image.selected ? `Strip position ${position}` : 'Not selected'}>{image.selected ? position : '+'}</span>
+                <span className="shot-name">{image.name}</span>
+              </button>
+              <button className="shot-remove" onClick={() => setRemoving(image)} disabled={busy} aria-label={`Remove photo ${index + 1}`}><X size={18} /></button>
+            </article>;
           })}
         </div>
+        {removing && <RemovePhotoDialog onCancel={() => setRemoving(null)} onRemove={() => {
+          const index = images.indexOf(removing);
+          if (index >= 0) dispatch({ type: 'reviewRemove', index });
+          setRemoving(null);
+        }} />}
         <div className="gallery-import-footer">
           <button className="booth-button" type="button" onClick={() => navigate('/editor')} disabled={!exactCount || busy}>
             Continue to design <ArrowRight size={18} aria-hidden="true" />
@@ -120,4 +124,13 @@ export default function WebGallerySelection() {
       </main>
     </div>
   );
+}
+
+function RemovePhotoDialog({ onCancel, onRemove }) {
+  const ref = useRef(null);
+  useEffect(() => { const dialog = ref.current; dialog.showModal(); return () => dialog.close(); }, []);
+  return <dialog className="remove-photo-dialog" ref={ref} onCancel={onCancel} aria-labelledby="remove-title">
+    <h2 id="remove-title">Remove this photo?</h2><p>This removes the photo from your strip. Photos in your gallery will not be deleted. You can undo this change.</p>
+    <div><button className="booth-button booth-secondary" onClick={onCancel} autoFocus>Keep photo</button><button className="booth-button" onClick={onRemove}>Remove photo</button></div>
+  </dialog>;
 }

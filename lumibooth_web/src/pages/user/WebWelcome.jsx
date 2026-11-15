@@ -8,7 +8,7 @@ import { printToPlayEnabled, remoteBoothEnabled } from '../../online/lumiClient'
 
 export default function WebWelcome() {
   const navigate = useNavigate();
-  const { session, dispatch } = useContext(PhotoboothContext);
+  const { session, dispatch, draftError } = useContext(PhotoboothContext);
   const start = () => {
     if (session && !window.confirm('Start fresh? This will clear your current strip.')) return;
     dispatch({ type: 'start', layout: layouts[2] });
@@ -27,6 +27,8 @@ export default function WebWelcome() {
             <Link className="booth-button" to={session.roomId ? '/editor' : '/gallery'}>Continue your strip <ArrowRight size={18} aria-hidden="true" /></Link>
             <button className="booth-link" onClick={start}>Start fresh</button>
           </> : <button className="booth-button" onClick={start}>Create photo strip <ArrowRight size={18} aria-hidden="true" /></button>}
+          {draftError && <p role="status">{draftError}</p>}
+          {session && !draftError && <p className="booth-intro">Your draft stays on this device. Motion clips are kept only while the booth is open.</p>}
           {remoteBoothEnabled && <Link className="booth-button booth-secondary" to="/room">Booth with a friend</Link>}
           {printToPlayEnabled && <Link className="booth-link" to="/print-links">Manage gallery links</Link>}
         </div>

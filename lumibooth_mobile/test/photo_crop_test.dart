@@ -1,3 +1,5 @@
+import 'draft_test_support.dart';
+
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -27,6 +29,7 @@ Future<ui.Image> stripes() async {
 }
 
 void main() {
+  setUp(useUnavailableDraftStorage);
   TestWidgetsFlutterBinding.ensureInitialized();
   test(
     'PNG rendering uses non-destructive crop in plain and illustrated frames',
@@ -101,10 +104,21 @@ void main() {
   ) async {
     final photo = (await tester.runAsync(stripes))!;
     addTearDown(photo.dispose);
+    addTearDown(() => disposeBooth(tester));
     await tester.pumpWidget(const LumiBooth());
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Create photo strip'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('2 photos'));
+    await tester.scrollUntilVisible(
+      find.text('2 photos'),
+      100,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('selection')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('2 photos'));
     await tester.pump();
@@ -160,11 +174,14 @@ void main() {
         )
         .first;
     await tester.scrollUntilVisible(
-      find.byTooltip('Move shot 1 down'),
-      150,
+      find.text('Shot 1'),
+      100,
       scrollable: review,
     );
-    await tester.tap(find.byTooltip('Move shot 1 down'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Shot 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Shot 1'));
     await tester.pump();
     await tester.pumpAndSettle();
     await tester.tap(find.text('Continue to design'));
@@ -260,60 +277,74 @@ void main() {
     },
   );
 
-  testWidgets('camera returns to Photos and preserves shots through layout changes', (
-    tester,
-  ) async {
-    final photo = (await tester.runAsync(stripes))!;
-    addTearDown(photo.dispose);
-    await tester.pumpWidget(const LumiBooth());
-    await tester.tap(find.text('Create photo strip'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('2 photos'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('2 photos'));
-    await tester.pump();
-    await tester.scrollUntilVisible(
-      find.text('Take photos'),
-      -100,
-      scrollable: find
-          .descendant(
-            of: find.byKey(const ValueKey('selection')),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Take photos'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    tester.widget<CapturePage>(find.byType(CapturePage)).onPhoto(photo.clone());
-    await tester.pump();
-    await tester.tap(find.byTooltip('Back to previous step'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('3 photos'));
-    await tester.pumpAndSettle();
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('3 photos'));
-    await tester.pump();
-    await tester.scrollUntilVisible(
-      find.text('Take photos'),
-      -100,
-      scrollable: find
-          .descendant(
-            of: find.byKey(const ValueKey('selection')),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Take photos'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-    final camera = tester.widget<CapturePage>(find.byType(CapturePage));
-    expect(camera.captured, 1);
-    expect(camera.total, 3);
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
+  testWidgets(
+    'camera returns to Photos and preserves shots through layout changes',
+    (tester) async {
+      final photo = (await tester.runAsync(stripes))!;
+      addTearDown(photo.dispose);
+      addTearDown(() => disposeBooth(tester));
+      await tester.pumpWidget(const LumiBooth());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Create photo strip'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('2 photos'),
+        100,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const ValueKey('selection')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('2 photos'));
+      await tester.pump();
+      await tester.scrollUntilVisible(
+        find.text('Take photos'),
+        -100,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const ValueKey('selection')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Take photos'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      tester
+          .widget<CapturePage>(find.byType(CapturePage))
+          .onPhoto(photo.clone());
+      await tester.pump();
+      await tester.tap(find.byTooltip('Back to previous step'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('3 photos'));
+      await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('3 photos'));
+      await tester.pump();
+      await tester.scrollUntilVisible(
+        find.text('Take photos'),
+        -100,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const ValueKey('selection')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Take photos'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      final camera = tester.widget<CapturePage>(find.byType(CapturePage));
+      expect(camera.captured, 1);
+      expect(camera.total, 3);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
 
   testWidgets('unified workspace is responsive and resumes after Home', (
     tester,
@@ -322,12 +353,23 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(() => disposeBooth(tester));
     await tester.pumpWidget(const LumiBooth());
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Create photo strip'));
     await tester.pumpAndSettle();
     expect(find.text('Your strip starts here.'), findsOneWidget);
     expect(find.text('Add from gallery'), findsOneWidget);
-    await tester.ensureVisible(find.text('2 photos'));
+    await tester.scrollUntilVisible(
+      find.text('2 photos'),
+      100,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('selection')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('2 photos'));
     await tester.pump();
@@ -352,4 +394,76 @@ void main() {
     expect(find.text('Continue your strip'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+  testWidgets(
+    'photo cards confirm removal, undo restores it, and taps set order',
+    (tester) async {
+      final photo = (await tester.runAsync(stripes))!;
+      addTearDown(photo.dispose);
+      addTearDown(() => disposeBooth(tester));
+      await tester.pumpWidget(const LumiBooth());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Create photo strip'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('2 photos'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Take photos'));
+      await tester.pump();
+      final first = photo.clone(), second = photo.clone();
+      tester.widget<CapturePage>(find.byType(CapturePage)).onPhoto(first);
+      await tester.pump();
+      tester.widget<CapturePage>(find.byType(CapturePage)).onPhoto(second);
+      await tester.pumpAndSettle();
+      final scroll = find
+          .descendant(
+            of: find.byKey(const ValueKey('selection')),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(
+        find.text('Choose order'),
+        150,
+        scrollable: scroll,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Choose order'));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Shot 2'),
+        150,
+        scrollable: scroll,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Shot 2'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Shot 1'));
+      await tester.pumpAndSettle();
+      StripDesign design() => tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((w) => w.painter)
+          .whereType<StripPainter>()
+          .first
+          .design;
+      expect(design().photos, [second, first]);
+      await tester.tap(find.byTooltip('Remove shot 2'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Keep photo'));
+      await tester.pumpAndSettle();
+      expect(find.text('Shot 2'), findsOneWidget);
+      await tester.tap(find.byTooltip('Remove shot 2'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove photo'));
+      await tester.pumpAndSettle();
+      expect(find.text('Shot 2'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.text('Undo'),
+        -100,
+        scrollable: scroll,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Undo'));
+      await tester.pumpAndSettle();
+      expect(design().photos, [second, first]);
+      expect(find.textContaining('position'), findsNothing);
+    },
+  );
 }

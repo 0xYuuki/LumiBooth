@@ -596,7 +596,7 @@ class _GalleryImportPageState extends State<_GalleryImportPage> {
   }
 
   void _continue() {
-    if (_images.length != _layout.requiredPhotos) return;
+    if (_busy || _images.length != _layout.requiredPhotos) return;
     _transferred = true;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
@@ -743,11 +743,32 @@ class _GalleryImportPageState extends State<_GalleryImportPage> {
       ),
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-        child: FilledButton(
-          onPressed: exactCount && !_busy ? _continue : null,
-          child: Text(
-            exactCount ? 'Start editing' : 'Choose exactly $required photos',
-          ),
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => _SessionPage(layout: _layout),
+                        ),
+                      ),
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: const Text('Take photos'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: exactCount && !_busy ? _continue : null,
+                icon: const Icon(Icons.edit_outlined),
+                label: Text(
+                  exactCount ? 'Edit photos' : 'Need $required photos',
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -932,6 +953,8 @@ class _SessionPageState extends State<_SessionPage>
   int get _targetCaptureCount => widget.layout.requiredPhotos + _extraPhotos;
 
   bool get _captured =>
+      (widget.initialPhotos.isNotEmpty &&
+          _photos.length >= widget.layout.requiredPhotos) ||
       _photos.length >= _targetCaptureCount ||
       (_finishedCapturingEarly &&
           _photos.length >= widget.layout.requiredPhotos);

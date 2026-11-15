@@ -28,7 +28,7 @@ test('a guest can capture, decorate, download, and finish a private session', as
   await expect(page).toHaveURL(/\/editor$/);
 
   const blackFrame = page.getByRole('button', { name: 'Black', exact: true });
-  await page.getByRole('button', { name: 'Colors', exact: true }).click();
+  await page.getByLabel('Frame category', { exact: true }).selectOption('Colors');
   await blackFrame.click();
   await page.getByRole('button', { name: 'Stickers', exact: true }).click();
   await page.getByRole('button', { name: '✨', exact: true }).click();
@@ -159,7 +159,7 @@ test('all five layouts are offered and a three-photo strip exports the chosen te
   await page.getByRole('button', { name: 'Continue to design' }).click();
   await expect(page.getByRole('img', { name: /Captured photo/ })).toHaveCount(3);
   const gallery = page.locator('.frame-gallery');
-  await page.getByRole('button', { name: 'Templates', exact: true }).click();
+  await page.getByLabel('Frame category', { exact: true }).selectOption('Templates');
   await expect(gallery.getByRole('button')).toHaveCount(14);
   for (const name of ['Classic White', 'Retro Flash', 'Wedding Ivory', 'Birthday Confetti']) {
     await expect(gallery.getByRole('button', { name, exact: true })).toBeVisible();
@@ -232,6 +232,7 @@ test('a fixed camera crop fits both portrait and illustrated frame exports', asy
   expect(capture.edge[2]).toBeLessThan(25);
 
   async function exportEdge() {
+    await page.evaluate(() => document.fonts.ready);
     const point = await photo.evaluate((image) => {
       const slot = image.getBoundingClientRect();
       const strip = image.closest('.photo-strip').getBoundingClientRect();
@@ -345,10 +346,11 @@ test('an image sticker can be dragged, resized, rotated, and exported', async ({
   await touch.detach();
   await expect.poll(async () => (await placed.boundingBox()).x).toBeGreaterThan(before.x + 25);
 
+  const previewScale = await page.locator('.photo-strip').evaluate(node => node.getBoundingClientRect().width / node.clientWidth);
   const resize = await page.getByRole('button', { name: 'Resize sticker' }).boundingBox();
   await page.mouse.move(resize.x + resize.width / 2, resize.y + resize.height / 2);
   await page.mouse.down();
-  await page.mouse.move(resize.x + resize.width / 2 + 48, resize.y + resize.height / 2 + 48, { steps: 4 });
+  await page.mouse.move(resize.x + resize.width / 2 + 48 * previewScale, resize.y + resize.height / 2 + 48 * previewScale, { steps: 4 });
   await page.mouse.up();
   await expect(page.getByRole('slider', { name: 'Sticker size' })).toHaveValue('120');
 
@@ -401,7 +403,7 @@ test('an image sticker can be dragged, resized, rotated, and exported', async ({
 
   await page.getByRole('button', { name: 'Edit Strip' }).click();
   await expect(placed.locator('..').locator('.sticker-visual')).toHaveAttribute('style', /rotate\(90deg\)/);
-  await expect.poll(async () => (await placed.boundingBox()).width).toBe(120);
+  await expect(placed).toHaveCSS('width', '120px');
 });
 
 test('the strip caption can be edited, hidden, and restored', async ({ page }) => {

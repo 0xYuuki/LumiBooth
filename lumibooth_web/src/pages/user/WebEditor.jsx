@@ -15,7 +15,7 @@ const captionLimit = 32;
 const signatureFonts = ['Outfit', 'Playfair Display', 'Space Mono', 'Caveat'];
 
 const WebEditor = () => {
-  const { session, dispatch } = useContext(PhotoboothContext);
+  const { session, dispatch, draftStatus } = useContext(PhotoboothContext);
   const { layout, stickers: placedStickers } = session;
   const selectedFrame = session.frame ?? frameLibrary.Templates[0];
   const signatureFont = session.signatureFont ?? signatureFonts[0];
@@ -86,9 +86,11 @@ const WebEditor = () => {
   const selectedSticker = placedStickers.find(({ id }) => id === selectedStickerId);
 
   return (
-    <div className="booth-shell">
+    <div className="booth-shell editor-shell">
       <BoothHeader step="02 / DESIGN" />
-      <main className="booth-content">
+      <main className="booth-content editor-content">
+        <button className="booth-link" disabled={exporting || !session.history?.length} onClick={() => dispatch({ type: 'undo' })}>Undo last change</button>
+        <p className="draft-status" role="status">{draftStatus}</p>
         <div className="design-heading">
           <div>
             <BoothStep number={2} back={session.roomId ? '/room' : '/gallery'} disabled={exporting} />
@@ -101,7 +103,7 @@ const WebEditor = () => {
 
         <div className="design-workspace">
           <div className="design-stage">
-            <PhotoStrip session={session} stripRef={constraintsRef}
+            <FittedStrip><PhotoStrip session={session} stripRef={constraintsRef}
               photoEditing={!exporting ? { onSelect: (index, aspect) => { setSelectedStickerId(null); setSelectedPhoto({ index, aspect }); } } : undefined}
               onPointerDown={() => setSelectedStickerId(null)}>
               {placedStickers.map((sticker) => (
@@ -116,7 +118,7 @@ const WebEditor = () => {
                   onDelete={() => deleteSticker(sticker.id)}
                 />
               ))}
-            </PhotoStrip>
+            </PhotoStrip></FittedStrip>
           </div>
 
           <fieldset className="design-tools" disabled={exporting} aria-label="Strip design">
@@ -125,17 +127,17 @@ const WebEditor = () => {
                 <button key={tab} aria-pressed={activeTab === tab} onClick={() => { setActiveTab(tab); setSelectedStickerId(null); }}>{tab}</button>
               ))}
             </div>
+            <div className="editor-controls-scroll" tabIndex={0} aria-label="Editing controls">
             {activeTab === 'Frames' && (
               <>
-                <div className="frame-categories">
-                  {Object.keys(frameLibrary).map((category) => (
-                    <button key={category} aria-pressed={activeCategory === category}
-                      onClick={() => setActiveCategory(category)}>{category}</button>
-                  ))}
-                </div>
+                <label className="sticker-pack-picker">Frame category
+                  <select aria-label="Frame category" value={activeCategory} onChange={event => setActiveCategory(event.target.value)}>
+                    {Object.keys(frameLibrary).map(category => <option key={category}>{category}</option>)}
+                  </select>
+                </label>
                 <div className="frame-gallery">
                   {frameLibrary[activeCategory].map((frame) => (
-                    <button key={frame.name} aria-pressed={selectedFrame === frame} onClick={() => edit({ frame })}>
+                    <button key={frame.name} aria-pressed={selectedFrame.name === frame.name} onClick={() => edit({ frame })}>
                       {frame.artwork ? (
                         <span className="illustrated-thumbnail" aria-hidden="true" style={{ backgroundColor: frame.bg }}>
                           <IllustratedPhoto frame={frame} />
@@ -211,6 +213,7 @@ const WebEditor = () => {
                 </button>
               </div>
             </div>
+            </div>
           </fieldset>
         </div>
         {selectedPhoto !== null && <PhotoTransformEditor src={session.photos[selectedPhoto.index]}
@@ -284,8 +287,9 @@ function StripSticker({ sticker, selected, constraintsRef, disabled, onSelect, o
     const active = gesture.current;
     if (!active || event.pointerId !== active.pointer || disabled) return;
     const strip = constraintsRef.current;
-    const dx = event.clientX - active.x;
-    const dy = event.clientY - active.y;
+    const scale = strip.getBoundingClientRect().width / strip.clientWidth;
+    const dx = (event.clientX - active.x) / scale;
+    const dy = (event.clientY - active.y) / scale;
     if (active.mode === 'move') {
       onChange(moveSticker(active.sticker, dx, dy, strip));
     } else if (active.mode === 'resize') {
@@ -354,3 +358,19 @@ function StripSticker({ sticker, selected, constraintsRef, disabled, onSelect, o
 }
 
 export default WebEditor;
+
+function FittedStrip({ children }) {
+  const host = useRef(null), content = useRef(null);
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const fit = () => {
+      if (!host.current || !content.current) return;
+      setScale(Math.min(1, (host.current.clientWidth - 24) / content.current.offsetWidth, (host.current.clientHeight - 24) / content.current.offsetHeight));
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(host.current); observer.observe(content.current);
+    fit();
+    return () => observer.disconnect();
+  }, []);
+  return <div className="editor-preview-fit" ref={host}><div className="editor-preview-content" ref={content} style={{ transform: `translate(-50%, -50%) scale(${scale})` }}>{children}</div></div>;
+}

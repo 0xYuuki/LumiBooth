@@ -38,9 +38,10 @@ test('Photos workspace preserves selection, order and edits across Home and Back
   await expect(page.getByLabel('Include photo 3', { exact: true })).toBeDisabled();
   await page.getByLabel('Include photo 1', { exact: true }).uncheck();
   await page.getByLabel('Include photo 3', { exact: true }).check();
-  await page.getByRole('button', { name: 'Move photo 3 up' }).click();
-  await expect(page.locator('.gallery-import-card[data-selected="true"] strong')).toHaveText(['memory-3.png', 'memory-2.png']);
-  const sources = await page.locator('.gallery-import-card[data-selected="true"] img').evaluateAll((nodes) => nodes.map((node) => node.src));
+  await page.getByLabel('Include photo 2', { exact: true }).uncheck();
+  await page.getByLabel('Include photo 2', { exact: true }).check();
+  await expect(page.getByLabel('Include photo 3', { exact: true }).getByLabel('Strip position 1')).toBeVisible();
+  const sources = await page.locator('.workspace-strip-miniature img[alt^="Captured photo"]').evaluateAll((nodes) => nodes.map((node) => node.src));
   await noOverflow(page);
   const list = await page.locator('.gallery-import-list').boundingBox();
   const actions = await page.locator('.gallery-import-footer').boundingBox();
@@ -113,4 +114,70 @@ test('five gallery photos suggest six slots without dropping photos', async ({ p
   await page.getByRole('button', { name: /4-Grid Classic/ }).click();
   await expect(page.locator('.gallery-import-card')).toHaveCount(5);
   await expect(page.getByRole('button', { name: 'Continue to design' })).toBeEnabled();
+});
+
+test('tap order, confirmed removal, undo and local draft recovery keep the design', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
+  await page.getByRole('button', { name: /Dual Strip/ }).click();
+  await addPhotos(page, 3);
+  await page.getByRole('button', { name: 'Choose order' }).click();
+  await page.getByLabel('Include photo 3', { exact: true }).check();
+  await page.getByLabel('Include photo 1', { exact: true }).check();
+  await expect(page.getByLabel('Include photo 3', { exact: true }).getByLabel('Strip position 1')).toBeVisible();
+  await expect(page.getByLabel('Include photo 1', { exact: true }).getByLabel('Strip position 2')).toBeVisible();
+  await page.getByRole('button', { name: 'Remove photo 3', exact: true }).click();
+  await page.getByRole('button', { name: 'Keep photo' }).click();
+  await expect(page.locator('.shot-card')).toHaveCount(3);
+  await page.getByRole('button', { name: 'Remove photo 3', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove photo', exact: true }).click();
+  await expect(page.locator('.shot-card')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.locator('.shot-card')).toHaveCount(3);
+  await expect(page.getByLabel('Include photo 3', { exact: true }).getByLabel('Strip position 1')).toBeVisible();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
+  await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
+  await page.getByRole('slider', { name: 'Zoom' }).fill('2');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.getByLabel('Caption under LumiBooth (optional)').fill('Saved locally');
+  await page.setViewportSize({ width: 360, height: 740 });
+  const previewBefore = await page.locator('.design-stage').boundingBox();
+  const tabsBefore = await page.locator('.design-tabs').boundingBox();
+  const controls = page.getByLabel('Editing controls', { exact: true });
+  await controls.hover();
+  await page.mouse.wheel(0, 800);
+  await expect.poll(() => controls.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+  expect(await page.locator('.design-stage').boundingBox()).toEqual(previewBefore);
+  expect(await page.locator('.design-tabs').boundingBox()).toEqual(tabsBefore);
+  expect(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight)).toBe(true);
+
+  await expect.poll(() => page.evaluate(() => new Promise((resolve, reject) => {
+    const request = indexedDB.open('lumibooth-local-draft', 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const read = db.transaction('drafts').objectStore('drafts').get('current');
+      read.onsuccess = () => { resolve(read.result?.session.caption); db.close(); };
+    };
+  }))).toBe('Saved locally');
+  await page.reload();
+  await expect(page.getByLabel('Caption under LumiBooth (optional)')).toHaveValue('Saved locally');
+  await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
+  await expect(page.getByRole('slider', { name: 'Zoom' })).toHaveValue('2');
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.getByRole('link', { name: 'Back to previous step' }).click();
+  await expect(page.getByLabel('Include photo 3', { exact: true }).getByLabel('Strip position 1')).toBeVisible();
+  await expect(page.locator('.shot-select img').first()).toHaveJSProperty('naturalWidth', 80);
+});
+
+test('removing the only photo keeps Undo available', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
+  await addPhotos(page, 1);
+  await page.getByRole('button', { name: 'Remove photo 1', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Remove photo', exact: true }).click();
+  await expect(page.locator('.shot-card')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.locator('.shot-card')).toHaveCount(1);
+  await expect(page.locator('.shot-select img')).toHaveJSProperty('naturalWidth', 80);
 });

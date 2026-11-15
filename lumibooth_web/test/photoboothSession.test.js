@@ -103,3 +103,19 @@ test('gallery suggests a fitting layout until the user chooses one, including fi
   assert.equal(session.layout.count, 4);
   assert.equal(session.reviewItems.length, 6);
 });
+
+test('selection follows tap order and Undo restores removed photos and crops', () => {
+  let session = sessionReducer(null, { type: 'start', layout: layouts[2] });
+  session = sessionReducer(session, { type: 'addGallery', images: [0, 1, 2].map(i => ({url: `photo-${i}`})) });
+  session = sessionReducer(session, { type: 'reviewClear' });
+  for (const index of [2, 0, 1]) session = sessionReducer(session, { type: 'reviewSelect', index });
+  assert.deepEqual(session.photos, ['photo-2', 'photo-0', 'photo-1']);
+  session = sessionReducer(session, { type: 'crop', index: 0, crop: {x: .2, y: .4, zoom: 2} });
+  session = sessionReducer(session, { type: 'reviewRemove', index: 2 });
+  assert.deepEqual(session.photos, ['photo-0', 'photo-1']);
+  session = sessionReducer(session, { type: 'undo' });
+  assert.deepEqual(session.photos, ['photo-2', 'photo-0', 'photo-1']);
+  assert.equal(session.crops[0].zoom, 2);
+  session = sessionReducer(session, { type: 'undo' });
+  assert.equal(session.crops[0].zoom, 1);
+});

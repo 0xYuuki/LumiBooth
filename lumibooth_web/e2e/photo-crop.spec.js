@@ -24,7 +24,7 @@ test('photo crop exports the chosen region and persists through frames and revie
   for (let i = 0; i < 12; i++) await aperture.press('ArrowRight');
   await expect(rendered).toHaveCSS('object-position', '0% 50%');
   await page.getByRole('button', { name: 'Done', exact: true }).click();
-  await page.getByRole('button', { name: 'Colors', exact: true }).click();
+  await page.getByLabel('Frame category', { exact: true }).selectOption('Colors');
   await page.getByRole('button', { name: 'Black', exact: true }).click();
   await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
   await expect(zoom).toHaveValue('2');

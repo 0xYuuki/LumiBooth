@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { loadDraft, saveDraft } from './localDraft';
 import { PhotoboothContext } from './photoboothContext';
 import { sessionReducer } from './photoboothSession';
 
@@ -6,13 +7,37 @@ const IDLE_TIMEOUT = 5 * 60 * 1000;
 
 export function PhotoboothProvider({ children }) {
   const [session, dispatch] = useReducer(sessionReducer, null);
+  const [loading, setLoading] = useState(true);
+  const [draftError, setDraftError] = useState('');
+  const [savedRevision, setSavedRevision] = useState(null);
   const hasSession = session !== null;
   const motionWorker = useRef(null);
   const motionId = useRef(0);
   const galleryUrls = useRef(new Set());
 
   useEffect(() => {
-    const retained = new Set([...(session?.photos ?? []), ...(session?.reviewItems ?? []).map((item) => item.photo)]);
+    let active = true;
+    loadDraft().then(draft => {
+      if (!active) { for (const item of draft?.reviewItems ?? []) URL.revokeObjectURL(item.photo); return; }
+      if (draft) {
+        for (const item of draft.reviewItems) galleryUrls.current.add(item.photo);
+        dispatch({ type: 'restore', session: draft });
+      }
+    }).catch(() => { if (active) setDraftError('Draft recovery is unavailable in this browser.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    let active = true;
+    saveDraft(session).then(() => { if (active) { setDraftError(''); setSavedRevision(session?.designRevision ?? null); } })
+      .catch(() => { if (active) setDraftError('Could not save this draft on your device. Keep this tab open.'); });
+    return () => { active = false; };
+  }, [session, loading]);
+
+  useEffect(() => {
+    const retained = new Set([...(session?.photos ?? []), ...(session?.reviewItems ?? []).map((item) => item.photo), ...(session?.history ?? []).flatMap(state => (state.reviewItems ?? []).map(item => item.photo))]);
     for (const url of galleryUrls.current) {
       if (!retained.has(url)) {
         URL.revokeObjectURL(url);
@@ -80,8 +105,7 @@ export function PhotoboothProvider({ children }) {
     };
     const releaseOnPageHide = () => {
       stopWorker();
-      releaseGalleryUrls();
-      dispatch({ type: 'reset' });
+      dispatch({ type: 'discardMotion' });
     };
     const discardWhenHidden = () => {
       if (document.hidden) discard();
@@ -103,8 +127,8 @@ export function PhotoboothProvider({ children }) {
   }, [dispatchAction, hasSession, releaseGalleryUrls]);
 
   return (
-    <PhotoboothContext.Provider value={{ session, dispatch: dispatchAction, capturePhoto }}>
-      {children}
+    <PhotoboothContext.Provider value={{ session, draftError, draftStatus: draftError || (savedRevision === session?.designRevision ? 'Saved on this device' : 'Saving draft…'), dispatch: dispatchAction, capturePhoto }}>
+      {loading ? <p role="status" className="booth-intro">Opening your photo booth…</p> : children}
     </PhotoboothContext.Provider>
   );
 }

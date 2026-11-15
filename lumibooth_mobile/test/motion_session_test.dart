@@ -1,3 +1,4 @@
+import 'draft_test_support.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -10,10 +11,13 @@ import 'package:lumibooth_mobile/motion_strip_view.dart';
 import 'package:lumibooth_mobile/strip.dart';
 
 void main() {
+  setUp(useUnavailableDraftStorage);
   testWidgets(
     'finish screen pairs clips by shot and discards them in the background',
     (tester) async {
-      await tester.pumpWidget(const LumiBooth());
+      addTearDown(() => disposeBooth(tester));
+    await tester.pumpWidget(const LumiBooth());
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Create photo strip'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('3 photos'));

@@ -1,6 +1,6 @@
 # LumiBooth
 
-LumiBooth is a browser-based photo booth. Guests choose 1, 2, 3, 4, or 6 photos per strip, take their photos, and choose from 19 frame templates or customize with colors, patterns, and stickers. They can then download a PNG or print through the browser. Photos and edits stay in the active browser tab and are cleared when the guest finishes, cancels, returns to the start, or leaves the booth idle for five minutes. Downloaded images stay on the device.
+LumiBooth is a browser-based photo booth. Guests choose 1, 2, 3, 4, or 6 photos per strip, take their photos, and choose from 19 frame templates or customize with colors, patterns, and stickers. They can then download a PNG or print through the browser. Photos and edits stay in the active browser tab, including when returning Home. Starting fresh or closing/reloading the page clears them. Motion buffers are released after five minutes of inactivity. Downloaded images stay on the device.
 
 ## Run locally
 
@@ -15,14 +15,13 @@ Open the localhost URL printed by Vite and grant camera permission. The admin ro
 
 ## Choose from gallery
 
-- **Start photo booth** and **Choose from Gallery** open the same layout selection. After choosing a layout, the first opens the camera and the second opens an empty gallery/review page. Use **Add photos** to open the device picker.
-- Step 2 shares camera and gallery/review views. Camera capture opens review when the strip is full. Add up to 12 photos from either source, select exactly the layout’s photo count, and reorder or remove photos before **Start editing**. Extra camera shots stay available as alternatives. Back arrows beside each step label preserve the active photos and design when returning to previous steps.
+- **Create photo strip** opens the Photos workspace. Take photos or add from gallery, choose a layout inline, select and arrange up to 12 photos, then continue to Design and Save. Gallery imports suggest a fitting layout until you choose one manually. Five photos suggest six slots: add another or choose four favorites. Back from camera returns to Photos; Back from Photos returns Home. Home preserves the unfinished strip and offers **Continue your strip** and **Start fresh**, which confirms before clearing it.
 - Files larger than 20 MB are skipped with a message. Images are processed locally and downscaled to a maximum 2048-pixel edge for memory use. They are not uploaded unless the user later chooses an existing sharing feature.
-- The source files are not edited. Canceling the picker returns to the home page; corrupt or unsupported images are reported and can be replaced.
+- The source files are not edited. Canceling the picker leaves the Photos workspace unchanged; corrupt or unsupported images are reported and can be replaced.
 
 ## Adjust photos inside frames
 
-In Step 3, tap a photo directly on the strip. Its enlarged adjustment view shows the whole image, dims the parts outside the frame opening, and exposes four corner handles at the current fit. Drag the image to reposition, pull a corner to resize proportionally, pinch on mobile, or use arrow keys and **Zoom**. **Fit image** brings all handles back into view without changing the crop. **Reset crop** restores the automatic fit; **Done**, Escape, or tapping outside closes the controls. The Photos tab is no longer needed. Originals stay unchanged, crops follow photos through review and reordering, and PNG/GIF exports use the same crop.
+In Step 2, tap a photo directly on the strip. Its enlarged adjustment view shows the whole image, dims the parts outside the frame opening, and exposes four corner handles at the current fit. Drag the image to reposition, pull a corner to resize proportionally, pinch on mobile, or use arrow keys and **Zoom**. **Fit image** brings all handles back into view without changing the crop. **Reset crop** restores the automatic fit; **Done**, Escape, or tapping outside closes the controls. The Photos tab is no longer needed. Originals stay unchanged, crops follow photos through review and reordering, and PNG/GIF exports use the same crop.
 
 ## Verify changes
 

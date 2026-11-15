@@ -18,23 +18,22 @@ async function addPhotos(page, count) {
 
 async function noOverflow(page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  const back = page.getByRole('link', { name: 'Back to previous step' });
+  const back = page.locator('.booth-back');
   await expect(back).toBeVisible();
   expect(await back.evaluate((node) => node.parentElement.className)).toBe('booth-step-navigation');
 }
 
-test('gallery starts with shared layout and preserves selection, order and edits across back navigation', async ({ page }) => {
+test('Photos workspace preserves selection, order and edits across Home and Back', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 740 });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Choose from Gallery', exact: true }).click();
-  await expect(page).toHaveURL(/\/layout\?source=gallery$/);
-  await expect(page.getByRole('heading', { name: 'Choose your layout.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
+  await expect(page.getByRole('heading', { name: 'Your strip starts here.' })).toBeVisible();
   await noOverflow(page);
   await page.getByRole('button', { name: /Dual Strip/ }).click();
   await expect(page).toHaveURL(/\/gallery$/);
   await expect(page.getByRole('heading', { name: 'Let’s fill your strip.' })).toBeVisible();
   await expect(page.locator('select')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Start editing' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Continue to design' })).toBeDisabled();
   await addPhotos(page, 3);
   await expect(page.getByLabel('Include photo 3', { exact: true })).toBeDisabled();
   await page.getByLabel('Include photo 1', { exact: true }).uncheck();
@@ -46,21 +45,21 @@ test('gallery starts with shared layout and preserves selection, order and edits
   const list = await page.locator('.gallery-import-list').boundingBox();
   const actions = await page.locator('.gallery-import-footer').boundingBox();
   expect(actions.y).toBeGreaterThanOrEqual(list.y + list.height);
-  await page.getByRole('link', { name: 'Back to previous step' }).click();
-  await page.getByRole('button', { name: /Dual Strip/ }).click();
+  await page.getByRole('link', { name: 'Back to home', exact: true }).click();
+  await page.getByRole('link', { name: 'Continue your strip' }).click();
   await expect(page.getByLabel('Include photo 1', { exact: true })).not.toBeChecked();
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
   await expect(page.getByRole('img', { name: /Captured photo/ })).toHaveCount(2);
   expect(await page.getByRole('img', { name: /Captured photo/ }).evaluateAll((nodes) => nodes.map((node) => node.src))).toEqual(sources);
   await page.getByLabel('Caption under LumiBooth (optional)').fill('Keep this caption');
   await page.getByRole('link', { name: 'Back to previous step' }).click();
   await expect(page.locator('.gallery-import-card')).toHaveCount(3);
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
   await expect(page.getByLabel('Caption under LumiBooth (optional)')).toHaveValue('Keep this caption');
   await noOverflow(page);
   await page.getByRole('button', { name: 'Next', exact: true }).click();
   await noOverflow(page);
-  const finish = page.getByRole('button', { name: 'Finish Session' });
+  const finish = page.getByRole('button', { name: 'Back to home' });
   await expect(finish).toBeVisible();
   expect(await finish.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   await page.getByRole('link', { name: 'Back to previous step' }).click();
@@ -68,8 +67,10 @@ test('gallery starts with shared layout and preserves selection, order and edits
 });
 
 test('camera captures go to review and can be replaced by gallery or retaken before editing', async ({ page }) => {
-  await page.goto('/layout');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
   await page.getByRole('button', { name: /Single Photo/ }).click();
+  await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   await page.getByRole('button', { name: 'Take photo', exact: true }).click();
   await expect(page).toHaveURL(/\/gallery$/);
   await expect(page.getByLabel('Include photo 1', { exact: true })).toBeChecked();
@@ -82,18 +83,34 @@ test('camera captures go to review and can be replaced by gallery or retaken bef
   await expect(page.getByLabel('Include photo 1', { exact: true })).toBeChecked();
   await expect(page.getByLabel('Include photo 3', { exact: true })).not.toBeChecked();
   await page.getByLabel('Include photo 1', { exact: true }).uncheck();
-  await expect(page.getByRole('button', { name: 'Start editing' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Continue to design' })).toBeDisabled();
   await page.getByLabel('Include photo 2', { exact: true }).check();
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
   await expect(page.getByRole('img', { name: 'Captured photo 1' })).toHaveAttribute('src', /^blob:/);
 });
 
 test('camera can switch to an empty gallery review without losing the layout', async ({ page }) => {
-  await page.goto('/layout');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
   await page.getByRole('button', { name: /Triple Strip/ }).click();
+  await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   await page.getByRole('link', { name: /Choose from Gallery \/ Review photos/ }).click();
-  await expect(page.getByText('Triple Strip', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Add photos' })).toBeEnabled();
-  await page.getByRole('link', { name: 'Back to previous step' }).click();
   await expect(page.getByRole('button', { name: /Triple Strip/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Add from gallery' })).toBeEnabled();
+  await page.getByRole('link', { name: 'Back to home', exact: true }).click();
+  await page.getByRole('link', { name: 'Continue your strip' }).click();
+  await expect(page.getByRole('button', { name: /Triple Strip/ })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('five gallery photos suggest six slots without dropping photos', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
+  await addPhotos(page, 5);
+  await expect(page.getByRole('button', { name: /6-Grid Wide/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.gallery-import-card')).toHaveCount(5);
+  await expect(page.getByRole('button', { name: 'Continue to design' })).toBeDisabled();
+  await expect(page.getByText('Add one more photo for this layout, or choose 4 photos and select your favorites.')).toBeVisible();
+  await page.getByRole('button', { name: /4-Grid Classic/ }).click();
+  await expect(page.locator('.gallery-import-card')).toHaveCount(5);
+  await expect(page.getByRole('button', { name: 'Continue to design' })).toBeEnabled();
 });

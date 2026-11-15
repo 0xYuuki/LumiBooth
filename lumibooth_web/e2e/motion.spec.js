@@ -22,8 +22,10 @@ async function openCamera(page, layout) {
       return stream;
     };
   });
-  await page.goto('/layout');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
   await page.getByRole('button', { name: layout }).click();
+  await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Take photo' })).toBeEnabled();
 }
 
@@ -91,7 +93,7 @@ test('quick consecutive motion shots keep five seconds each on the six-photo str
     await expect(page.getByText(`${count} of 6 photos captured`)).toBeVisible();
   }
   await shutter.click();
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
 
   await page.getByRole('button', { name: 'Tube TV' }).click();
   await page.getByRole('textbox', { name: 'Caption under LumiBooth (optional)' }).fill('Studio night');
@@ -179,7 +181,7 @@ test('an encoder failure still leaves a downloadable photo strip', async ({ page
   await openCamera(page, /Single Photo/);
   await holdColor(page, '#1414ee', 400);
   await page.getByRole('button', { name: 'Take photo' }).click();
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.getByText('Motion unavailable for this shot.')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Save to Device' })).toHaveAttribute('download', 'lumibooth-strip.png');
@@ -195,7 +197,7 @@ test('a stalled motion buffer still saves the still after the countdown', async 
   });
   await openCamera(page, /Single Photo/);
   await page.getByRole('button', { name: 'Take photo' }).click();
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
   await page.getByRole('button', { name: 'Next' }).click();
   await expect(page.getByText('Motion unavailable for this shot.')).toBeVisible();
   await expect(page.getByRole('img', { name: 'Your finished LumiBooth photo strip' })).toBeVisible();

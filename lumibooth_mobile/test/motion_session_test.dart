@@ -14,9 +14,11 @@ void main() {
     'finish screen pairs clips by shot and discards them in the background',
     (tester) async {
       await tester.pumpWidget(const LumiBooth());
-      await tester.tap(find.text('Start photo booth'));
+      await tester.tap(find.text('Create photo strip'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Triple Strip'));
+      await tester.tap(find.text('3 photos'));
+      await tester.pump();
+      await tester.tap(find.text('Take photos'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
@@ -48,8 +50,8 @@ void main() {
       });
       await tester.pump();
 
-      expect(find.text('Your photos, your order.'), findsOneWidget);
-      await tester.tap(find.text('Next: Decorate strip'));
+      expect(find.text('Your strip starts here.'), findsOneWidget);
+      await tester.tap(find.text('Continue to design'));
       await tester.pump();
 
       await tester.runAsync(() async {

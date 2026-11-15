@@ -1,9 +1,10 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { PhotoStrip } from './PhotoStrip';
 import { Camera, ImagePlus, ArrowRight } from 'lucide-react';
 import { BoothHeader, BoothStep, MiniStrip } from '../../components/BoothUI';
 import { PhotoboothContext } from '../../context/photoboothContext';
-import { requiredPhotos, reviewItems } from '../../context/photoboothSession';
+import { layouts, requiredPhotos, reviewItems } from '../../context/photoboothSession';
 import { prepareGalleryFiles, releaseGalleryFiles } from './galleryImport';
 
 const MAX_PHOTOS = 12;
@@ -49,36 +50,43 @@ export default function WebGallerySelection() {
     }
   };
 
-  const cancel = () => {
-    dispatch({ type: 'reset' });
-    navigate('/', { replace: true });
-  };
-
   return (
     <div className="booth-shell">
-      <BoothHeader step="02 / PHOTOS" onCancel={cancel} />
+      <BoothHeader step="01 / PHOTOS" />
       <main className="booth-content gallery-import-page">
-        <BoothStep number={2} back="/layout" disabled={busy} />
-        <h1 className="booth-title">Your photos, your order.</h1>
-        <p className="booth-intro">Add photos from your gallery or take them here. Select the photos for your strip, then arrange them in order. Everything stays in this browser.</p>
-        <div className="review-layout-summary">
-          <MiniStrip count={session.layout.count} columns={session.layout.columns} />
-          <div><strong>{session.layout.name}</strong><p>{required} {required === 1 ? 'photo' : 'photos'} in your strip</p></div>
-          <Link className="booth-link" to="/layout">Change layout</Link>
+        <BoothStep number={1} back="/" backLabel="Back to home" disabled={busy} />
+        <h1 className="booth-title">Your strip starts here.</h1>
+        <p className="booth-intro">Take a photo or bring your favorites. Choose a layout, then put everything in order.</p>
+        <div className="workspace-sources">
+          <Link className="booth-button booth-secondary" to="/camera"><Camera size={18} aria-hidden="true" /> Take photos</Link>
+          <button className="booth-button" onClick={() => inputRef.current?.click()} disabled={busy || images.length >= MAX_PHOTOS}>
+            <ImagePlus size={18} aria-hidden="true" /> {busy ? 'Preparing photos…' : 'Add from gallery'}
+          </button>
         </div>
-        <div className="photo-source-switch" aria-label="Photo source">
-          <Link to="/camera"><Camera size={17} aria-hidden="true" /> Take photos</Link>
-          <span aria-current="page">Gallery &amp; review</span>
-        </div>
+        <section className="workspace-layouts" aria-label="Strip layout">
+          <div className="workspace-section-title"><h2>Layout</h2><span>Choose your fit</span></div>
+          <div className="workspace-layout-options">
+            {layouts.map((layout) => <button key={layout.id} className="workspace-layout-option" aria-label={`${layout.name}, ${layout.count} photos`} aria-pressed={session.layout.id === layout.id}
+              disabled={busy} onClick={() => dispatch({ type: 'changeLayout', layout })}>
+              <MiniStrip count={layout.count} columns={layout.columns} />
+              <span>{layout.count} {layout.count === 1 ? 'photo' : 'photos'}</span>
+            </button>)}
+          </div>
+          {session.photos.length > 0 && <div className="workspace-strip-preview">
+            <div><strong>Your strip</strong><p>{session.photos.length} of {required} photos selected</p></div>
+            <div className="workspace-strip-miniature"><PhotoStrip session={session} /></div>
+          </div>}
+        </section>
         <p className="gallery-count" aria-live="polite">
           {session.photos.length} of {required} photos selected.{exactCount ? ' Ready to edit.' : ` Select ${required - session.photos.length} more.`}
         </p>
+        {images.length === 5 && required === 6 && <p className="gallery-message">Add one more photo for this layout, or choose 4 photos and select your favorites.</p>}
         {message && <p className="gallery-message" role="status">{message}</p>}
         <input ref={inputRef} className="gallery-file-input" type="file" accept="image/*" multiple onChange={onFilesSelected} aria-label="Choose image files" />
         {!images.length && <div className="review-empty">
           <ImagePlus size={32} aria-hidden="true" />
           <h2>Let’s fill your strip.</h2>
-          <p>Add photos below, or switch to the camera to take a new one.</p>
+          <p>Take photos or add from your gallery above. You can mix both.</p>
         </div>}
         <div className="gallery-import-list">
           {images.map((image, index) => {
@@ -105,11 +113,8 @@ export default function WebGallerySelection() {
           })}
         </div>
         <div className="gallery-import-footer">
-          <button className="booth-button booth-secondary" type="button" onClick={() => inputRef.current?.click()} disabled={busy || images.length >= MAX_PHOTOS}>
-            <ImagePlus size={18} aria-hidden="true" /> {busy ? 'Preparing photos…' : 'Add photos'}
-          </button>
           <button className="booth-button" type="button" onClick={() => navigate('/editor')} disabled={!exactCount || busy}>
-            Start editing <ArrowRight size={18} aria-hidden="true" />
+            Continue to design <ArrowRight size={18} aria-hidden="true" />
           </button>
         </div>
       </main>

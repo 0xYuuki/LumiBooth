@@ -30,14 +30,14 @@ Select your phone if Flutter lists multiple devices. For iOS, configure a signin
 - The timer cycles through off, 3, 5, and 10 seconds. A camera switch is available when both front and rear cameras are detected.
 - The camera uses a fixed 4:3 view. Choose a frame after taking your photos, and the editor crops them to fill each opening without stretching.
 - Select **Preview strip** to render a PNG. **Save or share PNG** opens the system share sheet, where the available save destinations depend on the device. **Print photo** opens the system print interface.
-- Photos stay in the active session. **End session**, leaving the session, or five minutes of inactivity releases the session images. Sharing hands a temporary PNG to the platform and can create copies outside the app.
+- Photos stay in the active session. Returning Home preserves the unfinished strip until **Start fresh** is confirmed or the app process closes. Sharing hands a temporary PNG to the platform and can create copies outside the app.
 
 ## Choose from gallery
 
 - On Android, the system photo picker is used where available; on iOS, the native Photos picker opens. The platform picker may show only selected or limited photos, and cancelling returns to the booth without changing the camera flow.
-- Both **Start photo booth** and **Choose from gallery** open the same layout picker first. Gallery then opens an empty review page with **Add photos**; camera capture opens that same review page when the layout is filled. Mix gallery photos and camera shots, choose favorites, reorder selected shots, and remove unwanted ones before editing. The editor opens only when the selected count matches the layout. Back arrows beside the step label preserve the active photos, layout and design.
+- **Create photo strip** opens the Photos workspace. Take photos or add from gallery, choose a layout inline, select and arrange up to 12 photos, then continue to Design and Save. Gallery imports suggest a fitting layout until you choose one manually. Five photos suggest six slots: add another or choose four favorites. Back from camera returns to Photos; Back from Photos returns Home. Home preserves the unfinished strip and offers **Continue your strip** and **Start fresh**, which confirms before clearing it.
 - Imported images are decoded to a maximum 1600-pixel edge to bound memory use while retaining the full photo composition for crop and frame changes. The source file is not modified.
-- Import and editing work offline and do not upload photos. Gallery selection is temporary: photos are released when the session ends or after five minutes of inactivity. Remote Booth is a separate online feature.
+- Import and editing work offline and do not upload photos. Gallery selection is temporary: photos are released when starting fresh or when the app process closes. Remote Booth is a separate online feature.
 - If Android closes the app while the system picker is open, LumiBooth attempts to recover the picker result when the app restarts. Unsupported or damaged images are reported so they can be replaced.
 
 ## Adjust photos in frames

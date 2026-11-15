@@ -12,7 +12,7 @@ import { cameraAspectRatio, drawCameraFrame } from './cameraFraming';
 const WebCamera = () => {
   const webcamRef = useRef(null);
   const navigate = useNavigate();
-  const { session, dispatch, capturePhoto } = useContext(PhotoboothContext);
+  const { session, capturePhoto } = useContext(PhotoboothContext);
   const { layout, photos } = session;
   const timeout = useRef(null);
   const [timer, setTimer] = useState(0);
@@ -80,11 +80,6 @@ const WebCamera = () => {
     tick();
   };
 
-  const cancel = () => {
-    dispatch({ type: 'reset' });
-    navigate('/', { replace: true });
-  };
-
   const retryCamera = () => {
     setError('');
     setReady(false);
@@ -93,9 +88,9 @@ const WebCamera = () => {
 
   return (
     <div className="booth-shell">
-      <BoothHeader step="02 / CAPTURE" onCancel={cancel} />
+      <BoothHeader step="01 / PHOTOS" />
       <main className="booth-content capture-page">
-        <BoothStep number={2} back="/layout" />
+        <BoothStep number={1} back="/gallery" backLabel="Back to photos" />
         <h1 className="booth-title">Ready for your close-up?</h1>
         <p className="booth-intro" aria-live="polite">{photos.length} of {layout.count} photos captured</p>
         {photos.length === layout.count && <p className="gallery-count">Your strip is full. Take another photo to add an alternative, then choose your favorites in review.</p>}

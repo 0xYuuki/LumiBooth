@@ -64,6 +64,7 @@ test('motion results stay with their shot and do not invalidate a concurrent str
 
 test('review selects and orders a mixed photo pool while preserving motion and design', () => {
   let session = sessionReducer(null, { type: 'start', layout: layouts[1] });
+  session = sessionReducer(session, { type: 'changeLayout', layout: layouts[1] });
   session = sessionReducer(session, { type: 'capture', photo: 'camera', motion: { id: 42, status: 'pending' } });
   session = sessionReducer(session, { type: 'addGallery', images: [{ url: 'gallery-1', name: 'One' }, { url: 'gallery-2', name: 'Two' }] });
   assert.deepEqual(session.photos, ['camera', 'gallery-1']);
@@ -88,4 +89,17 @@ test('review selects and orders a mixed photo pool while preserving motion and d
   session = sessionReducer(session, { type: 'reviewSelect', index: 1 });
   assert.deepEqual(session.photos, ['camera']);
   assert.equal(session.motions[0].status, 'unavailable');
+});
+
+test('gallery suggests a fitting layout until the user chooses one, including five photos', () => {
+  let session = sessionReducer(null, { type: 'start', layout: layouts[2] });
+  session = sessionReducer(session, { type: 'addGallery', images: Array.from({ length: 5 }, (_, i) => ({url: `photo-${i}`})) });
+  assert.equal(session.layout.count, 6);
+  assert.equal(session.photos.length, 5);
+  session = sessionReducer(session, { type: 'changeLayout', layout: layouts[3] });
+  assert.equal(session.photos.length, 4);
+  assert.equal(session.reviewItems.length, 5);
+  session = sessionReducer(session, { type: 'addGallery', images: [{url: 'another'}] });
+  assert.equal(session.layout.count, 4);
+  assert.equal(session.reviewItems.length, 6);
 });

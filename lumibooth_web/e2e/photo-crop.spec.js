@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test';
 import { Buffer } from 'node:buffer';
 
 test('photo crop exports the chosen region and persists through frames and review', async ({ page }) => {
-  await page.goto('/layout?source=gallery');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
   await page.getByRole('button', { name: /Single Photo/ }).click();
   const bytes = await page.evaluate(() => {
     const canvas = document.createElement('canvas'); canvas.width = 600; canvas.height = 200;
@@ -13,7 +14,7 @@ test('photo crop exports the chosen region and persists through frames and revie
     return canvas.toDataURL().split(',')[1];
   });
   await page.getByLabel('Choose image files').setInputFiles({ name: 'colors.png', mimeType: 'image/png', buffer: Buffer.from(bytes, 'base64') });
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
   await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
   const zoom = page.getByRole('slider', { name: 'Zoom' });
   await zoom.fill('2');
@@ -51,7 +52,7 @@ test('photo crop exports the chosen region and persists through frames and revie
   expect(pixel).toEqual([0, 0, 255, 255]);
   await page.getByRole('button', { name: 'Edit Strip' }).click();
   await page.getByRole('link', { name: 'Back to previous step' }).click();
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
   await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
   await expect(zoom).toHaveValue('2');
   await expect(rendered).toHaveCSS('object-position', '100% 50%');
@@ -64,10 +65,12 @@ test('photo crop exports the chosen region and persists through frames and revie
 
 test('mobile pinch zooms a photo without scrolling the adjustment surface', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
-  await page.goto('/layout');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
   await page.getByRole('button', { name: /Single Photo/ }).click();
+  await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   await page.getByRole('button', { name: 'Take photo', exact: true }).click();
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
   await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
   const photo = page.getByRole('button', { name: 'Reposition photo' });
   await photo.scrollIntoViewIfNeeded();
@@ -94,10 +97,12 @@ test('animated export applies the same crop as the displayed strip', async ({ pa
       paint(); setInterval(paint, 33); return canvas.captureStream(30);
     };
   });
-  await page.goto('/layout');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
   await page.getByRole('button', { name: /Single Photo/ }).click();
+  await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   await page.getByRole('button', { name: 'Take photo', exact: true }).click();
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
   await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
   await page.getByRole('slider', { name: 'Zoom' }).fill('2');
   const photo = page.getByRole('button', { name: 'Reposition photo' });
@@ -126,10 +131,12 @@ test('animated export applies the same crop as the displayed strip', async ({ pa
 
 test('tap-to-edit shows full bounds and four usable corner handles without a Photos tab', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
-  await page.goto('/layout');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
   await page.getByRole('button', { name: /Single Photo/ }).click();
+  await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   await page.getByRole('button', { name: 'Take photo', exact: true }).click();
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
   await expect(page.getByRole('button', { name: 'Photos', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
   await expect(page.getByRole('img', { name: 'Full original photo' })).toBeVisible();

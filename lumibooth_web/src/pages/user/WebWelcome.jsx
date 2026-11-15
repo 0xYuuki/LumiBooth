@@ -1,14 +1,19 @@
-import { useContext, useEffect } from 'react';
+import { useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
+import { layouts } from '../../context/photoboothSession';
 import { PhotoboothContext } from '../../context/photoboothContext';
 import { BoothHeader, MiniStrip } from '../../components/BoothUI';
 import { printToPlayEnabled, remoteBoothEnabled } from '../../online/lumiClient';
 
 export default function WebWelcome() {
   const navigate = useNavigate();
-  const { dispatch } = useContext(PhotoboothContext);
-  useEffect(() => { dispatch({ type: 'reset' }); }, [dispatch]);
+  const { session, dispatch } = useContext(PhotoboothContext);
+  const start = () => {
+    if (session && !window.confirm('Start fresh? This will clear your current strip.')) return;
+    dispatch({ type: 'start', layout: layouts[2] });
+    navigate('/gallery');
+  };
 
   return (
     <div className="booth-shell">
@@ -17,13 +22,11 @@ export default function WebWelcome() {
         <div className="hero-copy">
           <p className="booth-eyebrow">THE DIGITAL PHOTO BOOTH</p>
           <h1>Make a little<br /> <em>keepsake.</em></h1>
-          <p>Pick a layout, take your photos, and give your strip a frame of its own.</p>
-          <Link className="booth-button" to="/layout">
-            Start photo booth <ArrowRight size={18} aria-hidden="true" />
-          </Link>
-          <button className="booth-button booth-secondary" type="button" onClick={() => navigate('/layout?source=gallery')}>
-            Choose from Gallery
-          </button>
+          <p>A few photos. A little personality. A keepsake that’s yours.</p>
+          {session ? <>
+            <Link className="booth-button" to={session.roomId ? '/editor' : '/gallery'}>Continue your strip <ArrowRight size={18} aria-hidden="true" /></Link>
+            <button className="booth-link" onClick={start}>Start fresh</button>
+          </> : <button className="booth-button" onClick={start}>Create photo strip <ArrowRight size={18} aria-hidden="true" /></button>}
           {remoteBoothEnabled && <Link className="booth-button booth-secondary" to="/room">Booth with a friend</Link>}
           {printToPlayEnabled && <Link className="booth-link" to="/print-links">Manage gallery links</Link>}
         </div>

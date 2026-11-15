@@ -71,7 +71,7 @@ export function PhotoboothProvider({ children }) {
     let timeout;
     function restartTimeout() {
       clearTimeout(timeout);
-      timeout = setTimeout(() => dispatchAction({ type: 'reset' }), IDLE_TIMEOUT);
+      timeout = setTimeout(() => { stopWorker(); dispatch({ type: 'discardMotion' }); }, IDLE_TIMEOUT);
     }
 
     const discard = () => {

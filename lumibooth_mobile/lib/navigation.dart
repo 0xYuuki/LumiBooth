@@ -50,10 +50,7 @@ class MainNavigationScaffoldState extends State<MainNavigationScaffold> {
     }
 
     final photoState = _photoNavKey.currentState;
-    if (photoState != null && photoState.canPop()) {
-      await photoState.maybePop();
-      return;
-    }
+    if (photoState != null && await photoState.maybePop()) return;
 
     if (mounted) {
       await SystemNavigator.pop();
@@ -189,7 +186,10 @@ class _BottomBarItem extends StatelessWidget {
             children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 3,
+                ),
                 decoration: BoxDecoration(
                   color: selected ? wash : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),

@@ -154,6 +154,42 @@ class WelcomePage extends StatefulWidget {
 class _WelcomePageState extends State<WelcomePage> {
   final ImagePicker _imagePicker = ImagePicker();
   bool _selectingGallery = false;
+  bool _showSession = false;
+  Widget? _session;
+
+  void _createStrip([List<ui.Image> photos = const []]) {
+    setState(() {
+      _showSession = true;
+      _session = _SessionPage(
+        key: UniqueKey(),
+        layout: StripLayout.choices[2],
+        initialPhotos: photos,
+        fromGallery: true,
+        onHome: () => setState(() => _showSession = false),
+      );
+    });
+  }
+
+  Future<void> _startFresh() async {
+    final clear = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Start fresh?'),
+        content: const Text('This will clear your current strip.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep editing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Start fresh'),
+          ),
+        ],
+      ),
+    );
+    if (clear == true && mounted) _createStrip();
+  }
 
   @override
   void initState() {
@@ -183,10 +219,6 @@ class _WelcomePageState extends State<WelcomePage> {
       }
     }
   }
-
-  Future<void> _chooseFromGallery() => Navigator.of(context).push<void>(
-    MaterialPageRoute(builder: (_) => const _LayoutPage(fromGallery: true)),
-  );
 
   Future<void> _openGalleryFiles(List<XFile> files) async {
     if (files.length > 12) {
@@ -220,14 +252,7 @@ class _WelcomePageState extends State<WelcomePage> {
     }
     setState(() => _selectingGallery = false);
     if (failed > 0) _showMessage('$failed photos could not be restored.');
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => _LayoutPage(fromGallery: true, recoveredPhotos: images),
-      ),
-    );
-    for (final image in images) {
-      image.dispose();
-    }
+    _createStrip(images);
   }
 
   void _showMessage(String message) {
@@ -237,6 +262,19 @@ class _WelcomePageState extends State<WelcomePage> {
 
   @override
   Widget build(BuildContext context) {
+    return IndexedStack(
+      index: _showSession ? 1 : 0,
+      children: [
+        _home(context),
+        TickerMode(
+          enabled: _showSession,
+          child: _session ?? const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+
+  Widget _home(BuildContext context) {
     return Scaffold(
       appBar: const _BoothHeader(step: 'THE PHOTO BOOTH'),
       body: SafeArea(
@@ -292,7 +330,7 @@ class _WelcomePageState extends State<WelcomePage> {
             ),
             const SizedBox(height: 12),
             const Text(
-              'Pick a layout, take your photos, and give your strip a frame of its own.',
+              'A few photos. A little personality. A keepsake that’s yours.',
               style: TextStyle(
                 fontFamily: 'Outfit',
                 color: muted,
@@ -302,25 +340,25 @@ class _WelcomePageState extends State<WelcomePage> {
             ),
             const SizedBox(height: 24),
             FilledButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const _LayoutPage()),
-              ),
+              onPressed: _selectingGallery
+                  ? null
+                  : () {
+                      if (_session == null) {
+                        _createStrip();
+                      } else {
+                        setState(() => _showSession = true);
+                      }
+                    },
               icon: const Icon(Icons.arrow_forward),
-              label: const Text('Start photo booth'),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: _selectingGallery ? null : _chooseFromGallery,
-              icon: _selectingGallery
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.photo_library_outlined),
               label: Text(
-                _selectingGallery ? 'Preparing photos…' : 'Choose from gallery',
+                _session == null ? 'Create photo strip' : 'Continue your strip',
               ),
             ),
+            if (_session != null)
+              TextButton(
+                onPressed: _startFresh,
+                child: const Text('Start fresh'),
+              ),
             if (OnlineBooth.remoteEnabled) ...[
               const SizedBox(height: 10),
               OutlinedButton(
@@ -455,154 +493,17 @@ Future<ui.Image> _decodeGalleryImage(XFile file) async {
   }
 }
 
-class _LayoutPage extends StatelessWidget {
-  const _LayoutPage({
-    this.fromGallery = false,
-    this.recoveredPhotos = const [],
-    this.onSelected,
-  });
-  final bool fromGallery;
-  final List<ui.Image> recoveredPhotos;
-  final ValueChanged<StripLayout>? onSelected;
-
-  Widget _layoutCard(BuildContext context, StripLayout layout) {
-    return Material(
-      color: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: line),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () {
-          if (onSelected != null) {
-            onSelected!(layout);
-            return;
-          }
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => _SessionPage(
-                layout: layout,
-                fromGallery: fromGallery,
-                initialPhotos: [
-                  for (final image in recoveredPhotos) image.clone(),
-                ],
-              ),
-            ),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: wash,
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  child: Center(
-                    child: StripPreview(
-                      StripDesign(layout: layout, frame: StripFrame.lavender),
-                      maxWidth: layout.count == 3 ? 24 : 44,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          layout.name,
-                          style: const TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                            color: ink,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${layout.count} ${layout.count == 1 ? 'photo' : 'photos'}',
-                          style: const TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 13,
-                            color: muted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.arrow_outward, size: 18, color: purple),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: _BoothHeader(
-        step: '01 / LAYOUT',
-        onHome: () => Navigator.of(context).pop(),
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            _StepBack(number: 1, onBack: () => Navigator.of(context).pop()),
-            const _Heading(
-              '',
-              'Choose your layout.',
-              'How many photos would you like on your strip?',
-            ),
-            const SizedBox(height: 20),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final columns = constraints.maxWidth > 540 ? 3 : 2;
-                final spacing = 12.0;
-                final cardWidth =
-                    (constraints.maxWidth - spacing * (columns - 1)) / columns;
-                return Wrap(
-                  spacing: spacing,
-                  runSpacing: spacing,
-                  children: [
-                    for (final layout in StripLayout.choices)
-                      SizedBox(
-                        width: cardWidth,
-                        height: 220,
-                        child: _layoutCard(context, layout),
-                      ),
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _SessionPage extends StatefulWidget {
   const _SessionPage({
+    super.key,
+    this.onHome,
     required this.layout,
     this.initialPhotos = const [],
     this.fromGallery = false,
     this.roomId,
   });
 
+  final VoidCallback? onHome;
   final StripLayout layout;
   final List<ui.Image> initialPhotos;
   final bool fromGallery;
@@ -622,6 +523,7 @@ class _SessionPageState extends State<_SessionPage>
   bool _choosingPhotos = false;
   bool _reviewing = false;
   bool _pickingImages = false;
+  bool _manualLayout = false;
   late StripLayout _layout = widget.layout;
   late int _captureGoal = _layout.requiredPhotos;
   final Set<int> _motionShots = {};
@@ -709,12 +611,32 @@ class _SessionPageState extends State<_SessionPage>
 
   void _keepAlive() {
     _idle?.cancel();
+    if (widget.onHome != null) return;
     _idle = Timer(const Duration(minutes: 5), () {
       if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) _finish();
     });
   }
 
+  void _home() {
+    if (_exporting || _pickingImages || _sharing || _preparingMotion) return;
+    if (widget.onHome == null) {
+      _finish();
+      return;
+    }
+    setState(() {
+      _reviewing = true;
+      _choosingPhotos = true;
+      _playingStrip = false;
+      _playingMotion = null;
+    });
+    widget.onHome!();
+  }
+
   void _finish() {
+    if (widget.onHome != null) {
+      _home();
+      return;
+    }
     _ending = true;
     _idle?.cancel();
     setState(_discardMotion);
@@ -833,6 +755,13 @@ class _SessionPageState extends State<_SessionPage>
       }
       if (!mounted || _ending) return;
       setState(() {
+        if (!_manualLayout) {
+          final count = _selectedIndices.length + decoded.length;
+          _layout = StripLayout.choices.firstWhere(
+            (layout) => layout.count >= count,
+            orElse: () => StripLayout.choices.last,
+          );
+        }
         for (final image in decoded) {
           final index = _storePhoto(image);
           if (_selectedIndices.length < _layout.requiredPhotos) {
@@ -916,26 +845,9 @@ class _SessionPageState extends State<_SessionPage>
     });
   }
 
-  Future<void> _changeLayout() async {
-    if (_exporting || _pickingImages || _sharing || _preparingMotion) return;
-    final wasCamera = !_reviewing;
+  void _selectLayout(StripLayout chosen) {
     setState(() {
-      _reviewing = true;
-      _choosingPhotos = true;
-    });
-    final chosen = await Navigator.of(context).push<StripLayout>(
-      MaterialPageRoute(
-        builder: (_) => _LayoutPage(
-          onSelected: (layout) => Navigator.of(context).pop(layout),
-        ),
-      ),
-    );
-    if (!mounted) return;
-    if (chosen == null) {
-      if (wasCamera) setState(() => _reviewing = false);
-      return;
-    }
-    setState(() {
+      _manualLayout = true;
       _layout = chosen;
       if (_selectedIndices.length > chosen.requiredPhotos) {
         _selectedIndices.removeRange(
@@ -943,14 +855,9 @@ class _SessionPageState extends State<_SessionPage>
           _selectedIndices.length,
         );
       }
-      _reviewing =
-          !wasCamera || _selectedIndices.length == chosen.requiredPhotos;
-      if (!_reviewing) {
-        _captureGoal = math.max(chosen.requiredPhotos, _activeCount + 1);
-      }
-      _choosingPhotos = true;
+      _png = null;
+      _motionStrip = null;
     });
-    _keepAlive();
   }
 
   void _back() {
@@ -962,7 +869,14 @@ class _SessionPageState extends State<_SessionPage>
     } else if (widget.roomId != null) {
       _finish();
     } else {
-      unawaited(_changeLayout());
+      if (!_reviewing) {
+        setState(() {
+          _reviewing = true;
+          _choosingPhotos = true;
+        });
+      } else {
+        _home();
+      }
     }
   }
 
@@ -1347,20 +1261,20 @@ class _SessionPageState extends State<_SessionPage>
   Widget build(BuildContext context) {
     final png = _png;
     return PopScope(
-      canPop: _ending,
+      canPop:
+          _ending ||
+          (widget.onHome != null && !TickerMode.valuesOf(context).enabled),
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _back();
       },
       child: Scaffold(
         appBar: _BoothHeader(
           step: png != null
-              ? '04 / FINISH'
+              ? '03 / SAVE'
               : _captured
-              ? (_choosingPhotos ? '02 / PHOTOS' : '03 / DESIGN')
-              : '02 / CAPTURE',
-          onAction: _finish,
-          onHome: _finish,
-          actionLabel: 'End session',
+              ? (_choosingPhotos ? '01 / PHOTOS' : '02 / DESIGN')
+              : '01 / PHOTOS',
+          onHome: _home,
         ),
         body: SafeArea(
           child: Listener(
@@ -1373,10 +1287,10 @@ class _SessionPageState extends State<_SessionPage>
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: _StepBack(
                     number: png != null
-                        ? 4
-                        : _reviewing && !_choosingPhotos
                         ? 3
-                        : 2,
+                        : _reviewing && !_choosingPhotos
+                        ? 2
+                        : 1,
                     onBack: _back,
                   ),
                 ),
@@ -1391,7 +1305,7 @@ class _SessionPageState extends State<_SessionPage>
                             _reviewing = true;
                             _choosingPhotos = true;
                           }),
-                          child: const Text('Gallery & review'),
+                          child: const Text('Review photos'),
                         ),
                         TextButton(
                           onPressed: _pickingImages ? null : _addGallery,
@@ -1435,7 +1349,7 @@ class _SessionPageState extends State<_SessionPage>
                             : null,
                         child: Text(
                           _selectedIndices.length == _layout.requiredPhotos
-                              ? 'Next: Decorate strip'
+                              ? 'Continue to design'
                               : 'Select ${_layout.requiredPhotos - _selectedIndices.length} more',
                         ),
                       )
@@ -1459,25 +1373,64 @@ class _SessionPageState extends State<_SessionPage>
       key: const ValueKey('selection'),
       padding: const EdgeInsets.all(20),
       children: [
-        _Heading(
-          '',
-          'Your photos, your order.',
-          'Choose $required ${required == 1 ? 'photo' : 'photos'} for your strip ($selectedCount/$required selected).',
+        const Text(
+          'Your strip starts here.',
+          style: TextStyle(
+            fontFamily: 'Playfair Display',
+            fontSize: 32,
+            height: 1.15,
+            letterSpacing: -.7,
+            color: ink,
+          ),
         ),
+        const SizedBox(height: 12),
+        const Text(
+          'Take photos or bring your favorites. Arrange them into something worth keeping.',
+          style: TextStyle(fontSize: 14, height: 1.5, color: muted),
+        ),
+        const SizedBox(height: 24),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
             OutlinedButton.icon(
-              onPressed: _pickingImages ? null : _addGallery,
-              icon: const Icon(Icons.add_photo_alternate_outlined),
-              label: Text(_pickingImages ? 'Preparing photos…' : 'Add photos'),
-            ),
-            OutlinedButton.icon(
               onPressed: _takeMore,
               icon: const Icon(Icons.camera_alt_outlined),
               label: const Text('Take photos'),
             ),
+            FilledButton.icon(
+              onPressed: _pickingImages ? null : _addGallery,
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+              label: Text(
+                _pickingImages ? 'Preparing photos…' : 'Add from gallery',
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Layout',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final layout in StripLayout.choices)
+              ChoiceChip(
+                label: Text(
+                  '${layout.count} ${layout.count == 1 ? 'photo' : 'photos'}',
+                ),
+                selected: _layout == layout,
+                onSelected: _pickingImages
+                    ? null
+                    : (_) => _selectLayout(layout),
+              ),
           ],
         ),
         const SizedBox(height: 16),
@@ -1497,7 +1450,7 @@ class _SessionPageState extends State<_SessionPage>
                   const SizedBox(width: 6),
                   Flexible(
                     child: Text(
-                      'LIVE STRIP PREVIEW ($selectedCount/$required)',
+                      'YOUR STRIP · $selectedCount / $required',
                       style: const TextStyle(
                         fontFamily: 'Outfit',
                         fontSize: 11,
@@ -1518,12 +1471,29 @@ class _SessionPageState extends State<_SessionPage>
           ),
         ),
         const SizedBox(height: 20),
+        if (_activeCount == 5 && required == 6)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 16),
+            child: Text(
+              'Add one more photo, or choose 4 photos and select your favorites.',
+              style: TextStyle(color: muted, height: 1.5),
+            ),
+          ),
+        if (_activeCount == 0)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Text(
+              'A little space for your favorite moments.\nTake photos or add from your gallery to begin.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: muted, height: 1.6),
+            ),
+          ),
         Wrap(
           spacing: 12,
           runSpacing: 8,
           children: const [
             Text(
-              'All captured shots',
+              'Your photos',
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontSize: 16,
@@ -2548,7 +2518,7 @@ class _StepBack extends StatelessWidget {
       ),
       const SizedBox(width: 8),
       Text(
-        'STEP 0$number OF 04',
+        'STEP 0$number OF 03',
         style: const TextStyle(
           color: purple,
           fontWeight: FontWeight.w700,

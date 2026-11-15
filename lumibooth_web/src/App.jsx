@@ -5,7 +5,6 @@ import DashboardOverview from './pages/DashboardOverview';
 import TemplateManager from './pages/TemplateManager';
 import PrintLogs from './pages/PrintLogs';
 import WebWelcome from './pages/user/WebWelcome';
-import WebLayoutSelection from './pages/user/WebLayoutSelection';
 import WebGallerySelection from './pages/user/WebGallerySelection';
 import WebCamera from './pages/user/WebCamera';
 import WebEditor from './pages/user/WebEditor';
@@ -54,7 +53,7 @@ function GuestStep({ step, children }) {
   if (!session) return <Navigate to="/" replace />;
 
   const complete = session.photos.length === requiredPhotos(session.layout);
-  if (!['camera', 'review'].includes(step) && !complete) return <Navigate to="/camera" replace />;
+  if (!['camera', 'review'].includes(step) && !complete) return <Navigate to="/gallery" replace />;
   if (step === 'preview' && !session.output) return <Navigate to="/editor" replace />;
   return children;
 }
@@ -66,7 +65,7 @@ const App = () => {
         <Routes>
           {/* User Photobooth App */}
           <Route path="/" element={<WebWelcome />} />
-          <Route path="/layout" element={<WebLayoutSelection />} />
+          <Route path="/layout" element={<Navigate to="/gallery" replace />} />
           <Route path="/gallery" element={<GuestStep step="review"><WebGallerySelection /></GuestStep>} />
           <Route path="/camera" element={<GuestStep step="camera"><WebCamera /></GuestStep>} />
           <Route path="/editor" element={<GuestStep step="editor"><WebEditor /></GuestStep>} />

@@ -55,10 +55,10 @@ export function sessionReducer(session, action) {
       return null;
     case 'changeLayout': {
       if (!session) return session;
-      if (session.layout.id === action.layout.id) return { ...session, source: action.source };
+      if (session.layout.id === action.layout.id) return { ...session, manualLayout: true, source: action.source };
       let available = requiredPhotos(action.layout);
       const items = reviewItems(session).map((item) => ({ ...item, selected: item.selected && available-- > 0 }));
-      return updatePhotos({ ...session, layout: action.layout, source: action.source }, items);
+      return updatePhotos({ ...session, manualLayout: true, layout: action.layout, source: action.source }, items);
     }
     case 'capture':
       if (!session || !action.photo || reviewItems(session).length >= 12) {
@@ -70,11 +70,13 @@ export function sessionReducer(session, action) {
     case 'addGallery': {
       if (!session) return session;
       const items = reviewItems(session);
-      let available = requiredPhotos(session.layout) - session.photos.length;
+      const count = session.photos.length + Math.min(action.images.length, 12 - items.length);
+      const layout = session.manualLayout ? session.layout : layouts.find((layout) => layout.count >= count) ?? layouts.at(-1);
+      let available = requiredPhotos(layout) - session.photos.length;
       const added = action.images.slice(0, 12 - items.length).map((image) => ({
         photo: image.url, name: image.name, motion: null, selected: available-- > 0,
       }));
-      return updatePhotos(session, [...items, ...added]);
+      return updatePhotos({ ...session, layout }, [...items, ...added]);
     }
     case 'reviewSelect': {
       if (!session) return session;

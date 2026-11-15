@@ -14,7 +14,7 @@ import { downloadBlob } from '../../online/download';
 
 export default function WebPreview() {
   const navigate = useNavigate();
-  const { session, dispatch } = useContext(PhotoboothContext);
+  const { session } = useContext(PhotoboothContext);
   const [imageSize, setImageSize] = useState(null);
   const [playback, setPlayback] = useState(null);
   const [exportingMotion, setExportingMotion] = useState(false);
@@ -124,16 +124,15 @@ export default function WebPreview() {
   };
 
   const finish = () => {
-    dispatch({ type: 'reset' });
     navigate('/', { replace: true });
   };
 
   return (
     <div className="booth-shell">
-      <BoothHeader step="04 / FINISH" />
+      <BoothHeader step="03 / SAVE" />
       <main className="booth-content strip-preview">
         <div className="preview-copy">
-          <BoothStep number={4} back={'/editor'} disabled={sending} />
+          <BoothStep number={3} back={'/editor'} disabled={sending} />
           <h1 className="booth-title">Your strip is ready.</h1>
           <p className="booth-intro">Save a copy or print it to keep.</p>
           <div className="preview-actions">
@@ -150,7 +149,7 @@ export default function WebPreview() {
             {hasMotion && <button className="booth-button booth-secondary" disabled={!imageSize || motionPending || exportingMotion}
               onClick={saveAnimation}>{exportingMotion ? 'Preparing animation…' : 'Save animated strip'}</button>}
             <button className="booth-link" disabled={sending} onClick={() => navigate('/editor', { replace: true })}>Edit Strip</button>
-            <button className="booth-link" onClick={finish}>Finish Session</button>
+            <button className="booth-link" onClick={finish}>Back to home</button>
           </div>
           {printToPlayEnabled && !session.roomId && <PrintToPlay output={session.output} photos={session.photos}
             getGif={hasMotion ? getGif : undefined}

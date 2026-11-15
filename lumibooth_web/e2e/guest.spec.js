@@ -8,13 +8,14 @@ test('a guest can capture, decorate, download, and finish a private session', as
   });
 
   await page.goto('/preview');
-  const start = page.getByRole('link', { name: 'Start photo booth' });
+  const start = page.getByRole('button', { name: 'Create photo strip' });
   await expect(start).toBeVisible();
   await start.press('Enter');
-  await expect(page).toHaveURL(/\/layout$/);
+  await expect(page).toHaveURL(/\/gallery$/);
   const singlePhoto = page.getByRole('button', { name: /Single Photo/ });
   await expect(singlePhoto).toBeVisible();
   await singlePhoto.press('Enter');
+  await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   await expect(page).toHaveURL(/\/camera$/);
   const timer = page.getByRole('button', { name: 'Timer off' });
   await expect(timer).toBeVisible();
@@ -23,7 +24,7 @@ test('a guest can capture, decorate, download, and finish a private session', as
   await expect(shutter).toBeEnabled();
   await shutter.click();
   await expect(page).toHaveURL(/\/gallery$/);
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
   await expect(page).toHaveURL(/\/editor$/);
 
   const blackFrame = page.getByRole('button', { name: 'Black', exact: true });
@@ -92,11 +93,10 @@ test('a guest can capture, decorate, download, and finish a private session', as
   await expect(blackFrame).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(stickerPosition).toEqual(position);
   await next.click();
-  await page.getByRole('button', { name: 'Finish Session' }).click();
-  await expect(start).toBeVisible();
-  await page.goBack();
-  await expect(start).toBeVisible();
-  await expect(output).toHaveCount(0);
+  await page.getByRole('button', { name: 'Back to home' }).click();
+  await expect(page.getByRole('link', { name: 'Continue your strip' })).toBeVisible();
+  await page.getByRole('link', { name: 'Continue your strip' }).click();
+  await expect(page.locator('.gallery-import-card')).toHaveCount(1);
 });
 
 test('a camera permission denial blocks capture and offers a working retry', async ({ page }) => {
@@ -108,8 +108,10 @@ test('a camera permission denial blocks capture and offers a working retry', asy
       return getUserMedia(constraints);
     };
   });
-  await page.goto('/layout');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
   await page.getByRole('button', { name: /Single Photo/ }).click();
+  await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Camera access was denied');
   const shutter = page.getByRole('button', { name: 'Take photo' });
   await expect(shutter).toBeDisabled();
@@ -119,36 +121,42 @@ test('a camera permission denial blocks capture and offers a working retry', asy
   await expect(shutter).toBeEnabled();
   await shutter.click();
   await expect(page).toHaveURL(/\/gallery$/);
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
   await expect(page).toHaveURL(/\/editor$/);
 });
 
-test('an idle guest session closes and cannot be reopened from the editor URL', async ({ page }) => {
-  await page.clock.install();
-  await page.goto('/layout');
-  await page.getByRole('button', { name: /Single Photo/ }).click();
-  await expect(page).toHaveURL(/\/camera$/);
-  await page.clock.fastForward(5 * 60 * 1000 + 1000);
-  const start = page.getByRole('link', { name: 'Start photo booth' });
-  await expect(start).toBeVisible();
-  await page.goto('/editor');
-  await expect(start).toBeVisible();
+test('Home preserves the draft and starting fresh requires confirmation', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
+  await page.getByRole('button', { name: /Dual Strip/ }).click();
+  await page.getByRole('link', { name: 'Back to home', exact: true }).click();
+  await page.getByRole('link', { name: 'Continue your strip' }).click();
+  await expect(page.getByRole('button', { name: /Dual Strip/ })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('link', { name: 'LumiBooth home' }).click();
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByRole('button', { name: 'Start fresh' }).click();
+  await expect(page.getByRole('link', { name: 'Continue your strip' })).toBeVisible();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Start fresh' }).click();
+  await expect(page.getByRole('button', { name: /Triple Strip/ })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('all five layouts are offered and a three-photo strip exports the chosen template', async ({ page }) => {
-  await page.goto('/layout');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
   for (const count of [1, 2, 3, 4, 6]) {
     await expect(page.getByRole('button', { name: new RegExp(`\\b${count} photos?$`, 'i') })).toBeVisible();
   }
 
   await page.getByRole('button', { name: /Triple Strip/ }).click();
+  await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   const shutter = page.getByRole('button', { name: 'Take photo' });
   for (const count of [1, 2]) {
     await shutter.click();
     await expect(page.getByText(`${count} of 3 photos captured`)).toBeVisible();
   }
   await shutter.click();
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
   await expect(page.getByRole('img', { name: /Captured photo/ })).toHaveCount(3);
   const gallery = page.locator('.frame-gallery');
   await page.getByRole('button', { name: 'Templates', exact: true }).click();
@@ -195,15 +203,17 @@ test('a fixed camera crop fits both portrait and illustrated frame exports', asy
       return canvas.captureStream();
     };
   });
-  await page.goto('/layout');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
   await page.getByRole('button', { name: /Single Photo/ }).click();
+  await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   const camera = page.locator('.camera-video');
   const shutter = page.getByRole('button', { name: 'Take photo' });
   await expect(shutter).toBeEnabled();
   const { width, height } = await camera.boundingBox();
   expect(width / height).toBeCloseTo(4 / 3);
   await shutter.click();
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
 
   const photo = page.getByRole('img', { name: 'Captured photo 1' });
   const capture = await photo.evaluate(async (image) => {
@@ -251,13 +261,15 @@ test('a fixed camera crop fits both portrait and illustrated frame exports', asy
 });
 
 test('illustrated frames put captured photos inside the artwork and export the overlay', async ({ page }) => {
-  await page.goto('/layout');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
   await page.getByRole('button', { name: /Dual Strip/ }).click();
+  await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   const shutter = page.getByRole('button', { name: 'Take photo' });
   await shutter.click();
   await expect(page.getByText('1 of 2 photos captured')).toBeVisible();
   await shutter.click();
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
 
   const gallery = page.locator('.frame-gallery');
   await expect(gallery.getByRole('button')).toHaveCount(5);
@@ -301,10 +313,12 @@ test('an image sticker can be dragged, resized, rotated, and exported', async ({
       return stream;
     };
   });
-  await page.goto('/layout');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
   await page.getByRole('button', { name: /Single Photo/ }).click();
+  await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   await page.getByRole('button', { name: 'Take photo' }).click();
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
 
   const next = page.getByRole('button', { name: 'Next' });
   const strip = page.getByRole('img', { name: 'Your finished LumiBooth photo strip' });
@@ -391,10 +405,12 @@ test('an image sticker can be dragged, resized, rotated, and exported', async ({
 });
 
 test('the strip caption can be edited, hidden, and restored', async ({ page }) => {
-  await page.goto('/layout');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
   await page.getByRole('button', { name: /Single Photo/ }).click();
+  await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   await page.getByRole('button', { name: 'Take photo' }).click();
-  await page.getByRole('button', { name: 'Start editing' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
 
   const field = page.getByRole('textbox', { name: 'Caption under LumiBooth (optional)' });
   const caption = page.locator('.strip-caption');

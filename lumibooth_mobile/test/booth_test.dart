@@ -7,34 +7,50 @@ import 'package:lumibooth_mobile/capture.dart';
 import 'package:lumibooth_mobile/strip.dart';
 
 void main() {
-  testWidgets('guest can choose any supported layout and end a session', (
+  testWidgets('guest can choose any supported layout and return Home', (
     tester,
   ) async {
     await tester.pumpWidget(const LumiBooth());
-    await tester.tap(find.text('Start photo booth'));
+    await tester.tap(find.text('Create photo strip'));
     await tester.pumpAndSettle();
 
     for (final name in [
-      'Single Photo',
-      'Dual Strip',
-      'Triple Strip',
-      '4-Grid Classic',
-      '6-Grid Wide',
+      '1 photo',
+      '2 photos',
+      '3 photos',
+      '4 photos',
+      '6 photos',
     ]) {
       await tester.scrollUntilVisible(find.text(name), 120);
       expect(find.text(name), findsOneWidget);
     }
 
-    await tester.scrollUntilVisible(find.text('Triple Strip'), -100);
-    await tester.tap(find.text('Triple Strip'));
+    await tester.scrollUntilVisible(find.text('3 photos'), -100);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('3 photos'));
+    await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('Take photos'),
+      -100,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('selection')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Take photos'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('0 of 3 photos captured'), findsOneWidget);
-    expect(find.text('STEP 02 OF 04'), findsOneWidget);
+    expect(find.text('STEP 01 OF 03'), findsOneWidget);
 
-    await tester.tap(find.text('End session'));
+    await tester.tap(find.byTooltip('Back to previous step'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Back to previous step'));
     await tester.pumpAndSettle();
-    expect(find.text('Start photo booth'), findsOneWidget);
+    expect(find.text('Continue your strip'), findsOneWidget);
   });
 
   testWidgets(
@@ -53,9 +69,23 @@ void main() {
       addTearDown(image!.dispose);
 
       await tester.pumpWidget(const LumiBooth());
-      await tester.tap(find.text('Start photo booth'));
+      await tester.tap(find.text('Create photo strip'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Triple Strip'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('3 photos'));
+      await tester.pump();
+      await tester.scrollUntilVisible(
+        find.text('Take photos'),
+        -100,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const ValueKey('selection')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Take photos'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       for (var count = 1; count <= 3; count++) {
@@ -67,10 +97,21 @@ void main() {
           expect(find.text('$count of 3 photos captured'), findsOneWidget);
         }
       }
-      // Photo selection step (02 / PHOTOS)
-      expect(find.text('Your photos, your order.'), findsOneWidget);
-      expect(find.text('02 / PHOTOS'), findsOneWidget);
+      // Photo selection step (01 / PHOTOS)
+      expect(find.text('Your strip starts here.'), findsOneWidget);
+      expect(find.text('01 / PHOTOS'), findsOneWidget);
 
+      await tester.scrollUntilVisible(
+        find.text('Take photos'),
+        -100,
+        scrollable: find
+            .descendant(
+              of: find.byKey(const ValueKey('selection')),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Take photos'));
       await tester.pump();
       tester
@@ -94,7 +135,7 @@ void main() {
       await tester.pump();
 
       // Proceed to editor
-      await tester.tap(find.text('Next: Decorate strip'));
+      await tester.tap(find.text('Continue to design'));
       await tester.pump();
 
       expect(find.text('Make it yours.'), findsOneWidget);
@@ -186,9 +227,24 @@ void main() {
     addTearDown(image!.dispose);
 
     await tester.pumpWidget(const LumiBooth());
-    await tester.tap(find.text('Start photo booth'));
+    await tester.tap(find.text('Create photo strip'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Dual Strip'));
+    await tester.ensureVisible(find.text('2 photos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('2 photos'));
+    await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('Take photos'),
+      -100,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('selection')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Take photos'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('0 of 2 photos captured'), findsOneWidget);
@@ -200,8 +256,8 @@ void main() {
     tester.widget<CapturePage>(find.byType(CapturePage)).onPhoto(image.clone());
     await tester.pump();
 
-    expect(find.text('Your photos, your order.'), findsOneWidget);
-    await tester.tap(find.text('Next: Decorate strip'));
+    expect(find.text('Your strip starts here.'), findsOneWidget);
+    await tester.tap(find.text('Continue to design'));
     await tester.pump();
     expect(find.text('Make it yours.'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());

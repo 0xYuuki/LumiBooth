@@ -87,11 +87,11 @@ const WebEditor = () => {
 
   return (
     <div className="booth-shell">
-      <BoothHeader step="03 / DESIGN" />
+      <BoothHeader step="02 / DESIGN" />
       <main className="booth-content">
         <div className="design-heading">
           <div>
-            <BoothStep number={3} back={session.roomId ? '/room' : '/gallery'} disabled={exporting} />
+            <BoothStep number={2} back={session.roomId ? '/room' : '/gallery'} disabled={exporting} />
             <h1 className="booth-title">Make it yours.</h1>
             <p className="booth-intro">Tap a photo to adjust it. Choose a frame and add stickers to your strip.</p>
           </div>

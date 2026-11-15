@@ -110,8 +110,10 @@ test('the QR gallery is opt-in and lets a different guest download all outputs',
     return { error: 'This strip has expired or was removed.' };
   }
   await mockClient(context, 'host', api, files);
-  await page.goto('/layout');
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
   await page.getByRole('button', { name: /Single Photo/ }).click();
+  await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   await page.getByRole('button', { name: 'Take photo' }).click();
   await page.getByRole('button', { name: 'Tube TV' }).click({ timeout: 15000 });
   await page.getByRole('button', { name: 'Next' }).click();

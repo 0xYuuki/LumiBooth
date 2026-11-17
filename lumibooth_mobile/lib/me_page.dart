@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'booth.dart';
 import 'navigation.dart';
+import 'my_uploads_page.dart';
 import 'settings_page.dart';
 
 /// Simple guest account entry and practical app information.
@@ -71,6 +72,14 @@ class MePage extends StatelessWidget {
               icon: Icons.photo_library_outlined,
               title: 'Your works',
               onTap: () => MainNavigationScaffold.of(context)?.showWorks(),
+            ),
+            const Divider(height: 1, color: line),
+            _MeTile(
+              icon: Icons.collections_outlined,
+              title: 'My Uploads',
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const MyUploadsPage()),
+              ),
             ),
             const Divider(height: 1, color: line),
             _MeTile(

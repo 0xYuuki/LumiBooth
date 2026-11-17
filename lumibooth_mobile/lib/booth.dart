@@ -10,6 +10,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'local_draft.dart';
+import 'custom_uploads.dart';
+import 'my_uploads_page.dart';
 import 'saved_works.dart';
 import 'works_library.dart';
 import 'camera_framing.dart';
@@ -333,6 +335,7 @@ class WelcomePageState extends State<WelcomePage> {
   Future<void> _restoreGallerySelection() async {
     try {
       final result = await _imagePicker.retrieveLostData();
+      final uploadKind = await CustomUploads.takePickerKind();
       if (result.exception != null) {
         if (mounted) {
           _showMessage(
@@ -343,7 +346,23 @@ class WelcomePageState extends State<WelcomePage> {
       }
       final files = result.files;
       if (result.isEmpty || files == null || files.isEmpty || !mounted) return;
-      await _openGalleryFiles(files);
+      if (uploadKind != null) {
+        for (final file in files.take(1)) {
+          if (await file.length() > CustomUploads.maxBytes) {
+            throw const FormatException('Upload is too large.');
+          }
+          await CustomUploads.add(
+            await CustomUploads.prepare(await file.readAsBytes()),
+            file.name,
+            uploadKind,
+          );
+        }
+        if (mounted) {
+          _showMessage('Your interrupted upload was restored to My Uploads.');
+        }
+      } else {
+        await _openGalleryFiles(files);
+      }
     } catch (_) {
       if (mounted) {
         _showMessage('Could not restore the photo selection. Try again.');
@@ -607,6 +626,11 @@ class _SessionPageState extends State<_SessionPage>
   late final Future<List<StickerPack>> _stickerCatalog =
       StickerPack.loadCatalog();
   StickerPack _stickerPack = StickerPack.emoji;
+  final Map<String, String> _uploadedBytes = {};
+  String? _backgroundId;
+  PhotoCrop _backgroundCrop = const PhotoCrop();
+  bool _containBackground = false;
+  bool _loadingUpload = false;
   bool _loadingStickerPack = false;
   static const _captionLimit = 32;
   final _captionController = TextEditingController(
@@ -641,6 +665,9 @@ class _SessionPageState extends State<_SessionPage>
       List<StripSticker> stickers,
       String? caption,
       StripFont font,
+      String? backgroundId,
+      PhotoCrop backgroundCrop,
+      bool containBackground,
     })
   >
   _history = [];
@@ -658,6 +685,9 @@ class _SessionPageState extends State<_SessionPage>
       stickers: List.of(_stickers),
       caption: _caption,
       font: _stripFont,
+      backgroundId: _backgroundId,
+      backgroundCrop: _backgroundCrop,
+      containBackground: _containBackground,
     ));
   }
 
@@ -680,6 +710,9 @@ class _SessionPageState extends State<_SessionPage>
         ..clear()
         ..addAll(previous.crops);
       _layout = previous.layout;
+      _backgroundId = previous.backgroundId;
+      _backgroundCrop = previous.backgroundCrop;
+      _containBackground = previous.containBackground;
       _stickers
         ..clear()
         ..addAll(previous.stickers);
@@ -745,6 +778,21 @@ class _SessionPageState extends State<_SessionPage>
     final clones = [for (final image in originals) image.clone()];
     final data = <String, dynamic>{
       'version': 1,
+      'uploads': {
+        for (final entry in _uploadedBytes.entries)
+          if (entry.key == _backgroundId ||
+              _stickers.any(
+                (sticker) => sticker.image == _stickerImages[entry.key],
+              ))
+            entry.key: entry.value,
+      },
+      'background': _backgroundId,
+      'backgroundCrop': {
+        'x': _backgroundCrop.x,
+        'y': _backgroundCrop.y,
+        'zoom': _backgroundCrop.zoom,
+      },
+      'containBackground': _containBackground,
       'layout': _layout.count,
       'manualLayout': _manualLayout,
       'selected': [for (final i in _selectedIndices) indices.indexOf(i)],
@@ -805,6 +853,32 @@ class _SessionPageState extends State<_SessionPage>
   Future<void> _applyDraft(Map<String, dynamic> draft) async {
     _restoringDraft = true;
     try {
+      for (final entry in (draft['uploads'] as Map? ?? {}).entries) {
+        final id = entry.key as String, bytes = entry.value as String;
+        if (!id.startsWith('upload-')) continue;
+        final codec = await ui.instantiateImageCodec(base64Decode(bytes));
+        try {
+          final image = (await codec.getNextFrame()).image;
+          if (!mounted) {
+            image.dispose();
+            return;
+          }
+          _stickerImages[id] = image;
+          _uploadedBytes[id] = bytes;
+        } finally {
+          codec.dispose();
+        }
+      }
+      _backgroundId = draft['background'] as String?;
+      _containBackground = draft['containBackground'] == true;
+      final backgroundCrop = draft['backgroundCrop'] as Map?;
+      if (backgroundCrop != null) {
+        _backgroundCrop = PhotoCrop(
+          x: (backgroundCrop['x'] as num).toDouble(),
+          y: (backgroundCrop['y'] as num).toDouble(),
+          zoom: (backgroundCrop['zoom'] as num).toDouble(),
+        ).normalized();
+      }
       _layout = StripLayout.choices.firstWhere(
         (layout) => layout.count == draft['layout'],
         orElse: () => StripLayout.choices[2],
@@ -841,7 +915,9 @@ class _SessionPageState extends State<_SessionPage>
       _captionController.text = _caption ?? _frame.caption;
       for (final value in draft['stickers'] as List) {
         final pack = value['pack'] as String?;
-        if (pack != null && !_stickerImages.containsKey(pack)) {
+        if (pack != null &&
+            !_stickerImages.containsKey(pack) &&
+            !pack.startsWith('upload-')) {
           final catalog = await _stickerCatalog;
           final image = await catalog
               .firstWhere((entry) => entry.id == pack)
@@ -851,6 +927,11 @@ class _SessionPageState extends State<_SessionPage>
             return;
           }
           _stickerImages[pack] = image;
+        }
+        if (pack != null &&
+            pack.startsWith('upload-') &&
+            !_stickerImages.containsKey(pack)) {
+          throw const FormatException('An embedded upload is missing.');
         }
         final rect = value['source'] as List?;
         _stickers.add(
@@ -917,6 +998,9 @@ class _SessionPageState extends State<_SessionPage>
     caption: _caption,
     font: _stripFont,
     frameImages: _frameImages,
+    background: _stickerImages[_backgroundId],
+    backgroundCrop: _backgroundCrop,
+    containBackground: _containBackground,
     photos: _stripPhotos,
     crops: [
       for (final index in _selectedIndices) _crops[index] ?? const PhotoCrop(),
@@ -956,7 +1040,8 @@ class _SessionPageState extends State<_SessionPage>
         _pickingImages ||
         _sharing ||
         _preparingMotion ||
-        _savingWork) {
+        _savingWork ||
+        _loadingUpload) {
       return;
     }
     if (widget.onHome == null) {
@@ -1224,7 +1309,8 @@ class _SessionPageState extends State<_SessionPage>
         _pickingImages ||
         _sharing ||
         _preparingMotion ||
-        _savingWork) {
+        _savingWork ||
+        _loadingUpload) {
       return;
     }
     if (_png != null) {
@@ -1302,6 +1388,8 @@ class _SessionPageState extends State<_SessionPage>
     setState(() {
       _remember();
       _stickers.add(sticker);
+      _png = null;
+      _motionStrip = null;
       _selected = _stickers.length - 1;
     });
   }
@@ -1748,7 +1836,9 @@ class _SessionPageState extends State<_SessionPage>
                         ),
                       )
                     : FilledButton(
-                        onPressed: _exporting || _loadingFrame ? null : _export,
+                        onPressed: _exporting || _loadingFrame || _loadingUpload
+                            ? null
+                            : _export,
                         child: Text(
                           _exporting ? 'Preparing…' : 'Preview strip',
                         ),
@@ -2225,6 +2315,7 @@ class _SessionPageState extends State<_SessionPage>
                         children: [
                           const SizedBox(height: 14),
                           if (_editorTab == 0) ...[
+                            _backgroundTools(),
                             DropdownButtonFormField<String>(
                               initialValue: _frameCategory,
                               decoration: const InputDecoration(
@@ -2446,11 +2537,169 @@ class _SessionPageState extends State<_SessionPage>
     );
   }
 
+  Future<void> _openUploads(String kind) async {
+    if (_loadingUpload || _exporting) return;
+    final item = await Navigator.of(context).push<CustomUpload>(
+      MaterialPageRoute(
+        builder: (_) => MyUploadsPage(kind: kind, selecting: true),
+      ),
+    );
+    if (item == null || !mounted) return;
+    setState(() => _loadingUpload = true);
+    try {
+      if (!_stickerImages.containsKey(item.id)) {
+        final bytes = await item.image.readAsBytes();
+        final codec = await ui.instantiateImageCodec(bytes);
+        try {
+          final image = (await codec.getNextFrame()).image;
+          if (!mounted) {
+            image.dispose();
+            return;
+          }
+          _stickerImages[item.id] = image;
+          _uploadedBytes[item.id] = base64Encode(bytes);
+        } finally {
+          codec.dispose();
+        }
+      }
+      final image = _stickerImages[item.id]!;
+      if (kind == 'sticker') {
+        _addSticker(
+          StripSticker(
+            item.name,
+            const Offset(.4, .4),
+            80,
+            image: image,
+            source: Rect.fromLTWH(
+              0,
+              0,
+              image.width.toDouble(),
+              image.height.toDouble(),
+            ),
+          ),
+        );
+      } else {
+        _remember();
+        setState(() {
+          _backgroundId = item.id;
+          _backgroundCrop = const PhotoCrop();
+          _containBackground = false;
+          _png = null;
+          _motionStrip = null;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        _message(
+          'Could not open this upload. Import it again from My Uploads.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingUpload = false);
+    }
+  }
+
+  Future<void> _adjustBackground() async {
+    final image = _stickerImages[_backgroundId];
+    if (image == null || _exporting) return;
+    _remember();
+    await showDialog<void>(
+      context: context,
+      builder: (_) => PhotoTransformEditor(
+        image: image,
+        aspect: _design.size.aspectRatio,
+        crop: _backgroundCrop,
+        onChanged: (crop) {
+          if (mounted) {
+            setState(() {
+              _backgroundCrop = crop;
+              _png = null;
+              _motionStrip = null;
+            });
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _backgroundTools() => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      OutlinedButton.icon(
+        onPressed: _loadingUpload || _exporting
+            ? null
+            : () => _openUploads('background'),
+        icon: const Icon(Icons.wallpaper_outlined),
+        label: const Text('My backgrounds / Upload your own'),
+      ),
+      const Text(
+        'Backgrounds sit behind photos. Transparent PNG and WebP are supported.',
+        style: TextStyle(color: muted, fontSize: 12, height: 1.5),
+      ),
+      if (_backgroundId != null) ...[
+        const SizedBox(height: 12),
+        DropdownButtonFormField<bool>(
+          initialValue: _containBackground,
+          decoration: const InputDecoration(labelText: 'Background fit'),
+          items: const [
+            DropdownMenuItem(value: false, child: Text('Fill strip')),
+            DropdownMenuItem(value: true, child: Text('Fit whole image')),
+          ],
+          onChanged: _exporting
+              ? null
+              : (value) {
+                  if (value != null) {
+                    _remember();
+                    setState(() {
+                      _containBackground = value;
+                      _png = null;
+                      _motionStrip = null;
+                    });
+                  }
+                },
+        ),
+        Wrap(
+          spacing: 8,
+          children: [
+            TextButton(
+              onPressed: _containBackground || _exporting
+                  ? null
+                  : _adjustBackground,
+              child: const Text('Reposition background'),
+            ),
+            TextButton(
+              onPressed: _exporting
+                  ? null
+                  : () {
+                      _remember();
+                      setState(() {
+                        _backgroundId = null;
+                        _png = null;
+                        _motionStrip = null;
+                      });
+                    },
+              child: const Text('Remove background'),
+            ),
+          ],
+        ),
+      ],
+      const SizedBox(height: 16),
+    ],
+  );
+
   Widget _stickerPicker() {
     final image = _stickerImages[_stickerPack.id];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        OutlinedButton.icon(
+          onPressed: _loadingUpload || _exporting
+              ? null
+              : () => _openUploads('sticker'),
+          icon: const Icon(Icons.add_photo_alternate_outlined),
+          label: const Text('My stickers / Upload your own'),
+        ),
+        if (_loadingUpload) const LinearProgressIndicator(),
         FutureBuilder(
           future: _stickerCatalog,
           builder: (context, snapshot) {

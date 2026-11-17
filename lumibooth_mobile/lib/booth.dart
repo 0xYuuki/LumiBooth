@@ -10,6 +10,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'local_draft.dart';
+import 'saved_works.dart';
+import 'works_library.dart';
 import 'camera_framing.dart';
 import 'capture.dart';
 import 'gallery_qr.dart';
@@ -150,15 +152,48 @@ class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
 
   @override
-  State<WelcomePage> createState() => _WelcomePageState();
+  State<WelcomePage> createState() => WelcomePageState();
 }
 
-class _WelcomePageState extends State<WelcomePage> {
+class WelcomePageState extends State<WelcomePage> {
+  final ScrollController _homeScroll = ScrollController();
+  final GlobalKey _worksKey = GlobalKey();
+  GlobalKey<_SessionPageState> _sessionKey = GlobalKey<_SessionPageState>();
+  void showWorks() {
+    if (_showSession) {
+      _sessionKey.currentState?._home();
+      if (_showSession) return;
+    }
+    setState(() => _showSession = false);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || !_homeScroll.hasClients) return;
+      await _homeScroll.animateTo(
+        _homeScroll.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+      if (mounted && _worksKey.currentContext != null) {
+        await Scrollable.ensureVisible(
+          _worksKey.currentContext!,
+          duration: const Duration(milliseconds: 200),
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _homeScroll.dispose();
+    super.dispose();
+  }
+
   final ImagePicker _imagePicker = ImagePicker();
   bool _selectingGallery = false;
   bool _showSession = false;
   bool _loadingDraft = true;
   Widget? _session;
+  int _libraryRevision = 0;
+  bool _openingWork = false;
 
   void _createStrip([
     List<ui.Image> photos = const [],
@@ -167,15 +202,70 @@ class _WelcomePageState extends State<WelcomePage> {
     if (draft == null) unawaited(LocalDraft.clear().catchError((_) {}));
     setState(() {
       _showSession = true;
+      _sessionKey = GlobalKey<_SessionPageState>();
       _session = _SessionPage(
-        key: UniqueKey(),
+        key: _sessionKey,
         layout: StripLayout.choices[2],
         initialPhotos: List.of(photos),
         draft: draft,
         fromGallery: true,
-        onHome: () => setState(() => _showSession = false),
+        onHome: () => setState(() {
+          _showSession = false;
+          _libraryRevision++;
+        }),
       );
     });
+  }
+
+  Future<void> _editWork(SavedWork work) async {
+    if (_openingWork) return;
+    if (_session != null) {
+      final yes = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Open this work?'),
+          content: const Text(
+            'This replaces your current unfinished draft. Your saved works will stay.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keep draft'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Open work'),
+            ),
+          ],
+        ),
+      );
+      if (yes != true || !mounted) return;
+    }
+    _openingWork = true;
+    final images = <ui.Image>[];
+    try {
+      final project = await work.project();
+      for (final value in (project['photos'] as List).take(12)) {
+        final codec = await ui.instantiateImageCodec(
+          base64Decode(value as String),
+        );
+        try {
+          images.add((await codec.getNextFrame()).image);
+        } finally {
+          codec.dispose();
+        }
+      }
+      if (!mounted) return;
+      // Invalidate any pending save belonging to the previous draft.
+      unawaited(LocalDraft.clear().catchError((_) {}));
+      _createStrip(images, {...project, '_openEditor': true});
+      images.clear();
+    } finally {
+      _openingWork = false;
+      for (final image in images) {
+        image.dispose();
+      }
+    }
   }
 
   Future<void> _startFresh() async {
@@ -320,6 +410,7 @@ class _WelcomePageState extends State<WelcomePage> {
       appBar: const _BoothHeader(step: 'THE PHOTO BOOTH'),
       body: SafeArea(
         child: ListView(
+          controller: _homeScroll,
           padding: const EdgeInsets.all(24),
           children: [
             Row(
@@ -438,82 +529,14 @@ class _WelcomePageState extends State<WelcomePage> {
               ),
             ],
             const SizedBox(height: 28),
-            Container(
-              height: 260,
-              decoration: BoxDecoration(
-                gradient: const RadialGradient(
-                  center: Alignment(0, -0.1),
-                  radius: 0.95,
-                  colors: [Color(0xfff8f2fd), Color(0xffe8def2)],
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Positioned(
-                    top: 16,
-                    right: 24,
-                    child: Text(
-                      '✳',
-                      style: TextStyle(
-                        fontSize: 28,
-                        color: purple.withValues(alpha: 0.55),
-                      ),
-                    ),
-                  ),
-                  Transform.translate(
-                    offset: const Offset(-45, -8),
-                    child: Transform.rotate(
-                      angle: -16 * math.pi / 180,
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          boxShadow: [
-                            BoxShadow(
-                              color: Color(0x38392b52),
-                              blurRadius: 18,
-                              offset: Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: const StripPreview(
-                          StripDesign(
-                            layout: StripLayout('Three', 3, 1),
-                            frame: StripFrame.postcard,
-                          ),
-                          maxWidth: 62,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Transform.translate(
-                    offset: const Offset(42, 12),
-                    child: Transform.rotate(
-                      angle: 13 * math.pi / 180,
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          boxShadow: [
-                            BoxShadow(
-                              color: Color(0x38392b52),
-                              blurRadius: 18,
-                              offset: Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: const StripPreview(
-                          StripDesign(
-                            layout: StripLayout('Four', 4, 2),
-                            frame: StripFrame.lavender,
-                          ),
-                          maxWidth: 110,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+            KeyedSubtree(
+              key: _worksKey,
+              child: WorksLibrary(
+                key: ValueKey(_libraryRevision),
+                onEdit: _editWork,
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
             const _BoothFooter(),
           ],
         ),
@@ -694,6 +717,26 @@ class _SessionPageState extends State<_SessionPage>
   Future<void> _saveDraft() async {
     if (!mounted || _restoringDraft || widget.onHome == null) return;
     final version = ++_saveVersion;
+    try {
+      final data = await _projectSnapshot();
+      if (version != _saveVersion) return;
+      await LocalDraft.save(data, _draftGeneration);
+      if (mounted && version == _saveVersion) {
+        super.setState(() {
+          _draftError = null;
+          _draftSaving = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        super.setState(
+          () => _draftError = 'Could not save your draft. Keep the app open.',
+        );
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _projectSnapshot() async {
     final indices = [
       for (var i = 0; i < _photos.length; i++)
         if (!_removedPhotos.contains(i)) i,
@@ -750,21 +793,8 @@ class _SessionPageState extends State<_SessionPage>
         _encodedPhotos[originals[i]] = value;
         encoded.add(value);
       }
-      if (version != _saveVersion) return;
       data['photos'] = encoded;
-      await LocalDraft.save(data, _draftGeneration);
-      if (mounted && version == _saveVersion) {
-        super.setState(() {
-          _draftError = null;
-          _draftSaving = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        super.setState(
-          () => _draftError = 'Could not save your draft. Keep the app open.',
-        );
-      }
+      return data;
     } finally {
       for (final image in clones) {
         image.dispose();
@@ -852,7 +882,14 @@ class _SessionPageState extends State<_SessionPage>
       }
     } finally {
       _restoringDraft = false;
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {
+          if (draft['_openEditor'] == true &&
+              _selectedIndices.length == _layout.requiredPhotos) {
+            _choosingPhotos = false;
+          }
+        });
+      }
     }
   }
 
@@ -915,7 +952,13 @@ class _SessionPageState extends State<_SessionPage>
   }
 
   void _home() {
-    if (_exporting || _pickingImages || _sharing || _preparingMotion) return;
+    if (_exporting ||
+        _pickingImages ||
+        _sharing ||
+        _preparingMotion ||
+        _savingWork) {
+      return;
+    }
     if (widget.onHome == null) {
       _finish();
       return;
@@ -1177,7 +1220,13 @@ class _SessionPageState extends State<_SessionPage>
   }
 
   void _back() {
-    if (_exporting || _pickingImages || _sharing || _preparingMotion) return;
+    if (_exporting ||
+        _pickingImages ||
+        _sharing ||
+        _preparingMotion ||
+        _savingWork) {
+      return;
+    }
     if (_png != null) {
       _editStrip();
     } else if (_reviewing && !_choosingPhotos) {
@@ -2489,6 +2538,42 @@ class _SessionPageState extends State<_SessionPage>
     rect.bottom * scale,
   );
 
+  bool _savingWork = false;
+  Uint8List? _savedWorkOutput;
+  Future<void> _saveWork(Uint8List png) async {
+    if (_savingWork || identical(_savedWorkOutput, png)) return;
+    setState(() => _savingWork = true);
+    try {
+      final project = widget.roomId == null ? await _projectSnapshot() : null;
+      final codec = await ui.instantiateImageCodec(png, targetWidth: 240);
+      late Uint8List thumbnail;
+      try {
+        final image = (await codec.getNextFrame()).image;
+        try {
+          final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+          thumbnail = bytes!.buffer.asUint8List();
+        } finally {
+          image.dispose();
+        }
+      } finally {
+        codec.dispose();
+      }
+      await SavedWorks.save(project, png, thumbnail);
+      if (mounted) {
+        setState(() => _savedWorkOutput = png);
+        _message('Saved to Your works on this device.');
+      }
+    } catch (_) {
+      if (mounted) {
+        _message(
+          'Could not save this work. Your draft is safe. Free device storage and try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _savingWork = false);
+    }
+  }
+
   Widget _preview(Uint8List png) {
     return ListView(
       key: const ValueKey('preview'),
@@ -2519,6 +2604,20 @@ class _SessionPageState extends State<_SessionPage>
                 : null,
             child: Text(_playingStrip ? 'Stop strip' : 'Play strip'),
           ),
+        FilledButton.icon(
+          onPressed: _savingWork || identical(_savedWorkOutput, png)
+              ? null
+              : () => _saveWork(png),
+          icon: const Icon(Icons.bookmark_add_outlined),
+          label: Text(
+            _savingWork
+                ? 'Saving work…'
+                : identical(_savedWorkOutput, png)
+                ? 'Saved to Your works'
+                : 'Save to Your works',
+          ),
+        ),
+        const SizedBox(height: 8),
         if (_selectedMotionGifs.isNotEmpty)
           Builder(
             builder: (button) => OutlinedButton(

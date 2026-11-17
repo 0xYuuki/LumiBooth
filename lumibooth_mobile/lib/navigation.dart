@@ -26,6 +26,12 @@ class MainNavigationScaffold extends StatefulWidget {
 
 /// State managing the active tab index and nested navigators.
 class MainNavigationScaffoldState extends State<MainNavigationScaffold> {
+  final GlobalKey<WelcomePageState> _photoHome = GlobalKey<WelcomePageState>();
+  void showWorks() {
+    selectTab(0);
+    _photoHome.currentState?.showWorks();
+  }
+
   int _currentIndex = 0;
   final GlobalKey<NavigatorState> _photoNavKey = GlobalKey<NavigatorState>();
   final GlobalKey<NavigatorState> _meNavKey = GlobalKey<NavigatorState>();
@@ -71,7 +77,7 @@ class MainNavigationScaffoldState extends State<MainNavigationScaffold> {
               key: _photoNavKey,
               onGenerateRoute: (settings) => MaterialPageRoute<void>(
                 settings: settings,
-                builder: (_) => const WelcomePage(),
+                builder: (_) => WelcomePage(key: _photoHome),
               ),
             ),
             Navigator(

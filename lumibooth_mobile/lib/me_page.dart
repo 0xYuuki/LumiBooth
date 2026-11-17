@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'booth.dart';
+import 'navigation.dart';
 import 'settings_page.dart';
 
 /// Simple guest account entry and practical app information.
@@ -28,16 +29,20 @@ class MePage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Guest',
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: ink,
-                          )),
+                      Text(
+                        'Guest',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: ink,
+                        ),
+                      ),
                       SizedBox(height: 3),
-                      Text('Not signed in',
-                          style: TextStyle(color: muted, fontSize: 13)),
+                      Text(
+                        'Not signed in',
+                        style: TextStyle(color: muted, fontSize: 13),
+                      ),
                     ],
                   ),
                 ),
@@ -62,6 +67,12 @@ class MePage extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 30),
+            _MeTile(
+              icon: Icons.photo_library_outlined,
+              title: 'Your works',
+              onTap: () => MainNavigationScaffold.of(context)?.showWorks(),
+            ),
+            const Divider(height: 1, color: line),
             _MeTile(
               icon: Icons.description_outlined,
               title: 'Legal documents',
@@ -95,11 +106,7 @@ class MePage extends StatelessWidget {
 }
 
 class _MeTile extends StatelessWidget {
-  const _MeTile({
-    required this.icon,
-    required this.title,
-    required this.onTap,
-  });
+  const _MeTile({required this.icon, required this.title, required this.onTap});
 
   final IconData icon;
   final String title;

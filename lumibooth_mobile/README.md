@@ -65,3 +65,9 @@ The tests cover the shared layout and review flow, camera alternatives, back nav
 Tap **Choose order**, then tap photos in sequence; numbered badges show their position in the strip. Tapping a selected photo deselects it. The X on each photo asks for confirmation before removing it. **Undo** restores recent selection, removal, layout, crop and design changes during the current session.
 
 The editor keeps the preview and Frames / Stickers tabs visible while the controls scroll. A labeled frame-category dropdown matches the sticker-pack selector; caption and strip font sit after the frame/sticker controls. Save feedback reports when the local draft is saved or storage is unavailable.
+
+## Your works (mobile library)
+
+On the finished preview, **Save to Your works** explicitly archives the still strip and its editable project on this device. Repeated taps on the same preview do not create duplicates. Export/share is a separate system action. Home shows a two-column grid below Create / Continue, with an optional list view; Me links to the same library. Tap a card for a full preview, or use its three-dot menu to Edit, Export/share, Print, or Delete with confirmation.
+
+Opening an editable work replaces the active draft only after confirmation. Saving its edits creates a new work; the previous saved version stays intact. Each work owns its PNG, thumbnail and source project; deleting one removes only its local files. Completed works survive app restart and Start fresh. They are not uploaded, and uninstalling/clearing app data removes them. Motion clips are not archived. Shared Remote Booth strips support preview/export only. Missing or damaged files show a recoverable error and remain deletable. The library reports estimated space used; storage failures keep the current draft and offer a retry.

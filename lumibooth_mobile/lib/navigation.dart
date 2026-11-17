@@ -48,7 +48,7 @@ class MainNavigationScaffoldState extends State<MainNavigationScaffold> {
     if (_currentIndex == 1) {
       final meState = _meNavKey.currentState;
       if (meState != null && meState.canPop()) {
-        meState.pop();
+        await meState.maybePop();
         return;
       }
       selectTab(0);

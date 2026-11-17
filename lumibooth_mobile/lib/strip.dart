@@ -503,6 +503,9 @@ class StripDesign {
     this.crops = const [],
     this.stickers = const [],
     this.frameImages,
+    this.background,
+    this.backgroundCrop = const PhotoCrop(),
+    this.containBackground = false,
     this.caption,
     this.font = StripFont.outfit,
   });
@@ -515,6 +518,9 @@ class StripDesign {
       index < crops.length ? crops[index] : const PhotoCrop();
   final List<StripSticker> stickers;
   final FrameImages? frameImages;
+  final ui.Image? background;
+  final PhotoCrop backgroundCrop;
+  final bool containBackground;
   final String? caption;
   final StripFont font;
 
@@ -632,7 +638,34 @@ class StripPainter extends CustomPainter {
     canvas.clipRect(Offset.zero & original);
     canvas.drawColor(frame.paper, BlendMode.src);
 
-    _paintMotif(canvas, original, frame);
+    if (design.background case final image?) {
+      final bounds = Offset.zero & original;
+      if (design.containBackground) {
+        final fit = applyBoxFit(
+          BoxFit.contain,
+          Size(image.width.toDouble(), image.height.toDouble()),
+          original,
+        );
+        canvas.drawImageRect(
+          image,
+          Offset.zero & Size(image.width.toDouble(), image.height.toDouble()),
+          Alignment.center.inscribe(fit.destination, bounds),
+          Paint()..filterQuality = FilterQuality.medium,
+        );
+      } else {
+        canvas.drawImageRect(
+          image,
+          design.backgroundCrop.sourceRect(
+            Size(image.width.toDouble(), image.height.toDouble()),
+            original,
+          ),
+          bounds,
+          Paint()..filterQuality = FilterQuality.medium,
+        );
+      }
+    } else {
+      _paintMotif(canvas, original, frame);
+    }
     if (frame.border case final color?) {
       canvas.drawRect(
         (Offset.zero & original).deflate(9),

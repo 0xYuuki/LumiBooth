@@ -71,3 +71,12 @@ The editor keeps the preview and Frames / Stickers tabs visible while the contro
 On the finished preview, **Save to Your works** explicitly archives the still strip and its editable project on this device. Repeated taps on the same preview do not create duplicates. Export/share is a separate system action. Home shows a two-column grid below Create / Continue, with an optional list view; Me links to the same library. Tap a card for a full preview, or use its three-dot menu to Edit, Export/share, Print, or Delete with confirmation.
 
 Opening an editable work replaces the active draft only after confirmation. Saving its edits creates a new work; the previous saved version stays intact. Each work owns its PNG, thumbnail and source project; deleting one removes only its local files. Completed works survive app restart and Start fresh. They are not uploaded, and uninstalling/clearing app data removes them. Motion clips are not archived. Shared Remote Booth strips support preview/export only. Missing or damaged files show a recoverable error and remain deletable. The library reports estimated space used; storage failures keep the current draft and offer a retry.
+
+
+## My Uploads (mobile, local only)
+
+Use **My stickers / Upload your own** in Stickers or **My backgrounds / Upload your own** in Frames. Me → My Uploads provides the same local library, with separate sticker/background types, recent sorting, previews, rename and confirmed delete. A background is drawn behind photos; it is not an overlay frame or photo mask. Use Fill strip, Fit whole image, or Reposition background to choose its composition. Transparent PNG/WebP stickers use the existing move, resize, rotate and remove controls.
+
+Imports accept still PNG, JPEG and WebP, up to 20 MB and 32 megapixels, and normalize a private copy to a maximum 2048-pixel edge with a small thumbnail. Unsupported, animated, corrupt and oversized images produce an error. Android interrupted-picker recovery keeps custom uploads separate from booth photos.
+
+Drafts and saved works embed their used uploaded images and transforms, so deleting a library upload leaves existing works editable. Starting fresh does not delete My Uploads. Clearing app data or uninstalling can remove local uploads; this is not a guaranteed backup. This phase does not upload files, require an account, or implement cloud backup. Custom overlay frames/masks and the web upload library are outside this mobile background/sticker implementation.

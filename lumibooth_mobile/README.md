@@ -80,3 +80,9 @@ Use **My stickers / Upload your own** in Stickers or **My backgrounds / Upload y
 Imports accept still PNG, JPEG and WebP, up to 20 MB and 32 megapixels, and normalize a private copy to a maximum 2048-pixel edge with a small thumbnail. Unsupported, animated, corrupt and oversized images produce an error. Android interrupted-picker recovery keeps custom uploads separate from booth photos.
 
 Drafts and saved works embed their used uploaded images and transforms, so deleting a library upload leaves existing works editable. Starting fresh does not delete My Uploads. Clearing app data or uninstalling can remove local uploads; this is not a guaranteed backup. This phase does not upload files, require an account, or implement cloud backup. Custom overlay frames/masks and the web upload library are outside this mobile background/sticker implementation.
+
+## Feedback
+
+Guests can open **Me → Settings → Feedback** (also available from About LumiBooth). Choose Suggestion or Bug report, enter a 10–3,000 character message, and optionally provide a reply email. **Open email draft** launches the device's email app addressed to `alfortearjay0@gmail.com`; the user reviews and sends it there. LumiBooth never claims the draft was sent or delivered. The draft includes only the form fields, without photos, device logs, account identifiers or automatic attachments. Feedback form text is held only while the screen is open, with a prompt before leaving an unsent message.
+
+If no email app can open, **Copy feedback instead** copies the report and destination for manual sending. Users can retry without losing their message. Operators may override the recipient at build time with `--dart-define=LUMIBOOTH_FEEDBACK_EMAIL=your-address@example.com`. No feedback backend or sign-in is required. The receiving email provider handles messages once sent; a formal privacy policy remains a separate tracked task.

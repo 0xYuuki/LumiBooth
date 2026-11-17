@@ -13,7 +13,16 @@ class MePage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: paper,
-      appBar: const BoothHeader(step: 'ME'),
+      appBar: BoothHeader(
+        step: 'ME',
+        trailing: IconButton(
+          tooltip: 'Settings',
+          icon: const Icon(Icons.settings_outlined),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const BoothSettingsPage()),
+          ),
+        ),
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),

@@ -47,19 +47,8 @@ class PhotoCropControls extends StatelessWidget {
   }
 }
 
-Rect photoTransformRect(ui.Image image, Size window, PhotoCrop crop) {
-  final value = crop.normalized();
-  final ratio =
-      math.max(window.width / image.width, window.height / image.height) *
-      value.zoom;
-  final size = Size(image.width * ratio, image.height * ratio);
-  return Rect.fromLTWH(
-    (window.width - size.width) * value.x,
-    (window.height - size.height) * value.y,
-    size.width,
-    size.height,
-  );
-}
+Rect photoTransformRect(ui.Image image, Size window, PhotoCrop crop) => crop
+    .imageRect(Size(image.width.toDouble(), image.height.toDouble()), window);
 
 PhotoCrop movePhotoCrop(
   ui.Image image,
@@ -182,18 +171,22 @@ class _PhotoTransformEditorState extends State<PhotoTransformEditor> {
     final size = constraints.biggest;
     final rect = photoTransformRect(widget.image, _window, _crop);
     final fitted = photoTransformRect(widget.image, _window, _fitCrop);
-    final fitWidth =
-        2 *
-        math.max(
-          _window.width / 2 - fitted.left,
-          fitted.right - _window.width / 2,
-        );
-    final fitHeight =
-        2 *
-        math.max(
-          _window.height / 2 - fitted.top,
-          fitted.bottom - _window.height / 2,
-        );
+    final fitWidth = math.max(
+      _window.width,
+      2 *
+          math.max(
+            _window.width / 2 - fitted.left,
+            fitted.right - _window.width / 2,
+          ),
+    );
+    final fitHeight = math.max(
+      _window.height,
+      2 *
+          math.max(
+            _window.height / 2 - fitted.top,
+            fitted.bottom - _window.height / 2,
+          ),
+    );
     final scale = math.min(
       (size.width - 56) / fitWidth,
       (size.height - 56) / fitHeight,
@@ -227,66 +220,73 @@ class _PhotoTransformEditorState extends State<PhotoTransformEditor> {
                 ),
               ),
             ),
-            Positioned.fromRect(
-              rect: displayed,
-              child: Semantics(
-                label: 'Reposition photo',
-                child: Listener(
-                  key: const ValueKey('reposition-photo'),
-                  behavior: HitTestBehavior.opaque,
-                  onPointerDown: (event) => _down(event, scale),
-                  onPointerMove: _move,
-                  onPointerUp: (event) => _end(event, scale),
-                  onPointerCancel: (event) => _end(event, scale),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xffdbcbfa)),
+            if (!_crop.contain)
+              Positioned.fromRect(
+                rect: displayed,
+                child: Semantics(
+                  label: 'Reposition photo',
+                  child: Listener(
+                    key: const ValueKey('reposition-photo'),
+                    behavior: HitTestBehavior.opaque,
+                    onPointerDown: (event) => _down(event, scale),
+                    onPointerMove: _move,
+                    onPointerUp: (event) => _end(event, scale),
+                    onPointerCancel: (event) => _end(event, scale),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xffdbcbfa)),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            for (final (name, corner) in [
-              ('top-left', Alignment.topLeft),
-              ('top-right', Alignment.topRight),
-              ('bottom-left', Alignment.bottomLeft),
-              ('bottom-right', Alignment.bottomRight),
-            ])
-              Positioned(
-                left:
-                    displayed.left + (corner.x + 1) / 2 * displayed.width - 22,
-                top: displayed.top + (corner.y + 1) / 2 * displayed.height - 22,
-                child: Semantics(
-                  label: 'Resize photo $name',
-                  button: true,
-                  child: Listener(
-                    key: ValueKey('resize-photo-$name'),
-                    behavior: HitTestBehavior.opaque,
-                    onPointerDown: (event) => _down(event, scale, corner),
-                    onPointerMove: _move,
-                    onPointerUp: (event) => _end(event, scale),
-                    onPointerCancel: (event) => _end(event, scale),
-                    child: SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: Center(
-                        child: Container(
-                          width: 16,
-                          height: 16,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            border: Border.all(
-                              color: const Color(0xff523884),
-                              width: 2,
+            if (!_crop.contain)
+              for (final (name, corner) in [
+                ('top-left', Alignment.topLeft),
+                ('top-right', Alignment.topRight),
+                ('bottom-left', Alignment.bottomLeft),
+                ('bottom-right', Alignment.bottomRight),
+              ])
+                Positioned(
+                  left:
+                      displayed.left +
+                      (corner.x + 1) / 2 * displayed.width -
+                      22,
+                  top:
+                      displayed.top +
+                      (corner.y + 1) / 2 * displayed.height -
+                      22,
+                  child: Semantics(
+                    label: 'Resize photo $name',
+                    button: true,
+                    child: Listener(
+                      key: ValueKey('resize-photo-$name'),
+                      behavior: HitTestBehavior.opaque,
+                      onPointerDown: (event) => _down(event, scale, corner),
+                      onPointerMove: _move,
+                      onPointerUp: (event) => _end(event, scale),
+                      onPointerCancel: (event) => _end(event, scale),
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Center(
+                          child: Container(
+                            width: 16,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              border: Border.all(
+                                color: const Color(0xff523884),
+                                width: 2,
+                              ),
+                              borderRadius: BorderRadius.circular(3),
                             ),
-                            borderRadius: BorderRadius.circular(3),
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
           ],
         ),
       ),
@@ -317,8 +317,8 @@ class _PhotoTransformEditorState extends State<PhotoTransformEditor> {
                 ),
               ],
             ),
-            const Text(
-              'Drag the image or pull a corner. The outlined window is your frame.',
+            Text(
+              _crop.contain ? 'The full photo fits inside the outlined frame.' : 'Drag the image or pull a corner. The outlined window is your frame.',
             ),
             const SizedBox(height: 12),
             Expanded(
@@ -335,33 +335,52 @@ class _PhotoTransformEditorState extends State<PhotoTransformEditor> {
                   children: [
                     OutlinedButton(
                       onPressed: () {
-                        _change(const PhotoCrop());
-                        setState(() => _fitCrop = const PhotoCrop());
+                        _change(
+                          PhotoCrop(
+                            x: _crop.x,
+                            y: _crop.y,
+                            zoom: _crop.zoom,
+                            contain: !_crop.contain,
+                          ),
+                        );
+                        setState(() => _fitCrop = _crop);
                       },
-                      child: const Text('Reset crop'),
-                    ),
-                    OutlinedButton(
-                      onPressed: () => setState(() => _fitCrop = _crop),
-                      child: const Text('Fit image'),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    const Text('Zoom'),
-                    Expanded(
-                      child: Slider(
-                        label: 'Zoom',
-                        min: 1,
-                        max: 3,
-                        value: _crop.zoom,
-                        onChanged: (zoom) => _change(
-                          PhotoCrop(x: _crop.x, y: _crop.y, zoom: zoom),
-                        ),
+                      child: Text(
+                        _crop.contain ? 'Fill frame' : 'Show full photo',
                       ),
                     ),
+                    if (!_crop.contain) ...[
+                      OutlinedButton(
+                        onPressed: () {
+                          _change(const PhotoCrop());
+                          setState(() => _fitCrop = const PhotoCrop());
+                        },
+                        child: const Text('Reset crop'),
+                      ),
+                      OutlinedButton(
+                        onPressed: () => setState(() => _fitCrop = _crop),
+                        child: const Text('Fit image'),
+                      ),
+                    ],
                   ],
                 ),
+                if (!_crop.contain)
+                  Row(
+                    children: [
+                      const Text('Zoom'),
+                      Expanded(
+                        child: Slider(
+                          label: 'Zoom',
+                          min: 1,
+                          max: 3,
+                          value: _crop.zoom,
+                          onChanged: (zoom) => _change(
+                            PhotoCrop(x: _crop.x, y: _crop.y, zoom: zoom),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ],

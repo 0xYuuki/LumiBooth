@@ -42,3 +42,17 @@ test('corner resizing preserves the opposite corner until the frame coverage lim
   }
   assert.equal(panCrop(initial, 600, 400, 200, 200, 10000, 0).x, 0);
 });
+
+test('full-photo fit preserves all pixels across portrait and landscape openings', () => {
+  for (const [imageWidth, imageHeight] of [[600, 200], [200, 600]]) {
+    for (const [width, height] of [[150, 200], [200, 150], [200, 200], [150, 200]]) {
+      const rect = cropGeometry(imageWidth, imageHeight, width, height, {
+        x: 1, y: 0, zoom: 3, contain: true,
+      });
+      assert.ok(Math.abs(rect.width / rect.height - imageWidth / imageHeight) < 1e-10);
+      assert.ok(rect.x >= -1e-10 && rect.y >= -1e-10);
+      assert.ok(Math.abs(rect.x + rect.width / 2 - width / 2) < 1e-10);
+      assert.ok(Math.abs(rect.y + rect.height / 2 - height / 2) < 1e-10);
+    }
+  }
+});

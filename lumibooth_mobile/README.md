@@ -42,7 +42,7 @@ Select your phone if Flutter lists multiple devices. For iOS, configure a signin
 
 ## Adjust photos in frames
 
-In Design, tap a photo directly on the strip. An enlarged adjustment view shows the whole image with the area outside the frame dimmed. Drag to reposition, pull one of four corner handles to resize proportionally, or pinch to zoom. **Fit image** brings all handles back into view without changing the crop. **Reset crop** restores the automatic fit; **Done**, system Back, or tapping outside closes the controls. There is no Photos tab. Crops remain attached to their photos through review, reordering and frame changes. Originals stay unchanged, and the same crop is used for previews, PNG output, animated playback and GIF export.
+In Design, tap a photo directly on the strip. An enlarged adjustment view shows the whole image with the area outside the frame dimmed. Drag to reposition, pull one of four corner handles to resize proportionally, or pinch to zoom. **Show full photo** fits the entire image within the opening and follows that photo when you switch frames. **Fill frame** brings back your previous zoom and position. **Fit image** brings all handles back into view without changing the crop. **Reset crop** restores the automatic fit; **Done**, system Back, or tapping outside closes the controls. There is no Photos tab. Crops remain attached to their photos through review, reordering and frame changes. Originals stay unchanged, and the same crop is used for previews, PNG output, animated playback and GIF export.
 
 ## Motion photos
 

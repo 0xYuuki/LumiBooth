@@ -422,7 +422,7 @@
 .photo-aperture > img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; max-width: none; }
 .motion-export-layer .photo-aperture img { visibility: hidden; }
 
-.photo-selectable { cursor: pointer; }
+.photo-selectable { cursor: pointer; pointer-events: auto; }
 .photo-selectable:hover { outline: 2px solid var(--accent); outline-offset: -2px; }
 .photo-transform-dialog { --accent: #523884; --ink: #23202a; --line: #e4dfe6; --wash: #eee8f7; --paper: #faf8f4; box-sizing: border-box; width: min(900px, calc(100vw - 24px)); max-width: none; max-height: calc(100dvh - 24px); margin: auto; padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); color: var(--ink); font: inherit; overflow: auto; }
 .photo-transform-dialog::backdrop { background: #17121ed9; }

@@ -475,13 +475,38 @@ enum StripFont {
 
 /// Normalized, non-destructive crop shared by previews, PNGs and GIFs.
 class PhotoCrop {
-  const PhotoCrop({this.x = .5, this.y = .5, this.zoom = 1});
+  const PhotoCrop({
+    this.x = .5,
+    this.y = .5,
+    this.zoom = 1,
+    this.contain = false,
+  });
   final double x, y, zoom;
+  final bool contain;
   PhotoCrop normalized() => PhotoCrop(
     x: x.isFinite ? x.clamp(0, 1) : .5,
     y: y.isFinite ? y.clamp(0, 1) : .5,
     zoom: zoom.isFinite ? zoom.clamp(1, 3) : 1,
+    contain: contain,
   );
+  Rect imageRect(Size source, Size opening) {
+    final value = normalized();
+    if (value.contain) {
+      final fit = applyBoxFit(BoxFit.contain, source, opening).destination;
+      return Alignment.center.inscribe(fit, Offset.zero & opening);
+    }
+    final ratio =
+        math.max(opening.width / source.width, opening.height / source.height) *
+        value.zoom;
+    final width = source.width * ratio, height = source.height * ratio;
+    return Rect.fromLTWH(
+      (opening.width - width) * value.x,
+      (opening.height - height) * value.y,
+      width,
+      height,
+    );
+  }
+
   Rect sourceRect(Size source, Size destination) {
     final value = normalized();
     final fit = applyBoxFit(BoxFit.cover, source, destination).source;
@@ -810,20 +835,20 @@ class StripPainter extends CustomPainter {
     canvas.clipRRect(bounds);
     if (photosPerCell == 2) {
       final middle = rect.center.dx;
-      _drawPhotoCover(
+      _drawPhoto(
         canvas,
         design.photos[first],
         Rect.fromLTRB(rect.left, rect.top, middle, rect.bottom),
         design.cropAt(first),
       );
-      _drawPhotoCover(
+      _drawPhoto(
         canvas,
         design.photos[first + 1],
         Rect.fromLTRB(middle, rect.top, rect.right, rect.bottom),
         design.cropAt(first + 1),
       );
     } else {
-      _drawPhotoCover(
+      _drawPhoto(
         canvas,
         motionFrames[index] ?? design.photos[first],
         rect,
@@ -833,18 +858,25 @@ class StripPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _drawPhotoCover(
+  void _drawPhoto(
     Canvas canvas,
     ui.Image image,
     Rect destination,
     PhotoCrop adjustment,
   ) {
     final source = Size(image.width.toDouble(), image.height.toDouble());
-    final crop = adjustment.sourceRect(source, destination.size);
+    final crop = adjustment.contain
+        ? Offset.zero & source
+        : adjustment.sourceRect(source, destination.size);
+    final target = adjustment.contain
+        ? adjustment
+              .imageRect(source, destination.size)
+              .shift(destination.topLeft)
+        : destination;
     canvas.drawImageRect(
       image,
       crop,
-      destination,
+      target,
       Paint()..filterQuality = FilterQuality.medium,
     );
   }

@@ -14,8 +14,8 @@ export default function PhotoTransformEditor({ src, crop, aspect, onChange, onCl
   const width = 240, height = width / aspect;
   const geometry = natural ? cropGeometry(natural.width, natural.height, width, height, value) : { x: 0, y: 0, width, height };
   const fitted = natural ? cropGeometry(natural.width, natural.height, width, height, fitCrop) : geometry;
-  const fitWidth = 2 * Math.max(width / 2 - fitted.x, fitted.x + fitted.width - width / 2);
-  const fitHeight = 2 * Math.max(height / 2 - fitted.y, fitted.y + fitted.height - height / 2);
+  const fitWidth = Math.max(width, 2 * Math.max(width / 2 - fitted.x, fitted.x + fitted.width - width / 2));
+  const fitHeight = Math.max(height, 2 * Math.max(height / 2 - fitted.y, fitted.y + fitted.height - height / 2));
   const scale = Math.min((area.width - 56) / fitWidth, (area.height - 56) / fitHeight);
   const offsetX = (area.width - width * scale) / 2;
   const offsetY = (area.height - height * scale) / 2;
@@ -64,7 +64,9 @@ export default function PhotoTransformEditor({ src, crop, aspect, onChange, onCl
     <dialog ref={dialog} className="photo-transform-dialog" aria-labelledby="photo-transform-title" onClose={(event) => { if (!event.currentTarget.open) onClose(); }}
       onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div className="photo-transform-heading">
-        <div><h2 id="photo-transform-title">Adjust your photo</h2><p>Drag the image or pull a corner. The outlined window is your frame.</p></div>
+        <div><h2 id="photo-transform-title">Adjust your photo</h2><p>{value.contain
+          ? 'The full photo fits inside the outlined frame.'
+          : 'Drag the image or pull a corner. The outlined window is your frame.'}</p></div>
         <button type="button" className="booth-button" onClick={onClose}>Done</button>
       </div>
       <div ref={workspace} className="photo-transform-workspace" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -73,7 +75,7 @@ export default function PhotoTransformEditor({ src, crop, aspect, onChange, onCl
         <div className="transform-window" aria-hidden="true" style={{ left: offsetX, top: offsetY, width: width * scale, height: height * scale }}>
           <img src={src} alt="" draggable={false} style={{ left: geometry.x * scale, top: geometry.y * scale, width: geometry.width * scale, height: geometry.height * scale }} />
         </div>
-        {natural && <div className="transform-image-bounds" role="button" tabIndex={0} aria-label="Reposition photo" style={imageStyle}
+        {natural && !value.contain && <div className="transform-image-bounds" role="button" tabIndex={0} aria-label="Reposition photo" style={imageStyle}
           onPointerDown={(event) => down(event)} {...events}
           onKeyDown={(event) => {
             const delta = { ArrowLeft: [.05, 0], ArrowRight: [-.05, 0], ArrowUp: [0, .05], ArrowDown: [0, -.05] }[event.key];
@@ -86,9 +88,16 @@ export default function PhotoTransformEditor({ src, crop, aspect, onChange, onCl
         </div>}
       </div>
       <div className="photo-transform-toolbar">
-        <button type="button" className="booth-button booth-secondary" onClick={() => { onChange({}); setFitCrop(normalizeCrop()); }}>Reset crop</button>
-        <button type="button" className="booth-button booth-secondary" onClick={() => setFitCrop(value)}>Fit image</button>
-        <label>Zoom <input type="range" min="1" max="3" step="0.01" value={value.zoom} onChange={(event) => onChange({ ...value, zoom: Number(event.target.value) })} /></label>
+        <button type="button" className="booth-button booth-secondary" onClick={() => {
+          const next = { ...value, contain: !value.contain };
+          onChange(next);
+          setFitCrop(next);
+        }}>{value.contain ? 'Fill frame' : 'Show full photo'}</button>
+        {!value.contain && <>
+          <button type="button" className="booth-button booth-secondary" onClick={() => { onChange({}); setFitCrop(normalizeCrop()); }}>Reset crop</button>
+          <button type="button" className="booth-button booth-secondary" onClick={() => setFitCrop(value)}>Fit image</button>
+          <label>Zoom <input type="range" min="1" max="3" step="0.01" value={value.zoom} onChange={(event) => onChange({ ...value, zoom: Number(event.target.value) })} /></label>
+        </>}
       </div>
     </dialog>
   );

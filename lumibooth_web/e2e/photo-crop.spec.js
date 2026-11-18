@@ -115,17 +115,32 @@ test('animated export applies the same crop as the displayed strip', async ({ pa
   await page.getByRole('button', { name: 'Next', exact: true }).click();
   await page.getByRole('button', { name: 'Play strip', exact: true }).click();
   await expect(page.getByRole('group', { name: 'Animated LumiBooth photo strip' }).getByRole('img', { name: 'Captured photo 1' })).toHaveCSS('object-position', '100% 50%');
-  const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Save animated strip', exact: true }).click();
-  const download = await downloadPromise;
-  const { readFile } = await import('node:fs/promises');
-  const { parseGIF, decompressFrames } = await import('gifuct-js');
-  const frames = decompressFrames(parseGIF(new Uint8Array(await readFile(await download.path()))), true);
-  expect(frames.length).toBeGreaterThan(1);
-  for (const frame of [frames[0], frames.at(-1)]) {
-    const offset = (Math.floor(point[1] * frame.dims.height) * frame.dims.width + Math.floor(point[0] * frame.dims.width)) * 4;
-    const [r, g, b] = frame.patch.slice(offset, offset + 3);
+  async function sampleAnimation() {
+    const pending = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Save animated strip', exact: true }).click();
+    const download = await pending;
+    const { readFile } = await import('node:fs/promises');
+    const { parseGIF, decompressFrames } = await import('gifuct-js');
+    const frames = decompressFrames(parseGIF(new Uint8Array(await readFile(await download.path()))), true);
+    expect(frames.length).toBeGreaterThan(1);
+    return [frames[0], frames.at(-1)].map(frame => {
+      const offset = (Math.floor(point[1] * frame.dims.height) * frame.dims.width + Math.floor(point[0] * frame.dims.width)) * 4;
+      return frame.patch.slice(offset, offset + 3);
+    });
+  }
+  for (const [r, g, b] of await sampleAnimation()) {
     expect(b).toBeGreaterThan(230); expect(r).toBeLessThan(25); expect(g).toBeLessThan(25);
+  }
+
+  await page.getByRole('button', { name: 'Edit Strip' }).click();
+  await page.getByRole('button', { name: 'Adjust captured photo 1' }).click();
+  await page.getByRole('button', { name: 'Show full photo' }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await page.getByRole('button', { name: 'Play strip', exact: true }).click();
+  await expect(page.getByRole('group', { name: 'Animated LumiBooth photo strip' }).getByRole('img', { name: 'Captured photo 1' })).toHaveCSS('object-fit', 'contain');
+  for (const [r, g, b] of await sampleAnimation()) {
+    expect(g).toBeGreaterThan(230); expect(r).toBeLessThan(25); expect(b).toBeLessThan(25);
   }
 });
 
@@ -192,4 +207,76 @@ test('a narrow screen can expand and scroll the strip from design and save', asy
   await expect(dialog.getByRole('img', { name: 'Expanded LumiBooth photo strip' })).toBeVisible();
   await dialog.getByRole('button', { name: 'Close preview' }).click();
   await expect(page.getByRole('link', { name: 'Save to Device' })).toBeVisible();
+});
+
+test('full photo fit survives template switches, draft reload and PNG export', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
+  await page.getByRole('button', { name: /Single Photo/ }).click();
+  const bytes = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 600;
+    canvas.height = 200;
+    const context = canvas.getContext('2d');
+    for (const [index, color] of ['#ff0000', '#00ff00', '#0000ff'].entries()) {
+      context.fillStyle = color;
+      context.fillRect(index * 200, 0, 200, 200);
+    }
+    return canvas.toDataURL().split(',')[1];
+  });
+  await page.getByLabel('Choose image files').setInputFiles({
+    name: 'wide.png', mimeType: 'image/png', buffer: Buffer.from(bytes, 'base64'),
+  });
+  await page.getByRole('button', { name: 'Continue to design' }).click();
+
+  const adjust = page.getByRole('button', { name: 'Adjust captured photo 1' });
+  const photo = page.locator('.editor-preview-fit').getByRole('img', { name: 'Captured photo 1' });
+  await adjust.click();
+  await page.getByRole('slider', { name: 'Zoom' }).fill('2');
+  await page.getByRole('button', { name: 'Show full photo' }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+  for (const [category, frame] of [['Illustrated', 'Tube TV'], ['Templates', 'Studio'], ['Illustrated', 'Tube TV']]) {
+    await page.getByLabel('Frame category').selectOption(category);
+    await page.getByRole('button', { name: frame, exact: true }).click();
+    await expect(photo).toHaveCSS('object-fit', 'contain');
+  }
+  await expect(page.getByText('Saved on this device', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(photo).toHaveCSS('object-fit', 'contain');
+  await adjust.click();
+  await page.getByRole('button', { name: 'Fill frame' }).click();
+  await expect(page.getByRole('slider', { name: 'Zoom' })).toHaveValue('2');
+  await page.getByRole('button', { name: 'Show full photo' }).click();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
+
+  const points = await photo.evaluate(img => {
+    const slot = img.getBoundingClientRect();
+    const strip = img.closest('.photo-strip').getBoundingClientRect();
+    const fittedWidth = Math.min(slot.width, slot.height * img.naturalWidth / img.naturalHeight);
+    return [0.15, 0.85].map(fraction => [
+      (slot.left - strip.left + slot.width / 2 + (fraction - 0.5) * fittedWidth) / strip.width,
+      (slot.top - strip.top + slot.height / 2) / strip.height,
+    ]);
+  });
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  const output = page.getByRole('img', { name: 'Your finished LumiBooth photo strip' });
+  const colors = await output.evaluate(async (img, samplePoints) => {
+    await img.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const context = canvas.getContext('2d');
+    context.drawImage(img, 0, 0);
+    return samplePoints.map(([x, y]) =>
+      [...context.getImageData(Math.floor(x * canvas.width), Math.floor(y * canvas.height), 1, 1).data]);
+  }, points);
+  for (const [index, expected] of [[0, 0], [1, 2]]) {
+    const [r, g, b, a] = colors[index];
+    expect([r, g, b][expected]).toBeGreaterThan(230);
+    expect([r, g, b][2 - expected]).toBeLessThan(25);
+    expect(g).toBeLessThan(25);
+    expect(a).toBe(255);
+  }
+  await page.emulateMedia({ media: 'print' });
+  await expect(output).toBeVisible();
 });

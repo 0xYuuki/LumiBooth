@@ -82,13 +82,30 @@ class SavedWorks {
     Map<String, dynamic>? project,
     Uint8List png,
     Uint8List thumbnail,
+  ) async {
+    final now = DateTime.now();
+    final id = '${now.microsecondsSinceEpoch}-${_serial++}';
+    await restore(id, now, project, png, thumbnail);
+  }
+
+  static Future<bool> restore(
+    String id,
+    DateTime created,
+    Map<String, dynamic>? project,
+    Uint8List png,
+    Uint8List thumbnail,
   ) => _write(() async {
+    if (!RegExp(
+      r'^(?:[0-9]{1,20}-[0-9]{1,10}|web-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$',
+    ).hasMatch(id)) {
+      throw ArgumentError('Invalid saved work ID');
+    }
     final root = await _root();
     await root.create(recursive: true);
-    final id = '${DateTime.now().microsecondsSinceEpoch}-${_serial++}';
-    final temp = Directory('${root.path}/.$id');
+    final target = Directory('${root.path}/$id');
+    if (await target.exists()) return false;
+    final temp = await root.createTemp('.work-');
     try {
-      await temp.create();
       await File('${temp.path}/strip.png').writeAsBytes(png, flush: true);
       await File('${temp.path}/thumbnail.png')
           .writeAsBytes(thumbnail, flush: true);
@@ -99,11 +116,12 @@ class SavedWorks {
       await File('${temp.path}/metadata.json').writeAsString(
         jsonEncode({
           'version': 1,
-          'created': DateTime.now().toUtc().toIso8601String(),
+          'created': created.toUtc().toIso8601String(),
         }),
         flush: true,
       );
-      await temp.rename('${root.path}/$id');
+      await temp.rename(target.path);
+      return true;
     } catch (_) {
       if (await temp.exists()) await temp.delete(recursive: true);
       rethrow;

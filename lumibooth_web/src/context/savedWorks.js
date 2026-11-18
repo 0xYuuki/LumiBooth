@@ -1,5 +1,7 @@
 import { restoreProject, serializeProject } from './localDraft';
 import { layouts, requiredPhotos, selectedItems } from './photoboothSession';
+import { frameLibrary } from '../pages/user/frameLibrary';
+import { stickerPacks } from '../pages/user/stickerPacks';
 
 function database() {
   return new Promise((resolve, reject) => {
@@ -79,19 +81,37 @@ export async function saveWork(session) {
     }),
     session.roomId ? null : serializeProject(session),
   ]);
+  const id = crypto.randomUUID();
+  await storeWork({ id, createdAt: Date.now(),
+    title: session.caption?.trim() || session.frame?.name || session.layout.name, poster, project });
+  return id;
+}
+
+export async function storeWork({ id, createdAt, title, poster, project }) {
   const thumbnail = await thumbnailFor(poster);
   const work = {
-    id: crypto.randomUUID(),
-    createdAt: Date.now(),
-    title: session.caption?.trim() || session.frame?.name || session.layout.name,
+    id,
+    createdAt,
+    title,
     thumbnail,
     bytes: thumbnail.size + poster.size + (project?.items.reduce((sum, item) => sum + item.blob.size, 0) ?? 0),
   };
+  let inserted = false;
   await transact(['works', 'details'], 'readwrite', tx => {
-    tx.objectStore('works').add(work);
-    tx.objectStore('details').add({ id: work.id, poster, project });
+    const index = tx.objectStore('works');
+    const existing = index.get(id);
+    existing.onsuccess = () => {
+      if (existing.result) return;
+      try {
+        index.add(work);
+        tx.objectStore('details').add({ id, poster, project });
+        inserted = true;
+      } catch {
+        tx.abort();
+      }
+    };
   });
-  return work.id;
+  return inserted;
 }
 
 export async function editWork(project) {
@@ -102,9 +122,24 @@ export async function editWork(project) {
       selectedItems(project.items).length !== requiredPhotos(layout)) {
     throw new Error('Editable source photos are unavailable.');
   }
+  const { frame, stickers, caption, signatureFont } = project.session;
+  const currentFrame = frame ? Object.values(frameLibrary).flat().find(item => item.name === frame.name) : null;
+  const catalog = stickerPacks.flatMap(pack => pack.items);
+  const currentStickers = stickers.map(sticker => ({
+    ...sticker,
+    art: catalog.find(item => item.name === sticker?.art?.name && item.x === sticker?.art?.x && item.y === sticker?.art?.y),
+  }));
+  if ((frame && !currentFrame) || currentStickers.some(sticker => !sticker.art)) {
+    throw new Error('Editable design assets are unavailable.');
+  }
   await Promise.all(project.items.map(async (item) => {
     const decoded = await createImageBitmap(item.blob);
     decoded.close();
   }));
-  return restoreProject({ ...project, session: { ...project.session, layout } });
+  return restoreProject({ ...project, session: {
+    layout, caption: typeof caption === 'string' ? caption : null,
+    signatureFont: typeof signatureFont === 'string' ? signatureFont : null,
+    frame: currentFrame, stickers: currentStickers, designRevision: 0,
+    manualLayout: project.session.manualLayout === true,
+  } });
 }

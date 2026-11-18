@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'booth.dart';
+import 'cloud_backup.dart';
+import 'cloud_backup_page.dart';
 import 'print_strip.dart';
 import 'saved_works.dart';
 
@@ -34,7 +36,7 @@ class _WorksLibraryState extends State<WorksLibrary> {
         builder: (context) => AlertDialog(
           title: const Text('Delete this work?'),
           content: const Text(
-            'This deletes its saved strip and editing copy from this device. Your current draft and exported files will stay.',
+            'This deletes its saved strip and editing copy from this device. Your draft, exported files, and any cloud backup will stay.',
           ),
           actions: [
             TextButton(
@@ -246,6 +248,15 @@ class _WorksLibraryState extends State<WorksLibrary> {
         style: TextStyle(color: muted, fontSize: 13),
       ),
       const SizedBox(height: 16),
+      if (CloudBackup.enabled)
+        TextButton.icon(
+          onPressed: () async {
+            await openCloudBackup(context);
+            refresh();
+          },
+          icon: const Icon(Icons.cloud_outlined),
+          label: const Text('Cloud backup'),
+        ),
       FutureBuilder<List<SavedWork>>(
         future: _items,
         builder: (context, snapshot) {

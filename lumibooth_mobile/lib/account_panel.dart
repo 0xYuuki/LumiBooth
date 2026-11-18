@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'cloud_backup.dart';
+import 'cloud_backup_page.dart';
 import 'online_booth.dart';
 
 enum _AccountMode { login, signup, forgot }
@@ -210,6 +213,12 @@ class _AccountPanelState extends State<AccountPanel> {
                 : () => _submit(signedIn: signedIn, recovery: recovery),
             child: Text(_busy ? 'Please wait…' : title),
           ),
+          if (signedIn && CloudBackup.enabled)
+            _BackupInvitation(
+              key: ValueKey(user.id),
+              owner: user.id,
+              enabled: !_busy,
+            ),
           if (!signedIn && !recovery)
             if (_mode == _AccountMode.login) ...[
               TextButton(
@@ -227,6 +236,70 @@ class _AccountPanelState extends State<AccountPanel> {
               ),
         ],
       ),
+    );
+  }
+}
+
+class _BackupInvitation extends StatefulWidget {
+  const _BackupInvitation({
+    super.key,
+    required this.owner,
+    required this.enabled,
+  });
+
+  final String owner;
+  final bool enabled;
+
+  @override
+  State<_BackupInvitation> createState() => _BackupInvitationState();
+}
+
+class _BackupInvitationState extends State<_BackupInvitation> {
+  final _preferences = SharedPreferencesAsync();
+  late final _key = 'lumi-backup-invitation:${widget.owner}';
+  late final _seen = _preferences.getBool(_key).catchError((Object _) => false);
+  bool _dismissed = false;
+
+  void _dismiss() {
+    setState(() => _dismissed = true);
+    unawaited(_preferences.setBool(_key, true).catchError((Object _) {}));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool?>(
+      future: _seen,
+      builder: (context, snapshot) {
+        if (_dismissed || snapshot.data == true) {
+          return TextButton(
+            onPressed: widget.enabled ? () => openCloudBackup(context) : null,
+            child: const Text('Cloud backup'),
+          );
+        }
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const SizedBox.shrink();
+        }
+        return Column(
+          children: [
+            const Text(
+              'Would you like to back up strips from this device? You can choose what to upload.',
+            ),
+            TextButton(
+              onPressed: widget.enabled
+                  ? () {
+                      _dismiss();
+                      openCloudBackup(context);
+                    }
+                  : null,
+              child: const Text('Back up my existing strips'),
+            ),
+            TextButton(
+              onPressed: widget.enabled ? _dismiss : null,
+              child: const Text('Not now'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -54,3 +54,43 @@ Email confirmation and recovery use PKCE. Open the link on the device and in the
 - For the physical timing check, keep the phones on their separate networks but point both cameras at the same continuously running millisecond display. Compare the times visible in the two stills from each round. This measures the resulting exposures. The simulated browser test measures when each device requested capture against the 250 ms target. Background one participant before the shutter, then return and retry the round.
 - In the web app and on Android and iOS, confirm a new email account, sign out, sign back in, and follow a password reset link. Sign in again with the new password and confirm that an existing local draft is still available.
 - Check that cleanup removes abandoned uploads and that plain capture and printing work with both flags disabled.
+
+## Private strip backups
+
+Apply the private-backup migration to staging and verify access before enabling
+`VITE_LUMI_CLOUD_BACKUP=true` on web or `--dart-define=LUMI_CLOUD_BACKUP=true`
+on Flutter. Both flags default off. The web host should serve the app shell for
+`/backup`.
+
+Guests keep local access to Your works. A signed-in account can select existing
+saved strips, see the estimated upload size, and confirm the upload. Backups are
+manual. Signing in, dismissing the invitation, and creating future strips leave
+those strips on the device. Motion buffers and unsaved drafts stay local.
+
+The private `lumi-private-backups` bucket stores one immutable archive per
+saved work under the account's UUID. The Storage object record is the catalog.
+A retry uses the same path. Only complete uploads appear in the catalog, and
+the archive limit is 24 MiB. Store a strip again as a new work to back up another
+edit. Cross-device restore preserves editable projects on the originating
+platform. Restoring a Flutter archive on web or a web archive on Flutter
+produces a preview-only PNG. A restore keeps any local work that already has
+the same ID.
+
+Cloud backups are retained until the owner deletes them. Deleting a local
+strip leaves its cloud backup. Deleting the backup leaves every downloaded
+local copy. For an account deletion request, remove that account's backup
+objects through the Storage API before deleting its Auth user. Do not delete
+Storage rows directly. The QR sharing bucket and its expiry policy are separate.
+
+For local verification, start Supabase and set `LUMI_TEST_SUPABASE_KEY` to its
+publishable key. Run `node supabase/tests/private_backups.mjs` from the repo
+root. The test covers owner access, peer and guest isolation, immutable upload
+retries, failed uploads, and deletion. To run the browser integration test,
+build the web app with the local Supabase URL `http://127.0.0.1:54321`, the
+local publishable key, and the backup flag enabled. Run
+`npm run test:e2e -- e2e/backup.spec.js` in `lumibooth_web`.
+
+Before production rollout, repeat upload, retry, duplicate restore, and delete
+checks with two staging accounts on web and Android/iOS. Confirm that a
+different account cannot list, download, overwrite, or remove the backup, and
+that local capture and Your works remain usable while signed out or offline.

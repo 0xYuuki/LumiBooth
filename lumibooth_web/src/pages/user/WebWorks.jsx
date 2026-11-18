@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { BoothHeader } from '../../components/BoothUI';
 import { PhotoboothContext } from '../../context/photoboothContext';
 import { deleteWork, editWork, listWorks, loadWork } from '../../context/savedWorks';
+import { backupsEnabled } from '../../online/lumiClient';
 import StripPreviewDialog from './StripPreviewDialog';
 
 const dates = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -47,6 +48,7 @@ export function WebWorks() {
       <main className="booth-content">
         <Link className="booth-link" to="/">Back to photo booth</Link>
         <h1 className="booth-title">Your works</h1>
+        {backupsEnabled && <Link className="booth-link" to="/backup">Cloud backup</Link>}
         {error && <p role="alert">{error}</p>}
         {!works && !error && <p role="status">Opening Your works…</p>}
         {works?.length === 0 && <p>Save a finished strip to see it here.</p>}
@@ -129,7 +131,7 @@ function SavedWork({ id }) {
   }
 
   async function remove() {
-    if (!window.confirm('Delete this saved strip from this browser?')) return;
+    if (!window.confirm('Delete this saved strip from this browser? Any cloud backup will stay.')) return;
     setBusy(true);
     setError('');
     try {

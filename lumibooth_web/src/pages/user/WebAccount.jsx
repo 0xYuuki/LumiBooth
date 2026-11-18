@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BoothHeader } from '../../components/BoothUI';
-import { accountAuth } from '../../online/lumiClient';
+import { accountAuth, backupsEnabled } from '../../online/lumiClient';
 
 const titles = {
   login: 'Log in',
@@ -14,6 +14,24 @@ function callbackError() {
   const url = new URL(window.location.href);
   return [url.searchParams, new URLSearchParams(url.hash.slice(1))]
     .some((params) => params.has('error') || params.has('error_code'));
+}
+
+function BackupInvitation({ owner }) {
+  const key = `lumi-backup-invitation:${owner}`;
+  const [dismissed, setDismissed] = useState(() => {
+    try { return localStorage.getItem(key) === 'seen'; } catch { return false; }
+  });
+  const dismiss = () => {
+    try { localStorage.setItem(key, 'seen'); } catch { /* The current view still dismisses it. */ }
+    setDismissed(true);
+  };
+  return dismissed
+    ? <Link className="booth-link" to="/backup">Cloud backup</Link>
+    : <section>
+      <p>Would you like to back up strips from this browser? You can choose what to upload.</p>
+      <Link className="booth-link" to="/backup" onClick={dismiss}>Back up my existing strips</Link>
+      <button className="booth-link" onClick={dismiss}>Not now</button>
+    </section>;
 }
 
 export default function WebAccount() {
@@ -132,6 +150,7 @@ export default function WebAccount() {
             )}
           </form>
         )}
+        {backupsEnabled && signedIn && <BackupInvitation key={user.id} owner={user.id} />}
         <Link className="booth-link" to="/">Back to photo booth</Link>
       </main>
     </div>

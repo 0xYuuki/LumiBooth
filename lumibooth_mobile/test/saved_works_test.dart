@@ -79,6 +79,31 @@ void main() {
     expect(work.editable, isFalse);
     expect(await work.poster.readAsBytes(), png);
   });
+  test(
+    'concurrent restore keeps the existing work and its original project',
+    () async {
+      const id = '1700000000000000-7';
+      final created = DateTime.utc(2026, 1, 1);
+      final first = Uint8List.fromList([1, 2, 3]);
+      final other = Uint8List.fromList([4, 5, 6]);
+      final attempts = await Future.wait([
+        SavedWorks.restore(
+          id,
+          created,
+          {'version': 1, 'caption': 'Original'},
+          first,
+          first,
+        ),
+        SavedWorks.restore(id, created, null, other, other),
+      ]);
+      expect(attempts, [true, false]);
+      final work = (await SavedWorks.list()).single;
+      expect(work.id, id);
+      expect(work.created, created);
+      expect(await work.poster.readAsBytes(), first);
+      expect((await work.project())['caption'], 'Original');
+    },
+  );
   testWidgets(
     'Home opens saved work in editor and deletion asks before removing it',
     (tester) async {

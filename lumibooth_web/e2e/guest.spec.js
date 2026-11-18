@@ -243,15 +243,18 @@ test('a fixed camera crop fits both portrait and illustrated frame exports', asy
     return page.getByRole('img', { name: 'Your finished LumiBooth photo strip' }).evaluate(async (image, [x, y]) => {
       await image.decode();
       const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
       const context = canvas.getContext('2d');
-      context.drawImage(image, -Math.floor(x * image.naturalWidth), -Math.floor(y * image.naturalHeight));
-      return [...context.getImageData(0, 0, 1, 1).data];
+      context.drawImage(image, 0, 0);
+      return [...context.getImageData(Math.floor(x * canvas.width), Math.floor(y * canvas.height), 1, 1).data];
     }, point);
   }
 
   const portrait = await exportEdge();
   expect(portrait[0]).toBeLessThan(25);
   expect(portrait[1]).toBeGreaterThan(230);
+  expect(portrait[3]).toBe(255);
   await page.getByRole('button', { name: 'Edit Strip' }).click();
   await page.getByRole('button', { name: 'Tube TV' }).click();
   await expect(photo).toHaveAttribute('src', /^data:image\/jpeg;base64,/);
@@ -259,6 +262,7 @@ test('a fixed camera crop fits both portrait and illustrated frame exports', asy
   expect(tube[0]).toBeGreaterThan(230);
   expect(tube[1]).toBeGreaterThan(230);
   expect(tube[2]).toBeLessThan(25);
+  expect(tube[3]).toBe(255);
 });
 
 test('illustrated frames put captured photos inside the artwork and export the overlay', async ({ page }) => {

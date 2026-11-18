@@ -2,11 +2,13 @@ import { useContext, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PhotoboothContext } from '../../context/photoboothContext';
 import { BoothHeader, BoothStep, MiniStrip } from '../../components/BoothUI';
+import { Maximize2 } from 'lucide-react';
 import { toPng } from 'html-to-image';
 
 import { frameBackground, frameLibrary } from './frameLibrary';
 import { IllustratedPhoto, PhotoStrip, StickerLayer } from './PhotoStrip';
 
+import StripPreviewDialog from './StripPreviewDialog';
 import StickerArt from './StickerArt';
 import PhotoTransformEditor from './PhotoTransformEditor';
 import { stickerPacks } from './stickerPacks';
@@ -30,6 +32,7 @@ const WebEditor = () => {
       : 'Illustrated'
   );
   const [selectedStickerId, setSelectedStickerId] = useState(null);
+  const [previewSize, setPreviewSize] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
   const constraintsRef = useRef(null);
@@ -88,6 +91,12 @@ const WebEditor = () => {
   return (
     <div className="booth-shell editor-shell">
       <BoothHeader step="02 / DESIGN" />
+      {previewSize && <StripPreviewDialog size={previewSize} onClose={() => setPreviewSize(null)}>
+        {(width) => <div className="strip-viewer-design"
+          style={{ width: previewSize.width, transform: `scale(${width / previewSize.width})` }}>
+          <PhotoStrip session={session} />
+        </div>}
+      </StripPreviewDialog>}
       <main className="booth-content editor-content">
         <button className="booth-link" disabled={exporting || !session.history?.length} onClick={() => dispatch({ type: 'undo' })}>Undo last change</button>
         <p className="draft-status" role="status">{draftStatus}</p>
@@ -119,6 +128,13 @@ const WebEditor = () => {
                 />
               ))}
             </PhotoStrip></FittedStrip>
+            <button className="booth-link expand-editor-preview" disabled={exporting}
+              aria-label="Expand preview" title="Expand preview" onClick={() => {
+                const strip = constraintsRef.current;
+                setPreviewSize({ width: strip.offsetWidth, height: strip.offsetHeight });
+              }}>
+              <Maximize2 size={18} aria-hidden="true" />
+            </button>
           </div>
 
           <fieldset className="design-tools" disabled={exporting} aria-label="Strip design">

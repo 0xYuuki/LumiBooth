@@ -7,6 +7,7 @@ import { BoothHeader, BoothStep } from '../../components/BoothUI';
 import MotionPhotos from '../../motion/MotionPhotos';
 import MotionStrip from '../../motion/MotionStrip';
 import { exportMotionStrip } from '../../motion/exportMotionStrip';
+import StripPreviewDialog from './StripPreviewDialog';
 import { PhotoStrip } from './PhotoStrip';
 import PrintToPlay from '../../online/PrintToPlay';
 import { lumiRequest, printToPlayEnabled, uploadMedia } from '../../online/lumiClient';
@@ -15,6 +16,7 @@ import { downloadBlob } from '../../online/download';
 export default function WebPreview() {
   const navigate = useNavigate();
   const { session } = useContext(PhotoboothContext);
+  const [expanded, setExpanded] = useState(false);
   const [imageSize, setImageSize] = useState(null);
   const [playback, setPlayback] = useState(null);
   const [exportingMotion, setExportingMotion] = useState(false);
@@ -130,6 +132,12 @@ export default function WebPreview() {
   return (
     <div className="booth-shell">
       <BoothHeader step="03 / SAVE" />
+      {expanded && imageSize && <StripPreviewDialog size={imageSize} onClose={() => setExpanded(false)}>
+        {() => <>
+          <img src={session.output} alt="Expanded LumiBooth photo strip" />
+          {playing && <MotionStrip session={session} imageSize={imageSize} motionUrls={motionUrls} />}
+        </>}
+      </StripPreviewDialog>}
       <main className="booth-content strip-preview">
         <div className="preview-copy">
           <BoothStep number={3} back={'/editor'} disabled={sending} />
@@ -148,6 +156,7 @@ export default function WebPreview() {
               onClick={toggleMotion}>{playing ? 'Stop strip' : 'Play strip'}</button>}
             {hasMotion && <button className="booth-button booth-secondary" disabled={!imageSize || motionPending || exportingMotion}
               onClick={saveAnimation}>{exportingMotion ? 'Preparing animation…' : 'Save animated strip'}</button>}
+            <button className="booth-link" disabled={!imageSize} onClick={() => setExpanded(true)}>Expand preview</button>
             <button className="booth-link" disabled={sending} onClick={() => navigate('/editor', { replace: true })}>Edit Strip</button>
             <button className="booth-link" onClick={finish}>Back to home</button>
           </div>

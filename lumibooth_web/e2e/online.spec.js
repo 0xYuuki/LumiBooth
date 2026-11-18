@@ -115,6 +115,7 @@ test('the QR gallery is opt-in and lets a different guest download all outputs',
   await page.getByRole('button', { name: /Single Photo/ }).click();
   await page.getByRole('link', { name: 'Take photos', exact: true }).click();
   await page.getByRole('button', { name: 'Take photo' }).click();
+  await page.getByRole('button', { name: 'Continue to design' }).click();
   await page.getByRole('button', { name: 'Tube TV' }).click({ timeout: 15000 });
   await page.getByRole('button', { name: 'Next' }).click();
   await page.getByRole('button', { name: 'Print Photo', exact: true }).click();
@@ -260,7 +261,7 @@ test('two guests on simulated different networks capture an ordered, identical s
     await host.getByLabel('Frame category', { exact: true }).selectOption('Templates');
     await host.getByRole('button', { name: 'Studio', exact: true }).click();
     await expect(host.locator('.photo-strip .paired-photo-cell')).toHaveCount(3);
-    await host.getByRole('button', { name: 'Illustrated', exact: true }).click();
+    await host.getByLabel('Frame category', { exact: true }).selectOption('Illustrated');
     await host.getByRole('button', { name: 'Tube TV' }).click();
     for (let row = 0; row < 3; row++) {
       await expect(windows.nth(row).getByRole('img', { name: `Round ${row + 1}, host photo` })).toBeVisible();

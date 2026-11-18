@@ -25,6 +25,7 @@ import 'online_booth.dart';
 import 'print_strip.dart';
 import 'remote_booth.dart';
 import 'strip.dart';
+import 'strip_viewer.dart';
 import 'sticker_pack.dart';
 import 'sticker_controls.dart';
 import 'photo_crop_controls.dart';
@@ -2168,6 +2169,16 @@ class _SessionPageState extends State<_SessionPage>
     );
   }
 
+  void _expandStrip(StripDesign design, Widget child) {
+    Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) =>
+            StripViewer(aspectRatio: design.size.aspectRatio, child: child),
+      ),
+    );
+  }
+
   Widget _editor() {
     final design = _design;
     final selected = _selected;
@@ -2253,6 +2264,18 @@ class _SessionPageState extends State<_SessionPage>
                               onChanged: (sticker) =>
                                   _updateSticker(i, sticker),
                             ),
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: IconButton(
+                              tooltip: 'Expand preview',
+                              onPressed: () => _expandStrip(
+                                design,
+                                CustomPaint(painter: StripPainter(design)),
+                              ),
+                              icon: const Icon(Icons.fullscreen),
+                            ),
+                          ),
                         ],
                       );
                     },
@@ -2824,6 +2847,14 @@ class _SessionPageState extends State<_SessionPage>
   }
 
   Widget _preview(Uint8List png) {
+    final design = _design;
+    final strip = _playingStrip
+        ? MotionStripView(design: design, gifs: _selectedMotionGifs)
+        : Image.memory(
+            png,
+            semanticLabel: 'Your finished LumiBooth photo strip',
+            fit: BoxFit.contain,
+          );
     return ListView(
       key: const ValueKey('preview'),
       padding: const EdgeInsets.all(20),
@@ -2837,14 +2868,13 @@ class _SessionPageState extends State<_SessionPage>
         _Stage(
           child: SizedBox(
             height: math.min(MediaQuery.sizeOf(context).height * .48, 480),
-            child: _playingStrip
-                ? MotionStripView(design: _design, gifs: _selectedMotionGifs)
-                : Image.memory(
-                    png,
-                    semanticLabel: 'Your finished LumiBooth photo strip',
-                    fit: BoxFit.contain,
-                  ),
+            child: strip,
           ),
+        ),
+        TextButton.icon(
+          onPressed: () => _expandStrip(design, strip),
+          icon: const Icon(Icons.fullscreen),
+          label: const Text('Expand preview'),
         ),
         if (_selectedMotionGifs.isNotEmpty)
           TextButton(

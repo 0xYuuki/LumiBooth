@@ -162,3 +162,34 @@ test('tap-to-edit shows full bounds and four usable corner handles without a Pho
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
+
+test('a narrow screen can expand and scroll the strip from design and save', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create photo strip' }).click();
+  await page.getByRole('button', { name: /Single Photo/ }).click();
+  const bytes = await page.evaluate(() => document.createElement('canvas').toDataURL().split(',')[1]);
+  await page.getByLabel('Choose image files').setInputFiles({
+    name: 'photo.png', mimeType: 'image/png', buffer: Buffer.from(bytes, 'base64'),
+  });
+  await page.getByRole('button', { name: 'Continue to design' }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Strip preview' });
+  const expand = page.getByRole('button', { name: 'Expand preview' });
+  await expand.click();
+  await expect(dialog.getByRole('img', { name: 'Captured photo 1' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Fit width' }).click();
+  await expect(dialog.getByRole('button', { name: 'Fit width' })).toHaveAttribute('aria-pressed', 'true');
+  await dialog.getByRole('button', { name: 'Zoom 2×' }).click();
+  const viewport = dialog.getByLabel('Scrollable strip');
+  expect(await viewport.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(expand).toBeFocused();
+
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await expand.click();
+  await expect(dialog.getByRole('img', { name: 'Expanded LumiBooth photo strip' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close preview' }).click();
+  await expect(page.getByRole('link', { name: 'Save to Device' })).toBeVisible();
+});

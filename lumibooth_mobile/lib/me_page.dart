@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'account_panel.dart';
 import 'booth.dart';
 import 'navigation.dart';
 import 'my_uploads_page.dart';
+import 'online_booth.dart';
 import 'settings_page.dart';
 
 /// Simple guest account entry and practical app information.
@@ -11,6 +13,7 @@ class MePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = OnlineBooth.accountAuth;
     return Scaffold(
       backgroundColor: paper,
       appBar: BoothHeader(
@@ -27,55 +30,15 @@ class MePage extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
           children: [
-            Row(
-              children: [
-                const CircleAvatar(
-                  radius: 32,
-                  backgroundColor: wash,
-                  child: Icon(Icons.person_outline, size: 34, color: purple),
-                ),
-                const SizedBox(width: 16),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Guest',
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: ink,
-                        ),
-                      ),
-                      SizedBox(height: 3),
-                      Text(
-                        'Not signed in',
-                        style: TextStyle(color: muted, fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton(
-                    onPressed: null, // Authentication belongs to issue #2.
-                    child: const Text('Log in'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: null, // Authentication belongs to issue #2.
-                    child: const Text('Sign up'),
-                  ),
-                ),
-              ],
-            ),
+            if (auth != null)
+              AccountPanel(auth: auth)
+            else
+              const ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.person_outline, color: purple),
+                title: Text('Guest'),
+                subtitle: Text('Accounts are currently unavailable.'),
+              ),
             const SizedBox(height: 30),
             _MeTile(
               icon: Icons.photo_library_outlined,

@@ -37,10 +37,20 @@ VITE_LUMI_REMOTE_BOOTH=true
 
 Pass the corresponding variables without `VITE_` to Flutter as `--dart-define` values. For example, use `--dart-define=LUMI_PRINT_QR=true`. Omit either feature flag to keep its controls off. The web route for existing print links remains available as long as the backend stays configured.
 
+## Optional accounts
+
+With a Supabase URL and publishable key configured, the web welcome page and the mobile Me tab offer email accounts. Enable the Email provider and email confirmations in Supabase Auth. Configure the project Site URL, an email provider suitable for production, and these allowed redirect URLs:
+
+- The web app’s `/account` URL, including any deployment path prefix. Serve it through the SPA fallback.
+- `com.lumibooth.app://auth/callback` for Android and iOS.
+
+Email confirmation and recovery use PKCE. Open the link on the device and in the app or browser profile that requested it. For local web development, also allow the corresponding localhost URLs. Guest capture, editing, and local export work without the account service. Existing online guest sharing sessions are independent of account sessions.
+
 ## Verify on staging
 
 - Run `supabase/tests/room_protocol.sql` with `psql` against the staging database after applying migrations.
 - Print and scan QR codes with Android and iOS. From a second device, download the original JPEGs, finished PNG, and animated GIF. Compare the files with the booth outputs. Revoke a link and confirm that it stops resolving.
 - Pair a phone browser on Wi-Fi with Flutter on a second phone using cellular data. Use a card labeled with the role and round in each shot. Verify that the export has three stacked TV screens, with the host on the left and the guest on the right inside each screen. Check rounds 1 through 3 from top to bottom. Save the PNG on both devices and compare their SHA-256 hashes.
 - For the physical timing check, keep the phones on their separate networks but point both cameras at the same continuously running millisecond display. Compare the times visible in the two stills from each round. This measures the resulting exposures. The simulated browser test measures when each device requested capture against the 250 ms target. Background one participant before the shutter, then return and retry the round.
+- In the web app and on Android and iOS, confirm a new email account, sign out, sign back in, and follow a password reset link. Sign in again with the new password and confirm that an existing local draft is still available.
 - Check that cleanup removes abandoned uploads and that plain capture and printing work with both flags disabled.

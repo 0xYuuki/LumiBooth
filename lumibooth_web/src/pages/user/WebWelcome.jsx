@@ -4,7 +4,7 @@ import { ArrowRight } from 'lucide-react';
 import { layouts } from '../../context/photoboothSession';
 import { PhotoboothContext } from '../../context/photoboothContext';
 import { BoothHeader, MiniStrip } from '../../components/BoothUI';
-import { printToPlayEnabled, remoteBoothEnabled } from '../../online/lumiClient';
+import { accountsEnabled, printToPlayEnabled, remoteBoothEnabled } from '../../online/lumiClient';
 
 export default function WebWelcome() {
   const navigate = useNavigate();
@@ -31,6 +31,7 @@ export default function WebWelcome() {
           {session && !draftError && <p className="booth-intro">Your draft stays on this device. Motion clips are kept only while the booth is open.</p>}
           {remoteBoothEnabled && <Link className="booth-button booth-secondary" to="/room">Booth with a friend</Link>}
           {printToPlayEnabled && <Link className="booth-link" to="/print-links">Manage gallery links</Link>}
+          {accountsEnabled && <Link className="booth-link" to="/account">Account</Link>}
         </div>
         <div className="hero-art" aria-hidden="true">
           <MiniStrip count={3} columns={1} />

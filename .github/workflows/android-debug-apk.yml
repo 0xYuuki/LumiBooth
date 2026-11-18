@@ -33,6 +33,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java
+        if: github.event_name != 'pull_request'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -55,9 +56,11 @@ jobs:
         run: flutter test
 
       - name: Build Android debug APK
+        if: github.event_name != 'pull_request'
         run: flutter build apk --debug
 
       - name: Upload installable APK
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: lumibooth-debug-apk-${{ github.run_number }}

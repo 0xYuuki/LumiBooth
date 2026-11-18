@@ -78,3 +78,11 @@ them into My Uploads on another browser or device. The backup keeps the name
 from the time it was made. Delete a cloud copy and back up again to replace
 that snapshot. Deleting a cloud backup leaves local copies intact. Signing
 in alone leaves uploads on the device.
+
+## Privacy information
+
+The home page, sign-up, private backup and QR confirmation link to the
+in-app privacy information at `/legal`. Serve this path through the SPA
+fallback. After owner approval, set `VITE_LUMI_PRIVACY_URL` and
+`VITE_LUMI_TERMS_URL` to the HTTPS URLs of the published documents. Builds
+without those values still show the in-app information.

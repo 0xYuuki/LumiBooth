@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'booth.dart';
 import 'feedback_page.dart';
+import 'legal_documents_page.dart';
 
 /// Clears only transient Flutter image decoding/rendering caches.
 Future<void> confirmClearImageCache(BuildContext context) async {
@@ -31,62 +32,6 @@ Future<void> confirmClearImageCache(BuildContext context) async {
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(content: Text('Temporary image cache cleared')),
   );
-}
-
-/// Legal information currently available inside the app.
-///
-/// Formal Privacy Policy and Terms documents are not shipped by this build;
-/// do not present an explanatory notice as a published legal agreement.
-class LegalDocumentsPage extends StatelessWidget {
-  const LegalDocumentsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: paper,
-      appBar: AppBar(title: const Text('Legal documents')),
-      body: SafeArea(
-        child: ListView(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.privacy_tip_outlined, color: purple),
-              title: const Text('Privacy information'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => showDialog<void>(
-                context: context,
-                builder: (dialogContext) => AlertDialog(
-                  title: const Text('Privacy information'),
-                  content: const Text(
-                    'Standard photo booth images are processed on your device '
-                    'unless you choose to upload or share them. '
-                    'Remote Booth uploads photos for the shared session. '
-                    'This notice is not a formal Privacy Policy.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(),
-                      child: const Text('Close'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const Divider(height: 1, color: line),
-            ListTile(
-              leading: const Icon(Icons.article_outlined, color: purple),
-              title: const Text('Open-source licenses'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => showLicensePage(
-                context: context,
-                applicationName: 'LumiBooth',
-                applicationVersion: '0.1.0',
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 /// Minimal app information with a usable feedback destination.
@@ -162,11 +107,7 @@ class BoothSettingsPage extends StatelessWidget {
             leading: const Icon(Icons.description_outlined, color: purple),
             title: const Text('Legal documents'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const LegalDocumentsPage(),
-              ),
-            ),
+            onTap: () => openPrivacyInformation(context),
           ),
           ListTile(
             leading: const Icon(

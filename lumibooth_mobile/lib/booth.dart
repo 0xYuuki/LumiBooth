@@ -9,6 +9,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'legal_documents_page.dart';
 import 'local_draft.dart';
 import 'custom_uploads.dart';
 import 'my_uploads_page.dart';
@@ -1519,6 +1520,7 @@ class _SessionPageState extends State<_SessionPage>
       context: context,
       builder: (dialog) => AlertDialog(
         title: Text(print ? 'Print with QR' : 'Share with QR'),
+        scrollable: true,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1528,8 +1530,11 @@ class _SessionPageState extends State<_SessionPage>
               'Upload your individual photos and finished strip'
               '${_motionGifs.isNotEmpty ? ', including the animated GIF,' : ''} through '
               '${MaterialLocalizations.of(dialog).formatShortDate(DateTime.now().add(const Duration(days: 90)))}. '
-              'Anyone with the code can view and download these files.',
+              'Anyone with the code or link can download these files. '
+              'A revoked gallery link stops opening. Recipients keep copies '
+              'they already downloaded.',
             ),
+            const PrivacyInformationLink(),
           ],
         ),
         actions: [

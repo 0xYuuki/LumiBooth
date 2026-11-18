@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
+import { PrivacyInformationLink } from '../pages/user/WebLegal';
 import { lumiRequest, publicLink, uploadMedia } from './lumiClient';
 
 export default function PrintToPlay({ output, photos, getGif, onPrint, disabled }) {
@@ -94,7 +95,8 @@ export default function PrintToPlay({ output, photos, getGif, onPrint, disabled 
       </div>
       {mode && !published && <div className="online-notice">
         <p>Upload your individual photos and finished strip{getGif ? ', including the animated GIF,' : ''}
-          {' '}through {expectedExpiry}. Anyone with the QR code can view and download these files.</p>
+          {' '}through {expectedExpiry}. Anyone with the QR code or link can download these files. A revoked gallery link stops opening. Recipients keep copies they already downloaded.</p>
+        <PrivacyInformationLink />
         <div className="preview-actions">
           <button className="booth-button" disabled={pending} onClick={publish}>
             {pending ? 'Preparing gallery…' : mode === 'print' ? 'Upload and print' : 'Upload and show QR'}

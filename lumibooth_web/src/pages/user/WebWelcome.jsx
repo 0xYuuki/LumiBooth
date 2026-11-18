@@ -41,7 +41,7 @@ export default function WebWelcome() {
           <span>✳</span>
         </div>
       </main>
-      <footer className="booth-footer">LUMIBOOTH STUDIO <span>CAPTURE · FRAME · KEEP</span></footer>
+      <footer className="booth-footer">LUMIBOOTH STUDIO <Link className="booth-link" to="/legal">Privacy information</Link></footer>
     </div>
   );
 }

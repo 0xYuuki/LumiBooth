@@ -86,3 +86,12 @@ Drafts and saved works embed their used uploaded images and transforms, so delet
 Guests can open **Me → Settings → Feedback** (also available from About LumiBooth). Choose Suggestion or Bug report, enter a 10–3,000 character message, and optionally provide a reply email. **Open email draft** launches the device's email app addressed to `alfortearjay0@gmail.com`; the user reviews and sends it there. LumiBooth never claims the draft was sent or delivered. The draft includes only the form fields, without photos, device logs, account identifiers or automatic attachments. Feedback form text is held only while the screen is open, with a prompt before leaving an unsent message.
 
 If no email app can open, **Copy feedback instead** copies the report and destination for manual sending. Users can retry without losing their message. Operators may override the recipient at build time with `--dart-define=LUMIBOOTH_FEEDBACK_EMAIL=your-address@example.com`. No feedback backend or sign-in is required. The receiving email provider handles messages once sent; a formal privacy policy remains a separate tracked task.
+
+## Privacy information
+
+Guests can open **Me → Settings → Legal documents**. Sign-up, private backup
+and QR confirmation link to the same information. After owner approval, build
+with `--dart-define=LUMI_PRIVACY_URL=https://...` and
+`--dart-define=LUMI_TERMS_URL=https://...` to link the published documents.
+The in-app information and open-source licenses remain available without
+those values.

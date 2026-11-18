@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'account_panel.dart';
+import 'legal_documents_page.dart';
 import 'booth.dart';
 import 'navigation.dart';
 import 'my_uploads_page.dart';
@@ -57,11 +58,7 @@ class MePage extends StatelessWidget {
             _MeTile(
               icon: Icons.description_outlined,
               title: 'Legal documents',
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const LegalDocumentsPage(),
-                ),
-              ),
+              onTap: () => openPrivacyInformation(context),
             ),
             const Divider(height: 1, color: line),
             _MeTile(

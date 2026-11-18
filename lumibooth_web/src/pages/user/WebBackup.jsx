@@ -8,6 +8,7 @@ import { deleteBackup, listBackups, restoreBackup, uploadBackup } from '../../on
 import { backUpUpload, deleteUploadBackup, listUploadBackups, restoreUploadBackup } from '../../online/cloudUploadBackup';
 import { uploadBackupName } from '../../online/uploadBackupArchive';
 import { accountAuth } from '../../online/lumiClient';
+import { PrivacyInformationLink } from './WebLegal';
 
 const size = bytes => `${(bytes / 1048576).toFixed(1)} MB`;
 const date = value => {
@@ -110,6 +111,7 @@ function BackupLibrary({ owner, email, uploads }) {
   return (
     <>
       <p>Backups are private to {email}. Only selected {uploads ? 'stickers and backgrounds' : 'saved strips and their editing files'} are uploaded after you confirm. Restoring adds a local copy.</p>
+      <PrivacyInformationLink />
       {loading && <p role="status">Refreshing backup lists…</p>}
       {loadError && <p role="alert">{loadError} <button className="booth-link" disabled={busy || loading} onClick={() => setRevision(value => value + 1)}>Retry</button></p>}
       {notice && <p role="status">{notice}</p>}

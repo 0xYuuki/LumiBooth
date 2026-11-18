@@ -46,3 +46,11 @@ The production build contains static files. A physical printer uses the operatin
 Tap **Choose order**, then tap photos in sequence; numbered badges show their position in the strip. Tapping a selected photo deselects it. The X on each photo asks for confirmation before removing it. **Undo** restores recent selection, removal, layout, crop and design changes during the current session.
 
 The editor keeps the preview and Frames / Stickers tabs visible while the controls scroll. A labeled frame-category dropdown matches the sticker-pack selector; caption and strip font sit after the frame/sticker controls. Save feedback reports when the local draft is saved or storage is unavailable.
+
+## Your works
+
+On the final preview screen, **Save to Your works** explicitly saves a completed strip. The home page links to the gallery, where the newest saves appear first. IndexedDB stores a thumbnail, the PNG, and the still photos and design settings needed to reopen editable work. Shared-room strips save as PNGs. Motion clips stay temporary. Deleting a gallery entry removes its local thumbnail, PNG, and project.
+
+The current draft is stored separately. Opening a saved strip for editing asks before replacing an active draft. Edits can be saved as a new gallery entry. Gallery entries are available to guests and stay in the same browser profile. Clearing site data or browser storage limits can remove entries.
+
+The production build caches the guest app and its static assets for offline use after an initial online visit. Serve `offline-worker.js` directly, alongside the built index. The worker caches app files, while photos and finished strips remain in IndexedDB.

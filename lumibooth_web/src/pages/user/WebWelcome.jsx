@@ -31,6 +31,7 @@ export default function WebWelcome() {
           {session && !draftError && <p className="booth-intro">Your draft stays on this device. Motion clips are kept only while the booth is open.</p>}
           {remoteBoothEnabled && <Link className="booth-button booth-secondary" to="/room">Booth with a friend</Link>}
           {printToPlayEnabled && <Link className="booth-link" to="/print-links">Manage gallery links</Link>}
+          <Link className="booth-link" to="/works">Your works</Link>
           {accountsEnabled && <Link className="booth-link" to="/account">Account</Link>}
         </div>
         <div className="hero-art" aria-hidden="true">

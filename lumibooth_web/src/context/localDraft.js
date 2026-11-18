@@ -22,7 +22,14 @@ async function transact(mode, operation) {
 }
 export async function loadDraft() {
   const saved = await transact('readonly', store => store.get('current'));
+  return restoreProject(saved);
+}
+
+export function restoreProject(saved) {
   if (!saved || saved.version !== 1) return null;
+  if (!Array.isArray(saved.items) || !saved.items.every(item => item?.blob instanceof Blob)) {
+    throw new Error('Draft source photos are unavailable.');
+  }
   const items = saved.items.map(item => ({ ...item, photo: URL.createObjectURL(item.blob), blob: undefined, motion: null }));
   const selected = selectedItems(items);
   return { ...saved.session, reviewItems: items, photos: selected.map(item => item.photo), crops: selected.map(item => item.crop), motions: selected.map(() => null), output: null, history: [], undoGroup: null };
@@ -32,20 +39,39 @@ const media = new Map();
 export function saveDraft(session) {
   // Prepare media immediately, before a subsequent reset can revoke object URLs.
   const items = session && !session.roomId ? reviewItems(session) : [];
-  const pending = items.map(item => {
-    if (!media.has(item.photo)) media.set(item.photo, fetch(item.photo).then(response => response.blob()));
-    return media.get(item.photo).then(blob => ({ ...item, photo: undefined, motion: null, blob }));
-  });
-  const prepared = Promise.all(pending);
+  const prepared = session && !session.roomId ? serializeProject(session, (url) => {
+    if (!media.has(url)) {
+      const promise = readPhoto(url).catch((error) => {
+        if (media.get(url) === promise) media.delete(url);
+        throw error;
+      });
+      media.set(url, promise);
+    }
+    return media.get(url);
+  }) : Promise.resolve(null);
   // Attach a handler now: this work may finish before the preceding write.
   prepared.catch(() => {});
   const task = async () => {
-    if (!session || session.roomId) return transact('readwrite', store => store.delete('current'));
-    const settings = Object.fromEntries(Object.entries(session).filter(([key]) => !['history', 'photos', 'motions', 'reviewItems', 'output', 'undoGroup'].includes(key)));
-    const value = { version: 1, session: settings, items: await prepared };
-    return transact('readwrite', store => store.put(value, 'current'));
+    const value = await prepared;
+    return value ? transact('readwrite', store => store.put(value, 'current'))
+      : transact('readwrite', store => store.delete('current'));
   };
   queue = queue.catch(() => {}).then(task);
   for (const url of media.keys()) if (!items.some(item => item.photo === url)) media.delete(url);
   return queue;
+}
+
+async function readPhoto(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Photo could not be read.');
+  return response.blob();
+}
+
+export async function serializeProject(session, readMedia = readPhoto) {
+  const settings = Object.fromEntries(Object.entries(session).filter(([key]) =>
+    !['history', 'photos', 'motions', 'reviewItems', 'output', 'undoGroup'].includes(key)));
+  const items = await Promise.all(reviewItems(session).map(async ({ photo, name, crop, selected, order }) => ({
+    name, crop, selected, order, blob: await readMedia(photo),
+  })));
+  return { version: 1, session: settings, items };
 }

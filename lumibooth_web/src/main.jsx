@@ -13,3 +13,9 @@ createRoot(document.getElementById('root')).render(
     <App />
   </StrictMode>,
 )
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}offline-worker.js`).catch(() => {
+    // Local storage remains available when the browser disallows offline caching.
+  });
+}

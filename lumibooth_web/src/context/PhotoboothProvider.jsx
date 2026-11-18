@@ -54,6 +54,8 @@ export function PhotoboothProvider({ children }) {
   const dispatchAction = useCallback((action) => {
     if (action.type === 'addGallery') {
       for (const image of action.images) galleryUrls.current.add(image.url);
+    } else if (action.type === 'restore') {
+      for (const item of action.session.reviewItems) galleryUrls.current.add(item.photo);
     } else if (['start', 'remoteStart', 'reset'].includes(action.type)) {
       releaseGalleryUrls();
     }

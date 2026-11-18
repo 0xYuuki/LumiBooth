@@ -71,3 +71,10 @@ editable strips embed their own copies, so deleting a library entry leaves
 those projects intact. Clearing browser site data removes local uploads.
 Standalone uploads remain on the device. If you explicitly back up a saved
 strip, its embedded editing images are included with that strip.
+
+When cloud backup is enabled, **My Uploads → Cloud backup** lets signed-in
+users select stickers and backgrounds, confirm a private upload, and restore
+them into My Uploads on another browser or device. The backup keeps the name
+from the time it was made. Delete a cloud copy and back up again to replace
+that snapshot. Deleting a cloud backup leaves local copies intact. Signing
+in alone leaves uploads on the device.

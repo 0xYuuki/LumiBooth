@@ -6,6 +6,8 @@ import 'dart:math' as math;
 
 import 'package:path_provider/path_provider.dart';
 
+import 'upload_backup_archive.dart';
+
 class CustomUpload {
   const CustomUpload(
     this.id,
@@ -179,14 +181,37 @@ class CustomUploads {
     String name,
     String kind,
   ) => _write(() async {
+    final created = DateTime.now().toUtc();
+    final id = 'upload-${created.microsecondsSinceEpoch}-${_serial++}';
+    return _store(await _root(), id, image, name, kind, created);
+  });
+
+  static Future<bool> restore(
+    RestoredUpload item,
+    PreparedUpload image,
+    void Function() confirmAccount,
+  ) => _write(() async {
+    uploadBackupName(item.id);
+    final root = await _root();
+    if (await Directory('${root.path}/${item.id}').exists()) return false;
+    confirmAccount();
+    await _store(root, item.id, image, item.name, item.kind, item.created);
+    return true;
+  });
+
+  static Future<CustomUpload> _store(
+    Directory root,
+    String id,
+    PreparedUpload image,
+    String name,
+    String kind,
+    DateTime created,
+  ) async {
     if (!['sticker', 'background'].contains(kind)) {
       throw ArgumentError('Invalid upload type');
     }
-    final root = await _root();
     await root.create(recursive: true);
-    final id = 'upload-${DateTime.now().microsecondsSinceEpoch}-${_serial++}';
     final temp = Directory('${root.path}/.$id');
-    final created = DateTime.now().toUtc();
     try {
       await temp.create();
       await File('${temp.path}/image.png').writeAsBytes(image.png, flush: true);
@@ -206,7 +231,8 @@ class CustomUploads {
       if (await temp.exists()) await temp.delete(recursive: true);
       rethrow;
     }
-  });
+  }
+
   static String _name(String name) => name.trim().isEmpty
       ? 'My upload'
       : name.trim().substring(0, math.min(64, name.trim().length));

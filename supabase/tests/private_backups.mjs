@@ -5,7 +5,8 @@ const url = new URL(process.env.LUMI_TEST_SUPABASE_URL ?? 'http://127.0.0.1:5432
 assert.ok(['localhost', '127.0.0.1'].includes(url.hostname), 'Run with a disposable local Supabase stack.');
 const key = process.env.LUMI_TEST_SUPABASE_KEY;
 assert.ok(key, 'Set LUMI_TEST_SUPABASE_KEY to the local publishable key.');
-const bucket = 'lumi-private-backups';
+const uploads = process.argv.includes('--uploads');
+const bucket = uploads ? 'lumi-private-uploads' : 'lumi-private-backups';
 
 async function request(path, { token, body, contentType, upsert, method = 'GET' } = {}) {
   return fetch(new URL(path, url), {
@@ -37,7 +38,7 @@ async function register(account) {
 }
 
 const [owner, other, guest] = await Promise.all([register(true), register(true), register(false)]);
-const name = `web-${randomUUID()}.lumi`;
+const name = `${uploads ? '' : 'web-'}${randomUUID()}.lumi`;
 const path = `${owner.id}/${name}`;
 const object = `/storage/v1/object/${bucket}/${path}`;
 const read = `/storage/v1/object/authenticated/${bucket}/${path}`;
@@ -51,7 +52,17 @@ try {
   assert.equal((await (await ok(await list(owner.token))).json()).length, 0);
   assert.equal((await upload(path, owner.token, { contentType: 'text/plain' })).ok, false);
   assert.equal((await (await ok(await list(owner.token))).json()).length, 0, 'A rejected upload must not create an entry.');
+  if (uploads) {
+    const tooLarge = new Uint8Array(20 * 1024 * 1024 + 4101);
+    assert.equal((await upload(path, owner.token, { body: tooLarge })).ok, false);
+    assert.equal((await request(`/storage/v1/object/upload/sign/${bucket}/${path}`,
+      json('POST', {}, owner.token))).ok, false, 'Even the owner cannot generate a signed upload URL.');
+  }
   await ok(await upload(path, owner.token));
+  if (uploads) {
+    assert.equal((await request(`/storage/v1/object/sign/${bucket}/${path}`,
+      json('POST', { expiresIn: 60 }, owner.token))).ok, false, 'Even the owner cannot generate a signed download URL.');
+  }
   assert.equal((await upload(path, owner.token)).ok, false, 'Retry has the same immutable key.');
   assert.equal((await upload(path, owner.token, { upsert: true })).ok, false);
   assert.equal((await upload(path, other.token, { upsert: true })).ok, false);
@@ -72,4 +83,4 @@ try {
   await ok(await request(`/storage/v1/object/${bucket}`, json('DELETE', { prefixes: [path] }, owner.token)));
 }
 assert.equal((await (await ok(await list(owner.token))).json()).length, 0);
-console.log('Private backup Storage authorization, retry, download and deletion passed.');
+console.log(`Private ${uploads ? 'upload' : 'strip'} backup authorization, retry, download and deletion passed.`);

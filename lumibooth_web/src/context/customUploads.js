@@ -55,10 +55,11 @@ function photoDimensions(bytes) {
   throw new Error('Choose a still PNG, JPEG, or WebP image.');
 }
 
-export async function prepareUpload(file) {
+export async function prepareUpload(file, { preserve = false } = {}) {
   if (!file.size || file.size > limitBytes) throw new Error('Choose an image up to 20 MB.');
   const bytes = new Uint8Array(await file.arrayBuffer());
   const [width, height, type] = photoDimensions(bytes);
+  if (preserve && (type !== file.type || type === 'image/jpeg')) throw new Error('Invalid backup image type.');
   if (!width || !height || width * height > limitPixels) throw new Error('Choose an image up to 32 megapixels.');
   let bitmap;
   try {
@@ -67,6 +68,15 @@ export async function prepareUpload(file) {
     throw new Error('The image could not be decoded.');
   }
   try {
+    if (preserve && Math.max(bitmap.width, bitmap.height) <= limitSide) {
+      const image = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      return { image, width: bitmap.width, height: bitmap.height };
+    }
     const canvas = document.createElement('canvas');
     const scale = Math.min(1, limitSide / Math.max(bitmap.width, bitmap.height));
     canvas.width = Math.max(1, Math.round(bitmap.width * scale));
@@ -117,7 +127,23 @@ export async function addUpload(file, kind) {
 
 export async function listUploads(kind) {
   const entries = await transact('readonly', store => store.getAll());
-  return entries.filter(entry => entry.kind === kind).sort((a, b) => b.createdAt - a.createdAt);
+  return entries.filter(entry => !kind || entry.kind === kind).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function restoreUpload({ id, name, kind, createdAt, image }, confirmAccount) {
+  const prepared = await prepareUpload(image, { preserve: true });
+  await confirmAccount();
+  return transact('readwrite', store => {
+    const request = store.get(id);
+    let inserted = false;
+    request.onsuccess = () => {
+      if (!request.result) {
+        store.add({ ...prepared, id, name, kind, createdAt });
+        inserted = true;
+      }
+    };
+    return { get result() { return inserted; } };
+  });
 }
 
 export function renameUpload(id, name) {

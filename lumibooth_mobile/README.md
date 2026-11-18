@@ -79,7 +79,7 @@ Use **My stickers / Upload your own** in Stickers or **My backgrounds / Upload y
 
 Imports accept still PNG, JPEG and WebP, up to 20 MB and 32 megapixels, and normalize a private copy to a maximum 2048-pixel edge with a small thumbnail. Unsupported, animated, corrupt and oversized images produce an error. Android interrupted-picker recovery keeps custom uploads separate from booth photos.
 
-Drafts and saved works embed their used uploaded images and transforms, so deleting a library upload leaves existing works editable. Starting fresh does not delete My Uploads. Clearing app data or uninstalling can remove local uploads; this is not a guaranteed backup. This phase does not upload files, require an account, or implement cloud backup. Custom overlay frames/masks and the web upload library are outside this mobile background/sticker implementation.
+Drafts and saved works embed their used uploaded images and transforms, so deleting a library upload leaves existing works editable. Starting fresh does not delete My Uploads. Clearing app data or uninstalling can remove local uploads; this is not a guaranteed backup. **My Uploads → Cloud backup** is available when private cloud backups are enabled. Sign in from Me, select the stickers or backgrounds to back up, and confirm. Restore adds a local copy on this or another device. The backup keeps its original name until you delete and back it up again. Deleting a cloud backup leaves device copies intact. Signing in alone leaves uploads on the device.
 
 ## Feedback
 

@@ -1,14 +1,21 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'backup_archive.dart';
 import 'cloud_backup.dart';
+import 'cloud_upload_backup.dart';
+import 'custom_uploads.dart';
 import 'online_booth.dart';
 import 'saved_works.dart';
+import 'upload_backup_archive.dart';
 
-Future<void> openCloudBackup(BuildContext context) async {
+Future<void> openCloudBackup(
+  BuildContext context, {
+  bool uploads = false,
+}) async {
   final auth = OnlineBooth.accountAuth;
   final user = auth?.currentUser;
   if (auth == null ||
@@ -22,25 +29,41 @@ Future<void> openCloudBackup(BuildContext context) async {
   }
   await Navigator.of(context).push<void>(
     MaterialPageRoute(
-      builder: (_) => CloudBackupPage(auth: auth, user: user),
+      builder: (_) => CloudBackupPage(auth: auth, user: user, uploads: uploads),
     ),
   );
 }
 
 class CloudBackupPage extends StatefulWidget {
-  const CloudBackupPage({super.key, required this.auth, required this.user});
+  const CloudBackupPage({
+    super.key,
+    required this.auth,
+    required this.user,
+    this.uploads = false,
+  });
 
   final GoTrueClient auth;
   final User user;
+  final bool uploads;
 
   @override
   State<CloudBackupPage> createState() => _CloudBackupPageState();
 }
 
+typedef _DeviceCopy = ({
+  String id,
+  String title,
+  String? kind,
+  DateTime created,
+  File thumbnail,
+  int bytes,
+  Future<void> Function() upload,
+});
+
 class _CloudBackupPageState extends State<CloudBackupPage> {
   final _selected = <String>{};
-  List<SavedWork> _local = [];
-  List<FileObject> _cloud = [];
+  List<_DeviceCopy> _local = [];
+  List<CloudCopy> _cloud = [];
   late final StreamSubscription<AuthState> _account;
   bool _loading = false;
   bool _busy = false;
@@ -51,12 +74,58 @@ class _CloudBackupPageState extends State<CloudBackupPage> {
 
   String get _owner => widget.user.id;
   String get _email => widget.user.email ?? 'your account';
+  String get _noun => widget.uploads ? 'upload' : 'strip';
+  String get _destination => widget.uploads ? 'My Uploads' : 'Your works';
+  String _name(String id) =>
+      widget.uploads ? uploadBackupName(id) : mobileBackupName(id);
+
+  Future<List<_DeviceCopy>> _deviceCopies() async {
+    if (widget.uploads) {
+      final items = await CustomUploads.list();
+      return Future.wait(
+        items.map(
+          (item) async => (
+            id: item.id,
+            title: item.name,
+            kind: item.kind,
+            created: item.created,
+            thumbnail: item.thumbnail,
+            bytes: await item.image.length().onError<FileSystemException>(
+              (_, _) => 0,
+            ),
+            upload: () => CloudUploadBackup.upload(_owner, item),
+          ),
+        ),
+      );
+    }
+    return (await SavedWorks.list())
+        .map<_DeviceCopy>(
+          (work) => (
+            id: work.id,
+            title: 'Saved strip',
+            kind: null,
+            created: work.created,
+            thumbnail: work.thumbnail,
+            bytes: work.bytes,
+            upload: () => CloudBackup.upload(_owner, work),
+          ),
+        )
+        .toList();
+  }
+
+  Future<List<CloudCopy>> _cloudCopies() async => widget.uploads
+      ? CloudUploadBackup.list(_owner)
+      : (await CloudBackup.list(_owner))
+            .map<CloudCopy>((file) => (file: file, title: null, kind: null))
+            .toList();
 
   @override
   void initState() {
     super.initState();
     _account = widget.auth.onAuthStateChange.listen((_) {
-      if (mounted && widget.auth.currentUser?.id != _owner) {
+      if (mounted &&
+          (widget.auth.currentUser?.id != _owner ||
+              OnlineBooth.accountRecovery.value)) {
         setState(() => _signedIn = false);
       }
     }, onError: (Object _) {});
@@ -77,10 +146,10 @@ class _CloudBackupPageState extends State<CloudBackupPage> {
     });
     try {
       await Future.wait<void>([
-        SavedWorks.list().then((items) {
+        _deviceCopies().then((items) {
           if (mounted) setState(() => _local = items);
         }),
-        CloudBackup.list(_owner).then((items) {
+        _cloudCopies().then((items) {
           if (mounted) setState(() => _cloud = items);
         }),
       ]);
@@ -142,10 +211,10 @@ class _CloudBackupPageState extends State<CloudBackupPage> {
     }
   }
 
-  Future<void> _upload(List<SavedWork> chosen, int bytes) async {
+  Future<void> _upload(List<_DeviceCopy> chosen, int bytes) async {
     if (!await _confirm(
-      'Back up selected strips?',
-      'Upload ${chosen.length} strips and their editing files (about ${_size(bytes)}) to the private backups for $_email.',
+      'Back up selected ${_noun}s?',
+      'Upload ${chosen.length} ${widget.uploads ? 'stickers and backgrounds' : 'strips and their editing files'} (about ${_size(bytes)}) to the private backups for $_email.',
       'Back up',
     )) {
       return;
@@ -157,7 +226,7 @@ class _CloudBackupPageState extends State<CloudBackupPage> {
         if (!mounted || !_signedIn) return;
         _progress('Backing up ${i + 1} of ${chosen.length}…');
         try {
-          await CloudBackup.upload(_owner, work);
+          await work.upload();
           done++;
           if (mounted) setState(() => _selected.remove(work.id));
         } catch (error) {
@@ -168,7 +237,7 @@ class _CloudBackupPageState extends State<CloudBackupPage> {
           );
         }
       }
-      _progress('$done of ${chosen.length} selected strips backed up.');
+      _progress('$done of ${chosen.length} selected ${_noun}s backed up.');
       if (mounted && failures.isNotEmpty) {
         setState(() => _error = failures.toSet().join(' '));
       }
@@ -176,33 +245,41 @@ class _CloudBackupPageState extends State<CloudBackupPage> {
   }
 
   Future<void> _restore(FileObject backup) => _run(() async {
-    _progress('Downloading strip…');
+    _progress('Downloading $_noun…');
     final total = _bytes(backup);
-    final inserted = await CloudBackup.restore(_owner, backup, (bytes) {
-      _progress(
-        'Downloading strip · ${_size(bytes)}${total == 0 ? '' : ' of ${_size(total)}'}',
-      );
-    });
+    void progress(int bytes) => _progress(
+      'Downloading $_noun · ${_size(bytes)}${total == 0 ? '' : ' of ${_size(total)}'}',
+    );
+    final inserted = widget.uploads
+        ? await CloudUploadBackup.restore(_owner, backup, progress)
+        : await CloudBackup.restore(_owner, backup, progress);
     _progress(
       inserted
-          ? 'Strip restored to Your works.'
-          : 'This strip is already in Your works.',
+          ? '${widget.uploads ? 'Upload' : 'Strip'} restored to $_destination.'
+          : 'This $_noun is already in $_destination.',
     );
   });
 
   Future<void> _delete(FileObject backup) async {
     if (!await _confirm(
       'Delete cloud backup?',
-      'Copies in Your works on your devices will stay.',
+      'Copies in $_destination on your devices will stay.',
       'Delete backup',
     )) {
       return;
     }
     await _run(() async {
-      await CloudBackup.delete(_owner, backup.name);
+      if (widget.uploads) {
+        await CloudUploadBackup.delete(_owner, backup.name);
+      } else {
+        await CloudBackup.delete(_owner, backup.name);
+      }
       _progress('Cloud backup deleted.');
     });
   }
+
+  static String _kindLabel(String kind) =>
+      kind == 'sticker' ? 'Sticker' : 'Background';
 
   static String _size(int bytes) =>
       '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
@@ -218,12 +295,11 @@ class _CloudBackupPageState extends State<CloudBackupPage> {
 
   @override
   Widget build(BuildContext context) {
-    final names = _cloud.map((backup) => backup.name).toSet();
+    final names = _cloud.map((backup) => backup.file.name).toSet();
     final chosen = _local
         .where(
           (work) =>
-              _selected.contains(work.id) &&
-              !names.contains(mobileBackupName(work.id)),
+              _selected.contains(work.id) && !names.contains(_name(work.id)),
         )
         .toList();
     final bytes = chosen.fold(0, (sum, work) => sum + work.bytes);
@@ -231,7 +307,9 @@ class _CloudBackupPageState extends State<CloudBackupPage> {
     final heading = Theme.of(context).textTheme.titleLarge;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Cloud backup')),
+      appBar: AppBar(
+        title: Text(widget.uploads ? 'Upload cloud backup' : 'Cloud backup'),
+      ),
       body: !_signedIn
           ? const Center(child: Text('Sign in again to use cloud backup.'))
           : SafeArea(
@@ -239,7 +317,7 @@ class _CloudBackupPageState extends State<CloudBackupPage> {
                 padding: const EdgeInsets.all(20),
                 children: [
                   Text(
-                    'Backups are private to $_email. Only selected strips are uploaded after confirmation. Restoring adds a local copy.',
+                    'Backups are private to $_email. Only selected ${widget.uploads ? 'stickers and backgrounds' : 'strips'} are uploaded after confirmation. Restoring adds a local copy.',
                   ),
                   if (_loading) const LinearProgressIndicator(),
                   if (_loadError != null) ...[
@@ -256,8 +334,10 @@ class _CloudBackupPageState extends State<CloudBackupPage> {
                   const SizedBox(height: 16),
                   Text('On this device', style: heading),
                   if (!_loading && _local.isEmpty)
-                    const Text(
-                      'Save a finished strip to Your works to back it up.',
+                    Text(
+                      widget.uploads
+                          ? 'Import a sticker or background in My Uploads to back it up.'
+                          : 'Save a finished strip to Your works to back it up.',
                     ),
                   for (final work in _local)
                     CheckboxListTile(
@@ -270,15 +350,14 @@ class _CloudBackupPageState extends State<CloudBackupPage> {
                         errorBuilder: (_, _, _) =>
                             const Icon(Icons.photo_outlined),
                       ),
-                      title: const Text('Saved strip'),
+                      title: Text(work.title),
                       subtitle: Text(
-                        '${_date(work.created)} · ${names.contains(mobileBackupName(work.id)) ? 'Backed up' : _size(work.bytes)}',
+                        '${work.kind == null ? '' : '${_kindLabel(work.kind!)} · '}${_date(work.created)} · ${names.contains(_name(work.id)) ? 'Backed up' : _size(work.bytes)}',
                       ),
                       value:
                           _selected.contains(work.id) ||
-                          names.contains(mobileBackupName(work.id)),
-                      onChanged:
-                          enabled && !names.contains(mobileBackupName(work.id))
+                          names.contains(_name(work.id)),
+                      onChanged: enabled && !names.contains(_name(work.id))
                           ? (value) {
                               setState(() {
                                 if (value == true) {
@@ -312,19 +391,19 @@ class _CloudBackupPageState extends State<CloudBackupPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Strip backed up ${_date(DateTime.tryParse(backup.createdAt ?? ''))} · ${_size(_bytes(backup))}',
+                              '${backup.title ?? (widget.uploads ? 'Upload' : 'Strip')}${backup.kind == null ? '' : ' · ${_kindLabel(backup.kind!)}'} backed up ${_date(DateTime.tryParse(backup.file.createdAt ?? ''))} · ${_size(_bytes(backup.file))}',
                             ),
                             Wrap(
                               children: [
                                 TextButton(
                                   onPressed: enabled
-                                      ? () => _restore(backup)
+                                      ? () => _restore(backup.file)
                                       : null,
-                                  child: const Text('Restore strip'),
+                                  child: Text('Restore $_noun'),
                                 ),
                                 TextButton(
                                   onPressed: enabled
-                                      ? () => _delete(backup)
+                                      ? () => _delete(backup.file)
                                       : null,
                                   child: const Text('Delete backup'),
                                 ),

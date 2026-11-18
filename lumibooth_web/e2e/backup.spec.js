@@ -91,3 +91,64 @@ test('explicit backup retries safely and restores an editable strip in another b
     await another.close();
   }
 });
+
+test('upload backup is selective, restores once, and keeps local copies on cloud deletion', async ({ page, browser, baseURL }) => {
+  const email = `uploads-${Date.now()}@example.com`;
+  await page.goto('/uploads');
+  const png = Buffer.from(await page.evaluate(() => document.createElement('canvas').toDataURL().split(',')[1]), 'base64');
+  await page.getByLabel('Upload your own sticker').setInputFiles({ name: 'Moon.png', mimeType: 'image/png', buffer: png });
+  await expect(page.getByText('Moon', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Backgrounds', exact: true }).click();
+  await page.getByLabel('Upload your own background').setInputFiles({ name: 'Night sky.png', mimeType: 'image/png', buffer: png });
+  await expect(page.getByText('Night sky', { exact: true })).toBeVisible();
+
+  const writes = [];
+  page.on('request', request => {
+    if (request.method() === 'POST' && request.url().includes('/storage/v1/object/lumi-private-uploads/')) writes.push(request.url());
+  });
+  await account(page, email, true);
+  await page.goto('/uploads');
+  await page.getByRole('link', { name: 'Cloud backup' }).click();
+  await expect(page.getByText('No backups yet.')).toBeVisible();
+  expect(writes).toHaveLength(0);
+
+  await page.getByRole('checkbox', { name: /Moon/ }).check();
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByRole('button', { name: /Back up selected/ }).click();
+  expect(writes).toHaveLength(0);
+
+  await page.route('**/storage/v1/object/lumi-private-uploads/**', route => route.abort(), { times: 1 });
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: /Back up selected/ }).click();
+  await expect(page.getByRole('alert')).toContainText('Upload failed');
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: /Back up selected/ }).click();
+  await expect(page.getByText('1 of 1 selected uploads backed up.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Restore upload' })).toHaveCount(1);
+  expect(new Set(writes).size).toBe(1);
+
+  await page.getByRole('link', { name: 'Back to My Uploads' }).click();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Delete Moon' }).click();
+  await expect(page.getByText('No uploads yet.')).toBeVisible();
+
+  const another = await browser.newContext({ baseURL });
+  try {
+    const next = await another.newPage();
+    await account(next, email, false);
+    await next.goto('/uploads/backup');
+    await expect(next.getByText(/Moon · Sticker backed up/)).toBeVisible();
+    await expect(next.getByText(/Night sky/)).toHaveCount(0);
+    await next.getByRole('button', { name: 'Restore upload' }).click();
+    await expect(next.getByText('Upload restored to My Uploads.')).toBeVisible();
+    await next.getByRole('button', { name: 'Restore upload' }).click();
+    await expect(next.getByText('This upload is already in My Uploads.')).toBeVisible();
+    next.once('dialog', dialog => dialog.accept());
+    await next.getByRole('button', { name: 'Delete backup' }).click();
+    await expect(next.getByText('No backups yet.')).toBeVisible();
+    await next.getByRole('link', { name: 'Back to My Uploads' }).click();
+    await expect(next.getByText('Moon', { exact: true })).toHaveCount(1);
+  } finally {
+    await another.close();
+  }
+});

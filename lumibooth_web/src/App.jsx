@@ -8,6 +8,7 @@ import WebWelcome from './pages/user/WebWelcome';
 import WebGallerySelection from './pages/user/WebGallerySelection';
 import WebCamera from './pages/user/WebCamera';
 import WebEditor from './pages/user/WebEditor';
+import { WebSavedWork, WebWorks } from './pages/user/WebWorks';
 import WebPreview from './pages/user/WebPreview';
 import { PhotoboothProvider } from './context/PhotoboothProvider';
 import { PhotoboothContext } from './context/photoboothContext';
@@ -67,6 +68,8 @@ const App = () => {
           {/* User Photobooth App */}
           <Route path="/" element={<WebWelcome />} />
           {accountsEnabled && <Route path="/account" element={<WebAccount />} />}
+          <Route path="/works" element={<WebWorks />} />
+          <Route path="/works/:id" element={<WebSavedWork />} />
           <Route path="/layout" element={<Navigate to="/gallery" replace />} />
           <Route path="/gallery" element={<GuestStep step="review"><WebGallerySelection /></GuestStep>} />
           <Route path="/camera" element={<GuestStep step="camera"><WebCamera /></GuestStep>} />

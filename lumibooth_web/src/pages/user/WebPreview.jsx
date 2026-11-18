@@ -1,7 +1,8 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Download, Printer } from 'lucide-react';
+import { saveWork } from '../../context/savedWorks';
 import { PhotoboothContext } from '../../context/photoboothContext';
 import { BoothHeader, BoothStep } from '../../components/BoothUI';
 import MotionPhotos from '../../motion/MotionPhotos';
@@ -20,6 +21,9 @@ export default function WebPreview() {
   const [imageSize, setImageSize] = useState(null);
   const [playback, setPlayback] = useState(null);
   const [exportingMotion, setExportingMotion] = useState(false);
+  const [savingWork, setSavingWork] = useState(false);
+  const [savedWork, setSavedWork] = useState(null);
+  const [workError, setWorkError] = useState('');
   const [error, setError] = useState('');
   const [printLink, setPrintLink] = useState(null);
   const [sending, setSending] = useState(false);
@@ -125,6 +129,19 @@ export default function WebPreview() {
       : null));
   };
 
+  const saveToWorks = async () => {
+    setSavingWork(true);
+    setWorkError('');
+    try {
+      const id = await saveWork(session);
+      setSavedWork({ id, output: session.output });
+    } catch {
+      setWorkError('Could not save this strip in your browser. Free device storage or use Save to Device.');
+    } finally {
+      setSavingWork(false);
+    }
+  };
+
   const finish = () => {
     navigate('/', { replace: true });
   };
@@ -160,6 +177,13 @@ export default function WebPreview() {
             <button className="booth-link" disabled={sending} onClick={() => navigate('/editor', { replace: true })}>Edit Strip</button>
             <button className="booth-link" onClick={finish}>Back to home</button>
           </div>
+          <div className="preview-actions">
+            {savedWork?.output === session.output
+              ? <Link className="booth-link" to={`/works/${savedWork.id}`}>View in Your works</Link>
+              : <button className="booth-button booth-secondary" disabled={savingWork || !imageSize}
+                  onClick={saveToWorks}>{savingWork ? 'Saving work…' : 'Save to Your works'}</button>}
+          </div>
+          {workError && <p role="alert">{workError}</p>}
           {printToPlayEnabled && !session.roomId && <PrintToPlay output={session.output} photos={session.photos}
             getGif={hasMotion ? getGif : undefined}
             onPrint={print} disabled={!imageSize || motionPending || exportingMotion} />}

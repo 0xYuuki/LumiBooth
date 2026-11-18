@@ -215,7 +215,8 @@ test('a fixed camera crop fits both portrait and illustrated frame exports', asy
   await shutter.click();
   await page.getByRole('button', { name: 'Continue to design' }).click();
 
-  const photo = page.getByRole('img', { name: 'Captured photo 1' });
+  const photo = page.locator('.editor-preview-fit').getByRole('img', { name: 'Captured photo 1' });
+  await expect(photo).toBeVisible();
   const capture = await photo.evaluate(async (image) => {
     await image.decode();
     const canvas = document.createElement('canvas');
@@ -233,12 +234,17 @@ test('a fixed camera crop fits both portrait and illustrated frame exports', asy
 
   async function exportEdge() {
     await page.evaluate(() => document.fonts.ready);
-    const point = await photo.evaluate((image) => {
-      const slot = image.getBoundingClientRect();
-      const strip = image.closest('.photo-strip').getBoundingClientRect();
-      return [(slot.left - strip.left + .06 * slot.width) / strip.width,
-        (slot.top - strip.top + .5 * slot.height) / strip.height];
-    });
+    let point;
+    await expect.poll(async () => {
+      point = await photo.evaluate((image) => {
+        const slot = image.getBoundingClientRect();
+        const strip = image.closest('.photo-strip').getBoundingClientRect();
+        if (!slot.width || !slot.height || !strip.width || !strip.height) return null;
+        return [(slot.left - strip.left + .06 * slot.width) / strip.width,
+          (slot.top - strip.top + .5 * slot.height) / strip.height];
+      });
+      return point?.every(value => Number.isFinite(value) && value > 0 && value < 1);
+    }).toBe(true);
     await page.getByRole('button', { name: 'Next' }).click();
     return page.getByRole('img', { name: 'Your finished LumiBooth photo strip' }).evaluate(async (image, [x, y]) => {
       await image.decode();

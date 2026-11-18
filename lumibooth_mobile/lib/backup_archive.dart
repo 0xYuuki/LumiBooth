@@ -118,6 +118,9 @@ RestoredBackup unpackMobileBackup(Uint8List bytes, String name) {
     for (final item in items) {
       take((item as Map)['bytes']);
     }
+    for (final upload in edits['uploads'] as List? ?? const []) {
+      take((upload as Map)['bytes']);
+    }
   }
   if (offset != bytes.length) {
     throw const FormatException('Invalid backup length.');

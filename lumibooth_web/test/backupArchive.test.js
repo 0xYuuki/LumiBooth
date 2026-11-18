@@ -38,3 +38,18 @@ test('a Flutter archive restores its poster on the web with the original cloud i
   assert.equal(restored.project, null);
   assert.deepEqual(new Uint8Array(await restored.poster.arrayBuffer()), png);
 });
+
+test('embedded custom images round-trip as deduplicated archive payloads', async () => {
+  const image = 'data:image/png;base64,' + 'AAAA'.repeat(50_000);
+  const session = {
+    background: { name: 'Backdrop', image, fit: 'contain' },
+    stickers: [{ id: 1, art: { name: 'Sticker', image } }],
+  };
+  const archive = packWebWork({
+    poster, project: { version: 1, session, items: [] }, createdAt: 42,
+  });
+  assert.ok(archive.size < 152_000);
+  const restored = await unpackWork(archive, backupName(id));
+  assert.deepEqual(restored.project.session, session);
+  await assert.rejects(unpackWork(archive.slice(0, -1), backupName(id)), /Incomplete backup/);
+});

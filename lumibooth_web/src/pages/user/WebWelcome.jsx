@@ -32,6 +32,7 @@ export default function WebWelcome() {
           {remoteBoothEnabled && <Link className="booth-button booth-secondary" to="/room">Booth with a friend</Link>}
           {printToPlayEnabled && <Link className="booth-link" to="/print-links">Manage gallery links</Link>}
           <Link className="booth-link" to="/works">Your works</Link>
+          <Link className="booth-link" to="/uploads">My Uploads</Link>
           {accountsEnabled && <Link className="booth-link" to="/account">Account</Link>}
         </div>
         <div className="hero-art" aria-hidden="true">

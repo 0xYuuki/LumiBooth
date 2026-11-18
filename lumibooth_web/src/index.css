@@ -216,8 +216,6 @@ body {
   user-select: none;
 }
 
-.strip-sticker:has(.sticker-select[aria-pressed="true"]) { z-index: 2; }
-
 .sticker-visual {
   width: 100%;
   height: 100%;

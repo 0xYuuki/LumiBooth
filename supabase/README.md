@@ -120,3 +120,8 @@ the local publishable key as `LUMI_SUPABASE_KEY` using `--dart-define`.
 The **Verify private backups** GitHub workflow applies all migrations to a
 fresh local stack and runs both Storage checks and both clients' backup tests.
 It uses a generated local publishable key and requires no staging credentials.
+
+## Print commerce
+
+See [the M1 backend contract](commerce.md) for request, Storage, staff and
+cleanup behavior. Commerce is disabled by default.

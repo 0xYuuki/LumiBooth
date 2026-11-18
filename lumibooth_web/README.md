@@ -54,3 +54,20 @@ On the final preview screen, **Save to Your works** explicitly saves a completed
 The current draft is stored separately. Opening a saved strip for editing asks before replacing an active draft. Edits can be saved as a new gallery entry. Gallery entries are available to guests and stay in the same browser profile. Clearing site data or browser storage limits can remove entries.
 
 The production build caches the guest app and its static assets for offline use after an initial online visit. Serve `offline-worker.js` directly, alongside the built index. The worker caches app files, while photos and finished strips remain in IndexedDB.
+
+## My Uploads
+
+Open **My Uploads** from the home page to rename or delete locally stored
+images. In Design, open **My stickers** or **My backgrounds**, then choose
+**Upload your own** or preview an existing upload. Stickers use the standard
+position, rotation, size, and layer controls. Backgrounds sit behind the
+photos and artwork. Choose **Fill strip** or **Fit whole image** and adjust
+horizontal and vertical position before applying.
+
+Imports accept still PNG, JPEG, and WebP files up to 20 MiB and 32 megapixels.
+The browser normalizes images to at most 2,048 pixels on their longest side
+and preserves transparency. The library uses IndexedDB. Drafts and saved
+editable strips embed their own copies, so deleting a library entry leaves
+those projects intact. Clearing browser site data removes local uploads.
+Standalone uploads remain on the device. If you explicitly back up a saved
+strip, its embedded editing images are included with that strip.

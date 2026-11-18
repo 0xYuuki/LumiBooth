@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+import { uploadedBackgroundStyle } from '../../context/customUploads';
 import { frameBackground, frameLibrary } from './frameLibrary';
 import StickerArt from './StickerArt';
 import AdjustablePhoto from './AdjustablePhoto';
@@ -6,6 +8,8 @@ export function PhotoStrip({ session, motionUrls = [], stripRef, onPointerDown, 
   const { layout, photos, stickers } = session;
   const paired = layout.photosPerCell === 2;
   const frame = session.frame ?? frameLibrary.Templates[0];
+  const frameStyle = frameBackground(frame);
+  const backgroundStyle = useMemo(() => uploadedBackgroundStyle(session.background), [session.background]);
   const font = session.signatureFont ?? 'Outfit';
   const caption = session.caption ?? frame.caption ?? 'THE PHOTO BOOTH';
   const renderPhoto = (index, photo, alt, onError) => <AdjustablePhoto
@@ -18,7 +22,9 @@ export function PhotoStrip({ session, motionUrls = [], stripRef, onPointerDown, 
       className="photo-strip"
       onPointerDown={onPointerDown}
       style={{
-        ...frameBackground(frame),
+        ...frameStyle,
+        ...backgroundStyle,
+        backgroundColor: backgroundStyle.backgroundImage ? frameStyle.backgroundColor ?? '#fffdf8' : frameStyle.backgroundColor,
         '--strip-width': paired ? '320px' : layout.columns === 1 && layout.count > 1 ? '220px' : '360px',
         gridTemplateColumns: `repeat(${layout.columns}, minmax(0, 1fr))`,
         color: frame.ink ?? '#292630',

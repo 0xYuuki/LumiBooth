@@ -1,3 +1,4 @@
+import { isUploadData } from './customUploads';
 import { restoreProject, serializeProject } from './localDraft';
 import { layouts, requiredPhotos, selectedItems } from './photoboothSession';
 import { frameLibrary } from '../pages/user/frameLibrary';
@@ -89,12 +90,15 @@ export async function saveWork(session) {
 
 export async function storeWork({ id, createdAt, title, poster, project }) {
   const thumbnail = await thumbnailFor(poster);
+  const uploads = new Set([project?.session?.background?.image,
+    ...(project?.session?.stickers ?? []).map(sticker => sticker?.art?.image)].filter(isUploadData));
+  const uploadBytes = [...uploads].reduce((sum, value) => sum + value.length, 0);
   const work = {
     id,
     createdAt,
     title,
     thumbnail,
-    bytes: thumbnail.size + poster.size + (project?.items.reduce((sum, item) => sum + item.blob.size, 0) ?? 0),
+    bytes: thumbnail.size + poster.size + uploadBytes + (project?.items.reduce((sum, item) => sum + item.blob.size, 0) ?? 0),
   };
   let inserted = false;
   await transact(['works', 'details'], 'readwrite', tx => {
@@ -122,12 +126,14 @@ export async function editWork(project) {
       selectedItems(project.items).length !== requiredPhotos(layout)) {
     throw new Error('Editable source photos are unavailable.');
   }
-  const { frame, stickers, caption, signatureFont } = project.session;
+  const { frame, stickers, caption, signatureFont, background } = project.session;
   const currentFrame = frame ? Object.values(frameLibrary).flat().find(item => item.name === frame.name) : null;
   const catalog = stickerPacks.flatMap(pack => pack.items);
   const currentStickers = stickers.map(sticker => ({
     ...sticker,
-    art: catalog.find(item => item.name === sticker?.art?.name && item.x === sticker?.art?.x && item.y === sticker?.art?.y),
+    art: isUploadData(sticker?.art?.image)
+      ? { id: sticker.art.id, name: sticker.art.name, image: sticker.art.image }
+      : catalog.find(item => item.name === sticker?.art?.name && item.x === sticker?.art?.x && item.y === sticker?.art?.y),
   }));
   if ((frame && !currentFrame) || currentStickers.some(sticker => !sticker.art)) {
     throw new Error('Editable design assets are unavailable.');
@@ -140,6 +146,7 @@ export async function editWork(project) {
     layout, caption: typeof caption === 'string' ? caption : null,
     signatureFont: typeof signatureFont === 'string' ? signatureFont : null,
     frame: currentFrame, stickers: currentStickers, designRevision: 0,
+    background: isUploadData(background?.image) ? background : null,
     manualLayout: project.session.manualLayout === true,
   } });
 }

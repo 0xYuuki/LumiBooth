@@ -48,6 +48,9 @@ void main() {
           'items': [
             {'bytes': 2},
           ],
+          'uploads': [
+            {'bytes': 1, 'type': 'image/png'},
+          ],
         },
       }),
     );
@@ -58,6 +61,7 @@ void main() {
       ...png,
       1,
       2,
+      3,
     ]);
     const name = 'web-12345678-1234-1234-1234-123456789abc.lumi';
     final restored = unpackMobileBackup(bytes, name);

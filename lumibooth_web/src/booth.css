@@ -631,3 +631,14 @@
 .backup-list { display: grid; gap: .75rem; padding: 0; list-style: none; }
 .backup-list li { padding: .75rem; border: 1px solid var(--line); border-radius: .75rem; }
 .backup-list li > p { margin-bottom: .5rem; }
+
+.custom-sticker-art { width: 100%; height: 100%; object-fit: contain; }
+.custom-uploads { border-top: 1px solid var(--line); padding-top: 1rem; }
+.upload-input, .upload-selection > label { display: grid; gap: .25rem; margin-bottom: .65rem; }
+.upload-input input { max-width: 100%; }
+.upload-selection { padding: .75rem; margin-block: .75rem; border: 1px solid var(--line); border-radius: .75rem; }
+.upload-selection > img { display: block; width: 100%; height: 100px; object-fit: contain; }
+.upload-background-preview { width: 100%; max-width: 160px; margin: 0 auto .75rem; background-color: var(--wash); border: 1px solid var(--line); }
+.upload-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 125px), 1fr)); gap: .5rem; padding: 0; list-style: none; }
+.upload-grid li { padding: .5rem; border: 1px solid var(--line); border-radius: .5rem; overflow-wrap: anywhere; }
+.upload-grid img { display: block; width: 100%; height: 80px; object-fit: contain; margin-bottom: .35rem; }

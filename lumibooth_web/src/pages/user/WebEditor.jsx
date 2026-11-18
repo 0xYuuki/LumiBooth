@@ -9,6 +9,7 @@ import { frameBackground, frameLibrary } from './frameLibrary';
 import { IllustratedPhoto, PhotoStrip, StickerLayer } from './PhotoStrip';
 
 import StripPreviewDialog from './StripPreviewDialog';
+import CustomUploads from './CustomUploads';
 import StickerArt from './StickerArt';
 import PhotoTransformEditor from './PhotoTransformEditor';
 import { stickerPacks } from './stickerPacks';
@@ -24,6 +25,8 @@ const WebEditor = () => {
   const caption = session.caption ?? selectedFrame.caption ?? 'THE PHOTO BOOTH';
   const navigate = useNavigate();
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [uploadPicker, setUploadPicker] = useState(null);
+  const [backgroundAspect, setBackgroundAspect] = useState(0.65);
   const [activeTab, setActiveTab] = useState('Frames');
   const [stickerPack, setStickerPack] = useState(stickerPacks[0]);
   const [activeCategory, setActiveCategory] = useState(() =>
@@ -42,8 +45,8 @@ const WebEditor = () => {
 
   const edit = (changes) => dispatch({ type: 'edit', changes });
   const addSticker = (art) => {
-    const id = (placedStickers.at(-1)?.id ?? 0) + 1;
-    edit({ stickers: [...placedStickers, { id, art, size: art.url ? 72 : 50, angle: 0, x: 0.4, y: 0.4 }] });
+    const id = Math.max(0, ...placedStickers.map(sticker => sticker.id)) + 1;
+    edit({ stickers: [...placedStickers, { id, art, size: art.url || art.image ? 72 : 50, angle: 0, x: 0.4, y: 0.4 }] });
     setSelectedStickerId(id);
   };
 
@@ -86,7 +89,15 @@ const WebEditor = () => {
     }
   };
 
-  const selectedSticker = placedStickers.find(({ id }) => id === selectedStickerId);
+  const selectedStickerIndex = placedStickers.findIndex(({ id }) => id === selectedStickerId);
+  const selectedSticker = placedStickers[selectedStickerIndex];
+
+  const moveStickerLayer = (delta) => {
+    const stickers = [...placedStickers];
+    stickers.splice(selectedStickerIndex, 1);
+    stickers.splice(selectedStickerIndex + delta, 0, selectedSticker);
+    edit({ stickers });
+  };
 
   return (
     <div className="booth-shell editor-shell">
@@ -153,7 +164,10 @@ const WebEditor = () => {
                 </label>
                 <div className="frame-gallery">
                   {frameLibrary[activeCategory].map((frame) => (
-                    <button key={frame.name} aria-pressed={selectedFrame.name === frame.name} onClick={() => edit({ frame })}>
+                    <button key={frame.name} aria-pressed={selectedFrame.name === frame.name} onClick={() => {
+                      edit({ frame });
+                      setUploadPicker(null);
+                    }}>
                       {frame.artwork ? (
                         <span className="illustrated-thumbnail" aria-hidden="true" style={{ backgroundColor: frame.bg }}>
                           <IllustratedPhoto frame={frame} />
@@ -166,6 +180,17 @@ const WebEditor = () => {
                     </button>
                   ))}
                 </div>
+                <button className="booth-link" aria-expanded={uploadPicker === 'background'}
+                  onClick={() => {
+                    const strip = constraintsRef.current;
+                    if (strip?.offsetHeight) setBackgroundAspect(strip.offsetWidth / strip.offsetHeight);
+                    setUploadPicker(uploadPicker === 'background' ? null : 'background');
+                  }}>My backgrounds</button>
+                {uploadPicker === 'background' && <CustomUploads kind="background"
+                  activeBackground={session.background}
+                  previewAspect={backgroundAspect}
+                  onApply={background => edit({ background })}
+                  onRemoveBackground={() => edit({ background: null })} />}
               </>
             )}
             {activeTab === 'Stickers' && (
@@ -186,6 +211,19 @@ const WebEditor = () => {
                     </button>
                   ))}
                 </div>
+                <button className="booth-link" aria-expanded={uploadPicker === 'sticker'}
+                  onClick={() => setUploadPicker(uploadPicker === 'sticker' ? null : 'sticker')}>My stickers</button>
+                {uploadPicker === 'sticker' && <CustomUploads kind="sticker"
+                  onApply={({ id, name, image }) => addSticker({ id, name, image })} />}
+                {placedStickers.length > 1 && <label className="sticker-pack-picker">
+                  Sticker layer
+                  <select value={selectedStickerId ?? ''} onChange={event => setSelectedStickerId(Number(event.target.value) || null)}>
+                    <option value="">Choose a sticker</option>
+                    {placedStickers.map((sticker, index) => <option key={sticker.id} value={sticker.id}>
+                      {sticker.art.name} · Layer {index + 1}
+                    </option>)}
+                  </select>
+                </label>}
                 {selectedSticker && (
                   <>
                     <label className="sticker-size">
@@ -200,6 +238,12 @@ const WebEditor = () => {
                       <input type="range" min="-180" max="180" value={selectedSticker.angle ?? 0}
                         onChange={(event) => updateSticker(selectedSticker.id, { angle: Number(event.target.value) })} />
                     </label>
+                    {placedStickers.length > 1 && <div>
+                      <button className="booth-link" disabled={selectedStickerIndex === placedStickers.length - 1}
+                        onClick={() => moveStickerLayer(1)}>Bring sticker forward</button>
+                      <button className="booth-link" disabled={selectedStickerIndex === 0}
+                        onClick={() => moveStickerLayer(-1)}>Send sticker backward</button>
+                    </div>}
                   </>
                 )}
               </>

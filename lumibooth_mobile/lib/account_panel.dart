@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'cloud_backup.dart';
 import 'cloud_backup_page.dart';
+import 'legal_documents_page.dart';
 import 'online_booth.dart';
 
 enum _AccountMode { login, signup, forgot }
@@ -206,6 +207,12 @@ class _AccountPanelState extends State<AccountPanel> {
               },
             ),
             const SizedBox(height: 16),
+          ],
+          if (!signedIn && !recovery && _mode == _AccountMode.signup) ...[
+            const Text(
+              'We use your email to confirm your account and help you recover access.',
+            ),
+            const PrivacyInformationLink(),
           ],
           FilledButton(
             onPressed: _busy

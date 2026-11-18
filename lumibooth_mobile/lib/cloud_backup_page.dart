@@ -8,6 +8,7 @@ import 'backup_archive.dart';
 import 'cloud_backup.dart';
 import 'cloud_upload_backup.dart';
 import 'custom_uploads.dart';
+import 'legal_documents_page.dart';
 import 'online_booth.dart';
 import 'saved_works.dart';
 import 'upload_backup_archive.dart';
@@ -319,6 +320,7 @@ class _CloudBackupPageState extends State<CloudBackupPage> {
                   Text(
                     'Backups are private to $_email. Only selected ${widget.uploads ? 'stickers and backgrounds' : 'strips'} are uploaded after confirmation. Restoring adds a local copy.',
                   ),
+                  const PrivacyInformationLink(),
                   if (_loading) const LinearProgressIndicator(),
                   if (_loadError != null) ...[
                     Text(_loadError!),

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BoothHeader } from '../../components/BoothUI';
 import { accountAuth, backupsEnabled } from '../../online/lumiClient';
+import { PrivacyInformationLink } from './WebLegal';
 
 const titles = {
   login: 'Log in',
@@ -137,6 +138,10 @@ export default function WebAccount() {
                     value={password} onChange={(event) => setPassword(event.target.value)} disabled={busy} />
                 </label>
               )}
+            </>}
+            {!signedIn && mode === 'signup' && <>
+              <p>We use your email to confirm your account and help you recover access.</p>
+              <PrivacyInformationLink />
             </>}
             <button className="booth-button" disabled={busy}>
               {busy ? 'Please wait…' : signedIn ? 'Sign out' : mode === 'forgot' ? 'Send reset link' : mode === 'recovery' ? 'Update password' : titles[mode]}

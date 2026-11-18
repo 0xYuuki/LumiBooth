@@ -21,6 +21,12 @@ select cron.schedule('lumi-expired-media', '* * * * *', $job$
 $job$);
 ```
 
+The function accepts browser requests only from the configured web origin.
+Native app and server requests use the existing authorization checks.
+Keep QR sharing and remote rooms disabled until the function, exact origin,
+anonymous Auth abuse controls, private Realtime, and cleanup are verified
+against the deployed app.
+
 Share and invite tokens are hashed in the database. Links stop resolving at expiry or revocation. Previously issued media URLs last up to 60 seconds. Cleanup deletes expired files and revisits abandoned uploads while their upload tickets can still be used. Review [anonymous sign-in rate limits](https://supabase.com/docs/guides/auth/auth-anonymous) and monitor usage before public rollout.
 
 ## Clients
@@ -68,7 +74,8 @@ manual. Signing in, dismissing the invitation, and creating future strips leave
 those strips on the device. Motion buffers and unsaved drafts stay local.
 
 The private `lumi-private-backups` bucket stores one immutable archive per
-saved work under the account's UUID. The Storage object record is the catalog.
+saved work under the account's UUID. Signed upload and download URLs are
+disabled for both private backup buckets. The Storage object record is the catalog.
 A retry uses the same path. Only complete uploads appear in the catalog, and
 the archive limit is 24 MiB. Store a strip again as a new work to back up another
 edit. Cross-device restore preserves editable projects on the originating

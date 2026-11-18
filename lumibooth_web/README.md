@@ -41,6 +41,13 @@ Set the hosting project directory to `lumibooth_web`. Run `npm ci` and `npm run 
 
 The production build contains static files. A physical printer uses the operating system's browser print dialog.
 
+For Vercel, set the project root to `lumibooth_web`. The included
+`vercel.json` sets the SPA fallback and security headers. Its Content
+Security Policy allows connections to standard Supabase project domains
+over HTTPS and secure WebSockets. Add the exact host to the policy if using
+a custom Supabase domain. Check the deployed app's headers and camera,
+download, printing, and enabled online features before release.
+
 ## Photo cards and editing workspace
 
 Tap **Choose order**, then tap photos in sequence; numbered badges show their position in the strip. Tapping a selected photo deselects it. The X on each photo asks for confirmation before removing it. **Undo** restores recent selection, removal, layout, crop and design changes during the current session.

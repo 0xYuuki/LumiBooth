@@ -15,6 +15,24 @@ begin
   if has_function_privilege('authenticated', 'public.lumi_room_action(uuid,uuid,text,boolean,uuid,integer)', 'execute') then
     raise exception 'Guests must not be able to impersonate another caller.';
   end if;
+  if to_regprocedure('public.lumi_room_channel_allowed(text)') is not null
+     or to_regprocedure('public.lumi_notify_room()') is not null then
+    raise exception 'Room helpers must stay outside the public API schema.';
+  end if;
+  if has_function_privilege('authenticated', 'lumi_private.lumi_notify_room()', 'execute') then
+    raise exception 'Guests must not call the room notification trigger directly.';
+  end if;
+  perform set_config('role', 'authenticated', true);
+  perform set_config('request.jwt.claims', json_build_object('sub', host_id)::text, true);
+  if not lumi_private.lumi_room_channel_allowed('lumi-room:' || room_id::text) then
+    raise exception 'Host lost access to room events.';
+  end if;
+  perform set_config('request.jwt.claims', json_build_object('sub', stranger_id)::text, true);
+  if lumi_private.lumi_room_channel_allowed('lumi-room:' || room_id::text) then
+    raise exception 'A third user can read room events.';
+  end if;
+  perform set_config('role', 'none', true);
+
   begin
     perform public.lumi_room_action(room_id, stranger_id, 'sync');
     raise exception 'A third user entered the room.';

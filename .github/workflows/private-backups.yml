@@ -1,0 +1,78 @@
+name: Verify private backups
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lumibooth_web/**'
+      - 'lumibooth_mobile/**'
+      - 'supabase/**'
+      - '.github/workflows/private-backups.yml'
+  pull_request:
+    paths:
+      - 'lumibooth_web/**'
+      - 'lumibooth_mobile/**'
+      - 'supabase/**'
+      - '.github/workflows/private-backups.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  private-backups:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: lumibooth_web/package-lock.json
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.9'
+          channel: stable
+          cache: true
+      - uses: supabase/setup-cli@v1
+        with:
+          version: '2.84.2'
+      - name: Install web dependencies
+        working-directory: lumibooth_web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Install Flutter dependencies
+        working-directory: lumibooth_mobile
+        run: flutter pub get
+      - name: Apply migrations to a fresh local Supabase stack
+        run: |
+          supabase start -x realtime,imgproxy,studio,postgres-meta,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/supabase-start.log" 2>&1 || {
+            tail -40 "$RUNNER_TEMP/supabase-start.log"
+            exit 1
+          }
+          supabase migration list --local
+          local_key=$(supabase status -o json | jq -er '.PUBLISHABLE_KEY | select(length > 0)')
+          printf '::add-mask::%s\n' "$local_key"
+          printf 'LUMI_TEST_SUPABASE_KEY=%s\n' "$local_key" >> "$GITHUB_ENV"
+      - name: Check private Storage permissions
+        run: |
+          node supabase/tests/private_backups.mjs
+          node supabase/tests/private_backups.mjs --uploads
+      - name: Test browser backup and restore
+        working-directory: lumibooth_web
+        env:
+          VITE_LUMI_SUPABASE_URL: 'http://127.0.0.1:54321'
+          VITE_LUMI_CLOUD_BACKUP: 'true'
+        run: |
+          export VITE_LUMI_SUPABASE_KEY="$LUMI_TEST_SUPABASE_KEY"
+          npm run build
+          npm run test:e2e -- e2e/backup.spec.js
+      - name: Test Flutter upload backup and restore
+        working-directory: lumibooth_mobile
+        run: |
+          flutter test test/upload_backup_test.dart \
+            --dart-define=LUMI_CLOUD_BACKUP=true \
+            --dart-define=LUMI_SUPABASE_URL=http://127.0.0.1:54321 \
+            --dart-define=LUMI_SUPABASE_KEY="$LUMI_TEST_SUPABASE_KEY"

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'booth.dart';
+import 'cloud_backup.dart';
+import 'cloud_backup_page.dart';
 import 'custom_uploads.dart';
 
 class MyUploadsPage extends StatefulWidget {
@@ -154,9 +156,19 @@ class _MyUploadsPageState extends State<MyUploadsPage> {
           ),
           const SizedBox(height: 12),
           const Text(
-            'Your uploads stay on this device. Clearing app data or uninstalling removes the library.',
+            'My Uploads stores local copies. Clearing app data or uninstalling removes them from this device.',
             style: TextStyle(color: muted, height: 1.5),
           ),
+          if (!widget.selecting && CloudBackup.enabled)
+            TextButton(
+              onPressed: _busy
+                  ? null
+                  : () async {
+                      await openCloudBackup(context, uploads: true);
+                      _refresh();
+                    },
+              child: const Text('Cloud backup'),
+            ),
           const SizedBox(height: 20),
           if (!widget.selecting)
             DropdownButtonFormField<String>(

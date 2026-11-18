@@ -4,13 +4,13 @@ import { backupName, backupNamePattern, maxBackupBytes, packWebWork, unpackWork 
 
 const bucket = 'lumi-private-backups';
 
-async function storageFor(owner) {
+export async function storageFor(owner, bucketName = bucket) {
   const client = accountSupabase();
   const { data, error } = await client.auth.getSession();
   if (error || data.session?.user.id !== owner || data.session?.user.is_anonymous) {
     throw new Error('Sign in again to use cloud backup.');
   }
-  return client.storage.from(bucket);
+  return client.storage.from(bucketName);
 }
 
 function pathFor(owner, name) {

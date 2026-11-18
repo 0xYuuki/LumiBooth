@@ -70,7 +70,10 @@ const App = () => {
           {/* User Photobooth App */}
           <Route path="/" element={<WebWelcome />} />
           {accountsEnabled && <Route path="/account" element={<WebAccount />} />}
-          {backupsEnabled && <Route path="/backup" element={<WebBackup />} />}
+          {backupsEnabled && <>
+            <Route path="/backup" element={<WebBackup />} />
+            <Route path="/uploads/backup" element={<WebBackup uploads />} />
+          </>}
           <Route path="/uploads" element={<WebUploads />} />
           <Route path="/works" element={<WebWorks />} />
           <Route path="/works/:id" element={<WebSavedWork />} />

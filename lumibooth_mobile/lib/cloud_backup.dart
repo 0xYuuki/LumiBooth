@@ -15,7 +15,7 @@ abstract final class CloudBackup {
   static const _timeout = Duration(seconds: 45);
   static const _bucket = 'lumi-private-backups';
 
-  static StorageFileApi _storage(String owner) {
+  static StorageFileApi storageFor(String owner, {String bucket = _bucket}) {
     final user = OnlineBooth.accountAuth?.currentSession?.user;
     if (!enabled ||
         user == null ||
@@ -24,7 +24,7 @@ abstract final class CloudBackup {
         OnlineBooth.accountRecovery.value) {
       throw StateError('Sign in again to use cloud backup.');
     }
-    return Supabase.instance.client.storage.from(_bucket);
+    return Supabase.instance.client.storage.from(bucket);
   }
 
   static String _path(String owner, String name) {
@@ -35,7 +35,7 @@ abstract final class CloudBackup {
   }
 
   static Future<List<FileObject>> list(String owner) async {
-    final storage = _storage(owner);
+    final storage = storageFor(owner);
     final backups = <FileObject>[];
     for (var offset = 0; ; offset += 100) {
       final page = await storage
@@ -68,7 +68,7 @@ abstract final class CloudBackup {
       created: work.created,
       project: work.editable ? await work.project() : null,
     );
-    final storage = _storage(owner);
+    final storage = storageFor(owner);
     final path = _path(owner, mobileBackupName(work.id));
     try {
       await storage
@@ -99,7 +99,7 @@ abstract final class CloudBackup {
     FileObject backup,
     void Function(int) progress,
   ) async {
-    final stream = _storage(owner).downloadStream(_path(owner, backup.name));
+    final stream = storageFor(owner).downloadStream(_path(owner, backup.name));
     final bytes = BytesBuilder(copy: false);
     await for (final chunk in stream.timeout(_timeout)) {
       if (bytes.length + chunk.length > maxBackupBytes) {
@@ -112,7 +112,7 @@ abstract final class CloudBackup {
       bytes.takeBytes(),
       backup.name,
     ));
-    _storage(owner);
+    storageFor(owner);
     return SavedWorks.restore(
       work.backup.id,
       work.backup.created,
@@ -123,7 +123,7 @@ abstract final class CloudBackup {
   }
 
   static Future<void> delete(String owner, String name) async {
-    await _storage(owner).remove([_path(owner, name)]).timeout(_timeout);
+    await storageFor(owner).remove([_path(owner, name)]).timeout(_timeout);
   }
 }
 

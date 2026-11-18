@@ -94,3 +94,29 @@ Before production rollout, repeat upload, retry, duplicate restore, and delete
 checks with two staging accounts on web and Android/iOS. Confirm that a
 different account cannot list, download, overwrite, or remove the backup, and
 that local capture and Your works remain usable while signed out or offline.
+
+## Private upload backups
+
+Apply the private-upload-backups migration before shipping a build with cloud
+backup enabled. **My Uploads → Cloud backup** uses the same build flags as
+private strip backups. The separate private `lumi-private-uploads` bucket
+stores one immutable backup per local upload under the account ID. Each object
+holds a versioned image archive and supports up to 20 MiB of image data.
+Only its signed-in owner can list, inspect, download, or delete it through
+authenticated Storage. Public and signed URL access are disabled. There is no
+automatic synchronization. Local and cloud deletion are separate actions.
+For an account deletion request, also remove the account's objects in
+`lumi-private-uploads` through the Storage API.
+
+With a disposable local Supabase stack, run
+`node supabase/tests/private_backups.mjs --uploads` with the same local
+publishable key used for the strip backup test. The local Playwright backup
+spec covers both libraries.
+
+For the Flutter live-storage test, run `flutter test test/upload_backup_test.dart`
+with `LUMI_CLOUD_BACKUP=true`, `LUMI_SUPABASE_URL=http://127.0.0.1:54321`, and
+the local publishable key as `LUMI_SUPABASE_KEY` using `--dart-define`.
+
+The **Verify private backups** GitHub workflow applies all migrations to a
+fresh local stack and runs both Storage checks and both clients' backup tests.
+It uses a generated local publishable key and requires no staging credentials.

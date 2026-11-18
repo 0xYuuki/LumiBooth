@@ -535,3 +535,33 @@
  .editor-content .design-tools { grid-row:1; grid-column:2; }
  .editor-content .booth-intro { display:none; }
 }
+
+.booth-account {
+  width: min(100% - 2rem, 29rem);
+  margin: 2rem auto;
+  padding-bottom: 2rem;
+}
+
+.booth-account form {
+  display: grid;
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.booth-account label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.booth-account input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  padding: 0.7rem;
+  font: inherit;
+}
+
+.booth-account [role="alert"] {
+  color: #952e42;
+}

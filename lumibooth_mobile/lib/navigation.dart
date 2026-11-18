@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show SystemNavigator;
 
 import 'booth.dart';
 import 'me_page.dart';
+import 'online_booth.dart';
 
 /// Root navigation scaffold for LumiBooth mobile.
 ///
@@ -35,6 +36,32 @@ class MainNavigationScaffoldState extends State<MainNavigationScaffold> {
   int _currentIndex = 0;
   final GlobalKey<NavigatorState> _photoNavKey = GlobalKey<NavigatorState>();
   final GlobalKey<NavigatorState> _meNavKey = GlobalKey<NavigatorState>();
+
+  @override
+  void initState() {
+    super.initState();
+    OnlineBooth.accountRecovery.addListener(_showAccount);
+    OnlineBooth.accountLinkError.addListener(_showAccount);
+    if (OnlineBooth.accountRecovery.value ||
+        OnlineBooth.accountLinkError.value != null) {
+      _currentIndex = 1;
+    }
+  }
+
+  void _showAccount() {
+    if (OnlineBooth.accountRecovery.value ||
+        OnlineBooth.accountLinkError.value != null) {
+      _meNavKey.currentState?.popUntil((route) => route.isFirst);
+      selectTab(1);
+    }
+  }
+
+  @override
+  void dispose() {
+    OnlineBooth.accountRecovery.removeListener(_showAccount);
+    OnlineBooth.accountLinkError.removeListener(_showAccount);
+    super.dispose();
+  }
 
   /// Selects the navigation tab at [index].
   void selectTab(int index) {

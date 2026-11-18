@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const url = import.meta.env.VITE_LUMI_SUPABASE_URL;
 const key = import.meta.env.VITE_LUMI_SUPABASE_KEY;
+export const accountsEnabled = Boolean(url && key);
 export const printToPlayEnabled = Boolean(url && key && import.meta.env.VITE_LUMI_PRINT_QR === 'true');
 export const remoteBoothEnabled = Boolean(url && key && import.meta.env.VITE_LUMI_REMOTE_BOOTH === 'true');
 let client;
@@ -9,7 +10,15 @@ let signIn;
 
 function supabase() {
   if (!url || !key) throw new Error('The online booth is unavailable.');
-  return client ??= createClient(url, key);
+  return client ??= createClient(url, key, { auth: { detectSessionInUrl: false } });
+}
+
+let accountClient;
+export function accountAuth() {
+  accountClient ??= createClient(url, key, {
+    auth: { storageKey: 'lumibooth-account', flowType: 'pkce' },
+  });
+  return accountClient.auth;
 }
 
 async function guestSession() {

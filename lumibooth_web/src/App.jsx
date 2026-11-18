@@ -12,7 +12,8 @@ import WebPreview from './pages/user/WebPreview';
 import { PhotoboothProvider } from './context/PhotoboothProvider';
 import { PhotoboothContext } from './context/photoboothContext';
 import { requiredPhotos } from './context/photoboothSession';
-import { printToPlayEnabled, remoteBoothEnabled } from './online/lumiClient';
+import { accountsEnabled, printToPlayEnabled, remoteBoothEnabled } from './online/lumiClient';
+import WebAccount from './pages/user/WebAccount';
 import SharedStrip from './online/SharedStrip';
 import PrintLinks from './online/PrintLinks';
 import RemoteBooth from './online/RemoteBooth';
@@ -65,6 +66,7 @@ const App = () => {
         <Routes>
           {/* User Photobooth App */}
           <Route path="/" element={<WebWelcome />} />
+          {accountsEnabled && <Route path="/account" element={<WebAccount />} />}
           <Route path="/layout" element={<Navigate to="/gallery" replace />} />
           <Route path="/gallery" element={<GuestStep step="review"><WebGallerySelection /></GuestStep>} />
           <Route path="/camera" element={<GuestStep step="camera"><WebCamera /></GuestStep>} />

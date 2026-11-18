@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'account_session_storage.dart';
 
 abstract final class OnlineBooth {
   static const _url = String.fromEnvironment('LUMI_SUPABASE_URL');
@@ -11,7 +14,10 @@ abstract final class OnlineBooth {
   static const _publicUrl = String.fromEnvironment('LUMI_PUBLIC_URL');
   static const _print = bool.fromEnvironment('LUMI_PRINT_QR');
   static const _remote = bool.fromEnvironment('LUMI_REMOTE_BOOTH');
-  static bool _initialized = false;
+  static SupabaseClient? _guestClient;
+  static GoTrueClient? _accountAuth;
+  static GoTrueClient? get accountAuth => _accountAuth;
+  static Future<void>? _guestReady;
   static Future<AuthResponse>? _signIn;
 
   /// Whether any online service capability (web sharing or remote booth) is configured and initialized.
@@ -26,25 +32,101 @@ abstract final class OnlineBooth {
   static bool get enabled => isConfigured;
 
   /// Whether web QR gallery upload and sharing capabilities are enabled.
-  static bool get printEnabled => _initialized && _print;
+  static bool get printEnabled => _guestClient != null && _print;
 
   /// Whether remote booth live sync capabilities are enabled.
-  static bool get remoteEnabled => _initialized && _remote;
-  static SupabaseClient get _client => Supabase.instance.client;
+  static bool get remoteEnabled => _guestClient != null && _remote;
+  static SupabaseClient get _client => _guestClient!;
+  static const accountRedirect = 'com.lumibooth.app://auth/callback';
+  static final accountRecovery = ValueNotifier(false);
+  static final accountLinkError = ValueNotifier<String?>(null);
 
   static Future<void> initialize() async {
-    if (_url.isEmpty ||
-        _key.isEmpty ||
-        _publicUrl.isEmpty ||
-        (!_print && !_remote)) {
-      return;
+    if (_accountAuth != null || _url.isEmpty || _key.isEmpty) return;
+    final projectRef = Uri.parse(_url).host.split('.').first;
+    if (_guestClient == null && _publicUrl.isNotEmpty && (_print || _remote)) {
+      final guest = SupabaseClient(_url, _key);
+      _guestClient = guest;
+      AppLifecycleListener(
+        onResume: guest.auth.startAutoRefresh,
+        onPause: guest.auth.stopAutoRefresh,
+        onDetach: guest.auth.stopAutoRefresh,
+      );
     }
-    await Supabase.initialize(
+    var awaitingCallback = false;
+    final result = await Supabase.initialize(
       url: _url,
       publishableKey: _key,
-      authOptions: const FlutterAuthClientOptions(detectSessionInUri: false),
+      authOptions: FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.pkce,
+        localStorage: AccountSessionStorage('sb-$projectRef-lumibooth-account'),
+        detectSessionInUriPredicate: (uri) {
+          awaitingCallback =
+              uri.scheme == 'com.lumibooth.app' &&
+              uri.host == 'auth' &&
+              uri.path == '/callback' &&
+              (uri.queryParameters.containsKey('code') ||
+                  uri.queryParameters.containsKey('error') ||
+                  uri.queryParameters.containsKey('error_code') ||
+                  uri.fragment.startsWith('error'));
+          return awaitingCallback;
+        },
+      ),
     );
-    _initialized = true;
+    _accountAuth = result.client.auth;
+    result.client.auth.onAuthStateChange.listen(
+      (state) {
+        if (state.event == AuthChangeEvent.passwordRecovery) {
+          awaitingCallback = false;
+          accountLinkError.value = null;
+          accountRecovery.value = true;
+        } else if (state.event == AuthChangeEvent.signedIn) {
+          awaitingCallback = false;
+          accountLinkError.value = null;
+        } else if (state.event == AuthChangeEvent.signedOut) {
+          accountRecovery.value = false;
+        }
+      },
+      onError: (Object error) {
+        if (!awaitingCallback) return;
+        awaitingCallback = false;
+        accountLinkError.value =
+            'This email link could not be opened. Request a new link.';
+      },
+    );
+  }
+
+  static Future<void> _restoreGuestSession() async {
+    final projectRef = Uri.parse(_url).host.split('.').first;
+    // Keep ownership of existing QR links and shared rooms across upgrades.
+    final storage = SharedPreferencesLocalStorage(
+      persistSessionKey: 'sb-$projectRef-auth-token',
+    );
+    await storage.initialize();
+    final auth = _client.auth;
+    final session = await storage.accessToken();
+    if (session != null) {
+      try {
+        await auth.recoverSession(session);
+      } on AuthRetryableFetchException {
+        rethrow;
+      } on AuthException {
+        await storage.removePersistedSession();
+      } on FormatException {
+        await storage.removePersistedSession();
+      }
+    }
+    auth.onAuthStateChange.listen((state) async {
+      try {
+        if (state.session != null) {
+          await storage.persistSession(jsonEncode(state.session!.toJson()));
+        } else if (state.event == AuthChangeEvent.signedOut) {
+          await storage.removePersistedSession();
+        }
+      } catch (_) {
+        debugPrint('LumiBooth could not save the online guest session.');
+      }
+    }, onError: (Object _) {});
   }
 
   static Uri publicLink(String page, String token) =>
@@ -56,6 +138,13 @@ abstract final class OnlineBooth {
     String action, [
     Map<String, Object?> payload = const {},
   ]) async {
+    _guestReady ??= _restoreGuestSession();
+    try {
+      await _guestReady;
+    } catch (_) {
+      _guestReady = null;
+      rethrow;
+    }
     final auth = _client.auth;
     if (auth.currentSession == null) {
       _signIn ??= auth.signInAnonymously();

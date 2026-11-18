@@ -803,6 +803,7 @@ class _SessionPageState extends State<_SessionPage>
             'x': (_crops[i] ?? const PhotoCrop()).x,
             'y': (_crops[i] ?? const PhotoCrop()).y,
             'zoom': (_crops[i] ?? const PhotoCrop()).zoom,
+            'contain': _crops[i]?.contain ?? false,
           },
       ],
       'frame': _frame.name,
@@ -900,6 +901,7 @@ class _SessionPageState extends State<_SessionPage>
           x: (crop['x'] as num).toDouble(),
           y: (crop['y'] as num).toDouble(),
           zoom: (crop['zoom'] as num).toDouble(),
+          contain: crop['contain'] == true,
         ).normalized();
       }
       _caption = draft['caption'] as String?;

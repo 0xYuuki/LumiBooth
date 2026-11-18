@@ -21,7 +21,7 @@ Open the localhost URL printed by Vite and grant camera permission. The admin ro
 
 ## Adjust photos inside frames
 
-In Step 2, tap a photo directly on the strip. Its enlarged adjustment view shows the whole image, dims the parts outside the frame opening, and exposes four corner handles at the current fit. Drag the image to reposition, pull a corner to resize proportionally, pinch on mobile, or use arrow keys and **Zoom**. **Fit image** brings all handles back into view without changing the crop. **Reset crop** restores the automatic fit; **Done**, Escape, or tapping outside closes the controls. The Photos tab is no longer needed. Originals stay unchanged, crops follow photos through review and reordering, and PNG/GIF exports use the same crop.
+In Step 2, tap a photo directly on the strip. Its enlarged adjustment view shows the whole image, dims the parts outside the frame opening, and exposes four corner handles at the current fit. Drag the image to reposition, pull a corner to resize proportionally, pinch on mobile, or use arrow keys and **Zoom**. **Show full photo** fits the entire image within the opening and follows that photo when you switch frames. **Fill frame** brings back your previous zoom and position. **Fit image** brings all handles back into view without changing the crop. **Reset crop** restores the automatic fit; **Done**, Escape, or tapping outside closes the controls. The Photos tab is no longer needed. Originals stay unchanged, crops follow photos through review and reordering, and PNG/GIF exports use the same crop.
 
 ## Verify changes
 

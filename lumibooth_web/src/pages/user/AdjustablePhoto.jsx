@@ -12,7 +12,7 @@ export default function AdjustablePhoto({ src, alt, crop, onError, editing, onSe
       aria-label={editing ? `Adjust ${alt.toLowerCase()}` : undefined}
       onClick={editing ? select : undefined}
       onKeyDown={editing ? (event) => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); select(event); } } : undefined}>
-      <img src={src} alt={alt} onError={onError} draggable={false} style={{
+    <img src={src} alt={alt} onError={onError} draggable={false} style={value.contain ? { objectFit: 'contain' } : {
         objectPosition: `${value.x * 100}% ${value.y * 100}%`, transform: `scale(${value.zoom})`, transformOrigin: `${value.x * 100}% ${value.y * 100}%`,
       }} />
     </span>

@@ -62,6 +62,51 @@ void main() {
     },
   );
 
+  test(
+    'full photo fit keeps both edges through repeated frame changes',
+    () async {
+      final photo = await stripes();
+      addTearDown(photo.dispose);
+      final artwork = await FrameImages.load(StripFrame.tubeTV.art!);
+      addTearDown(artwork.dispose);
+      const crop = PhotoCrop(x: 1, zoom: 2, contain: true);
+      for (final frame in [
+        StripFrame.studio,
+        StripFrame.tubeTV,
+        StripFrame.studio,
+      ]) {
+        final design = StripDesign(
+          layout: StripLayout.choices.first,
+          frame: frame,
+          frameImages: frame.art == null ? null : artwork,
+          photos: [photo],
+          crops: const [crop],
+        );
+        final png = image.decodePng(await design.exportPng())!;
+        final opening = StripPainter.photoOpening(design, 0).bounds;
+        final fitted = crop
+            .imageRect(const Size(300, 100), opening.size)
+            .shift(opening.topLeft);
+        final left = png.getPixel(
+          ((fitted.left + fitted.width * .15) * 3).floor(),
+          (fitted.center.dy * 3).floor(),
+        );
+        final right = png.getPixel(
+          ((fitted.right - fitted.width * .15) * 3).floor(),
+          (fitted.center.dy * 3).floor(),
+        );
+        expect(left.r, greaterThan(230));
+        expect(left.b, lessThan(80));
+        expect(right.b, greaterThan(230));
+        expect(right.r, lessThan(80));
+      }
+      expect(
+        crop.imageRect(const Size(100, 300), const Size(240, 180)),
+        const Rect.fromLTWH(90, 0, 60, 180),
+      );
+    },
+  );
+
   test('animated export uses the same crop region', () async {
     final photo = await stripes();
     addTearDown(photo.dispose);
@@ -77,25 +122,26 @@ void main() {
       }
       encoder.addFrame(frame, duration: 12);
     }
-    final design = StripDesign(
-      layout: StripLayout.choices.first,
-      photos: [photo],
-      crops: [const PhotoCrop(x: 1, zoom: 2)],
-    );
-    final gif = image.decodeGif(
-      await exportMotionStrip(design, {
-        1: encoder.finish()!,
-      }, active: () => true),
-    )!;
-    final opening = StripPainter.photoOpening(design, 0).bounds;
-    for (final frame in gif.frames) {
-      final pixel = frame.getPixel(
-        (opening.center.dx * gif.width / design.width).floor(),
-        (opening.center.dy * gif.height / design.size.height).floor(),
+    final motion = encoder.finish()!;
+    for (final contain in [false, true]) {
+      final design = StripDesign(
+        layout: StripLayout.choices.first,
+        photos: [photo],
+        crops: [PhotoCrop(x: 1, zoom: 2, contain: contain)],
       );
-      expect(pixel.b, greaterThan(220));
-      expect(pixel.r, lessThan(25));
-      expect(pixel.g, lessThan(25));
+      final gif = image.decodeGif(
+        await exportMotionStrip(design, {1: motion}, active: () => true),
+      )!;
+      final opening = StripPainter.photoOpening(design, 0).bounds;
+      for (final frame in gif.frames) {
+        final pixel = frame.getPixel(
+          (opening.center.dx * gif.width / design.width).floor(),
+          (opening.center.dy * gif.height / design.size.height).floor(),
+        );
+        expect(contain ? pixel.g : pixel.b, greaterThan(220));
+        expect(pixel.r, lessThan(25));
+        expect(contain ? pixel.b : pixel.g, lessThan(25));
+      }
     }
   });
 
@@ -272,6 +318,15 @@ void main() {
       expect(crop.zoom, beforeFit.zoom);
       expect(crop.x, beforeFit.x);
       expect(crop.y, beforeFit.y);
+      await tester.tap(find.text('Show full photo'));
+      await tester.pump();
+      expect(crop.contain, isTrue);
+      expect(find.byKey(const ValueKey('reposition-photo')), findsNothing);
+      await tester.tap(find.text('Fill frame'));
+      await tester.pump();
+      expect(crop.contain, isFalse);
+      expect(crop.zoom, beforeFit.zoom);
+
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },

@@ -116,3 +116,7 @@ spec covers both libraries.
 For the Flutter live-storage test, run `flutter test test/upload_backup_test.dart`
 with `LUMI_CLOUD_BACKUP=true`, `LUMI_SUPABASE_URL=http://127.0.0.1:54321`, and
 the local publishable key as `LUMI_SUPABASE_KEY` using `--dart-define`.
+
+The **Verify private backups** GitHub workflow applies all migrations to a
+fresh local stack and runs both Storage checks and both clients' backup tests.
+It uses a generated local publishable key and requires no staging credentials.

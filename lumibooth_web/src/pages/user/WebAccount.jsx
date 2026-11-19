@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { BoothHeader } from '../../components/BoothUI';
 import { accountAuth, backupsEnabled } from '../../online/lumiClient';
 import { PrivacyInformationLink } from './WebLegal';
@@ -36,6 +36,7 @@ function BackupInvitation({ owner }) {
 }
 
 export default function WebAccount({ staffOnly = false }) {
+  const navigate = useNavigate();
   const [mode, setMode] = useState('login');
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
@@ -106,7 +107,10 @@ export default function WebAccount({ staffOnly = false }) {
       if (mode === 'forgot') choose('login', 'If an account exists for that email, a reset link is on its way.');
       else if (mode === 'signup' && !result.data.session) choose('login', 'Check your email for a confirmation link.');
       else if (mode === 'recovery') choose('login', 'Your password has been updated.');
-      else choose('login');
+      else {
+        choose('login');
+        if (staffOnly && mode === 'login' && !user && result.data?.session) navigate('/', { replace: true });
+      }
     } catch (failure) {
       setError(failure.name === 'AuthRetryableFetchError'
         ? 'Could not reach the account service. Try again when you’re online.'
@@ -119,9 +123,9 @@ export default function WebAccount({ staffOnly = false }) {
   const signedIn = user && !['recovery', 'forgot'].includes(mode);
   return (
     <div className="booth-shell">
-      <BoothHeader step="ACCOUNT" />
+      <BoothHeader step={staffOnly ? "STAFF ACCESS" : "ACCOUNT"} />
       <main className="booth-account">
-        <h1>{signedIn ? 'Your account' : titles[mode]}</h1>
+        <h1>{signedIn ? 'Your account' : staffOnly && mode === 'login' ? 'Staff sign-in' : titles[mode]}</h1>
         {notice && <p role="status">{notice}</p>}
         {error && <p role="alert">{error}</p>}
         {!ready && !unavailable && <p role="status">Loading account…</p>}
@@ -157,7 +161,7 @@ export default function WebAccount({ staffOnly = false }) {
           </form>
         )}
         {!staffOnly && backupsEnabled && signedIn && <BackupInvitation key={user.id} owner={user.id} />}
-        <Link className="booth-link" to="/">{staffOnly ? 'Back to print orders' : 'Back to photo booth'}</Link>
+        {(!staffOnly || signedIn) && <Link className="booth-link" to="/">{staffOnly ? 'Back to print orders' : 'Back to photo booth'}</Link>}
       </main>
     </div>
   );

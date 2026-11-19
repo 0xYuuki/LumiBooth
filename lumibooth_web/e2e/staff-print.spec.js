@@ -40,12 +40,15 @@ async function mockStaff(page, handle) {
 test('staff queue requires an account and an active staff role', async ({ page }) => {
   test.skip(!enabled, 'Requires the commerce browser test build.');
   await page.goto(staffUrl);
-  await expect(page.getByRole('link', { name: 'Sign in with your staff account' })).toBeVisible();
+  await expect(page).toHaveURL(`${staffUrl}account`);
+  await expect(page.getByRole('heading', { name: 'Staff sign-in' })).toBeVisible();
+  await expect(page.getByLabel('Email', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Print orders', exact: true })).toHaveCount(0);
   await mockStaff(page, (action, _body, reply) => {
     expect(action).toBe('staff-list');
     return reply.json({ error: 'Forbidden' }, 403);
   });
-  await page.reload();
+  await page.goto(staffUrl);
   await expect(page.getByRole('alert')).toHaveText('An active staff role is required to access print orders.');
   await expect(page.getByRole('region', { name: 'Print queue' })).toHaveCount(0);
 });
@@ -124,4 +127,47 @@ test('the public booth has no staff print queue', async ({ page }) => {
   await expect(page.getByRole('link', { name: 'Staff Print Orders' })).toHaveCount(0);
   await page.goto('/admin/print-orders');
   await expect(page.getByText('Page unavailable')).toBeVisible();
+});
+
+
+test('staff login opens the queue directly and sign-out protects it again', async ({ page }) => {
+  test.skip(!enabled, 'Requires the commerce browser test build.');
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  const token = `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ sub: userId, exp })).toString('base64url')}.fake`;
+  let queueCalls = 0;
+  await page.route(`${backend}/**`, async route => {
+    const request = route.request();
+    const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*',
+      'access-control-allow-methods': 'POST, GET, OPTIONS' };
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    const path = new URL(request.url()).pathname;
+    if (path === '/auth/v1/token') return route.fulfill({ headers, json: {
+      access_token: token, refresh_token: 'staff', expires_in: 3600,
+      user: { id: userId, email: 'staff@example.test', is_anonymous: false },
+    } });
+    if (path === '/auth/v1/logout') return route.fulfill({ status: 204, headers });
+    if (path.endsWith('/staff-list')) {
+      queueCalls++;
+      expect(request.headers().authorization).toBe(`Bearer ${token}`);
+      return route.fulfill({ headers, json: { requests: [] } });
+    }
+    return route.fulfill({ status: 404, headers, json: { error: 'Unexpected request' } });
+  });
+  await page.goto(staffUrl);
+  await expect(page.getByRole('heading', { name: 'Staff sign-in' })).toBeVisible();
+  expect(queueCalls).toBe(0);
+  await expect(page.getByRole('button', { name: 'Create an account' })).toHaveCount(0);
+  await page.getByLabel('Email', { exact: true }).fill('staff@example.test');
+  await page.getByLabel('Password', { exact: true }).fill('test-password');
+  await page.getByRole('button', { name: 'Log in', exact: true }).click();
+  await expect(page).toHaveURL(staffUrl);
+  await expect(page.getByText('No requests match these filters.')).toBeVisible();
+  await page.getByRole('link', { name: 'Staff account' }).click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page.getByRole('heading', { name: 'Staff sign-in' })).toBeVisible();
+  const previousCalls = queueCalls;
+  await page.goto(staffUrl);
+  await expect(page).toHaveURL(`${staffUrl}account`);
+  await expect(page.getByRole('heading', { name: 'Print orders', exact: true })).toHaveCount(0);
+  expect(queueCalls).toBe(previousCalls);
 });

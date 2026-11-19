@@ -83,7 +83,7 @@
 @media(max-width:380px) { .studio-sample-back { left:10%; } .studio-sample-front { right:10%; } .studio-progress { gap:.4rem; } }
 @media print { .preview-stage { background:white; border:0; border-radius:0; } }
 /* Short phones need page scrolling rather than a miniature editing canvas. */
-@media (max-width:700px) and (max-height:740px) and (orientation:portrait) {
+@media (max-width:700px) and (max-height:700px) and (orientation:portrait) {
  .editor-shell { height:auto; min-height:100dvh; overflow:visible; }
  .editor-content { flex:none; }
  .editor-content .design-workspace { flex:none; grid-template-rows:320px 420px; }

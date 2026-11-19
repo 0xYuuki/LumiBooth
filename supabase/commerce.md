@@ -18,7 +18,7 @@ App roles have no grants on the commerce schema. The exposed RPCs are callable o
 
 ## Version 1 API
 
-All calls are POSTs to `/functions/v1/print-commerce/v1/<action>`. Browser requests require the configured exact `LUMI_WEB_ORIGIN`.
+All calls are POSTs to `/functions/v1/print-commerce/v1/<action>`. Browser requests to buyer endpoints require the exact `LUMI_WEB_ORIGIN`. Staff endpoints require the exact `LUMI_STAFF_WEB_ORIGIN` for browser requests and enforce staff authorization for all callers.
 
 | Action | Access and inputs | Result |
 |---|---|---|

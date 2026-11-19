@@ -23,6 +23,7 @@ function offlineGuestPages() {
   };
 }
 
-export default defineConfig({
-  plugins: [react(), offlineGuestPages()],
-});
+export default defineConfig(({ mode }) => ({
+  plugins: mode === 'staff' ? [react()] : [react(), offlineGuestPages()],
+  build: { outDir: mode === 'staff' ? 'dist-staff' : 'dist' },
+}));

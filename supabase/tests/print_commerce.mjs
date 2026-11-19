@@ -151,6 +151,23 @@ const wrongOrigin = await response(new URL('catalog', edge), {
 });
 assert.equal(wrongOrigin.headers.get('access-control-allow-origin'), null);
 await wrongOrigin.arrayBuffer();
+const publicOrigin = process.env.LUMI_WEB_ORIGIN ?? 'http://127.0.0.1:4185';
+const staffOrigin = process.env.LUMI_STAFF_WEB_ORIGIN ?? 'http://127.0.0.1:4187';
+for (const [route, allowedOrigin, otherOrigin] of [
+  ['catalog', publicOrigin, staffOrigin],
+  ['staff-list', staffOrigin, publicOrigin],
+  ['staff-media', staffOrigin, publicOrigin],
+]) {
+  const allowed = await response(new URL(route, edge), {
+    method: 'OPTIONS', headers: { Origin: allowedOrigin }, status: 204,
+  });
+  assert.equal(allowed.headers.get('access-control-allow-origin'), allowedOrigin);
+  const denied = await response(new URL(route, edge), {
+    method: 'POST', headers: { Origin: otherOrigin, Authorization: `Bearer ${staff}` }, status: 403,
+  });
+  assert.equal(denied.headers.get('access-control-allow-origin'), null);
+  await denied.arrayBuffer();
+}
 const directRpc = await fetch(new URL('/rest/v1/rpc/lumi_print_v1_staff_detail', backend), {
   method: 'POST',
   headers: { apikey: key, Authorization: `Bearer ${staff}`, 'Content-Type': 'application/json' },

@@ -48,6 +48,7 @@ jobs:
           printf '::add-mask::%s\n' "$LUMI_TEST_SERVICE_ROLE_KEY"
           printf '::add-mask::%s\n' "$LUMI_COMMERCE_CLEANUP_SECRET"
           export LUMI_COMMERCE_ENABLED=true LUMI_WEB_ORIGIN=http://127.0.0.1:4185
+          export LUMI_STAFF_WEB_ORIGIN=http://127.0.0.1:4187 LUMI_TEST_STAFF=true
           SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_SERVICE_ROLE_KEY="$LUMI_TEST_SERVICE_ROLE_KEY" \
             deno run --no-lock --allow-env --allow-net supabase/functions/print-commerce/index.ts \
             > "$RUNNER_TEMP/lumi-commerce-edge.log" 2>&1 &
@@ -60,13 +61,16 @@ jobs:
           export VITE_LUMI_SUPABASE_KEY="$LUMI_TEST_SUPABASE_KEY"
           cd lumibooth_web
           npm run build
+          npm run build:staff
           npm run test:e2e -- e2e/print-commerce-live.spec.js
       - name: Test customer and staff print flows
         working-directory: lumibooth_web
         env:
+          LUMI_TEST_STAFF: 'true'
           VITE_LUMI_COMMERCE: 'true'
           VITE_LUMI_SUPABASE_URL: https://lumi-test.invalid
           VITE_LUMI_SUPABASE_KEY: test-key
         run: |
           npm run build
+          npm run build:staff
           npm run test:e2e -- e2e/print-order.spec.js e2e/staff-print.spec.js

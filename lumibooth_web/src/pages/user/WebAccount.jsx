@@ -35,7 +35,7 @@ function BackupInvitation({ owner }) {
     </section>;
 }
 
-export default function WebAccount() {
+export default function WebAccount({ staffOnly = false }) {
   const [mode, setMode] = useState('login');
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
@@ -139,7 +139,7 @@ export default function WebAccount() {
                 </label>
               )}
             </>}
-            {!signedIn && mode === 'signup' && <>
+            {!staffOnly && !signedIn && mode === 'signup' && <>
               <p>We use your email to confirm your account and help you recover access.</p>
               <PrivacyInformationLink />
             </>}
@@ -147,7 +147,8 @@ export default function WebAccount() {
               {busy ? 'Please wait…' : signedIn ? 'Sign out' : mode === 'forgot' ? 'Send reset link' : mode === 'recovery' ? 'Update password' : titles[mode]}
             </button>
             {!signedIn && mode === 'login' && <>
-              <button type="button" className="booth-link" disabled={busy} onClick={() => choose('signup')}>Create an account</button>
+              {!staffOnly && <button type="button" className="booth-link" disabled={busy}
+                onClick={() => choose('signup')}>Create an account</button>}
               <button type="button" className="booth-link" disabled={busy} onClick={() => choose('forgot')}>Forgot password?</button>
             </>}
             {['signup', 'forgot'].includes(mode) && (
@@ -155,8 +156,8 @@ export default function WebAccount() {
             )}
           </form>
         )}
-        {backupsEnabled && signedIn && <BackupInvitation key={user.id} owner={user.id} />}
-        <Link className="booth-link" to="/">Back to photo booth</Link>
+        {!staffOnly && backupsEnabled && signedIn && <BackupInvitation key={user.id} owner={user.id} />}
+        <Link className="booth-link" to="/">{staffOnly ? 'Back to print orders' : 'Back to photo booth'}</Link>
       </main>
     </div>
   );

@@ -116,5 +116,6 @@ PNG. They can record shipment details, cancellations, refunds and audited
 reprints from the request. For an order without a usable reference, hold the
 order in Seller Center until the customer can supply it.
 
-See the [print commerce backend guide](../supabase/commerce.md) for API and
-configuration details.
+See the [print commerce backend guide](../supabase/commerce.md) for the API
+and the [print operations runbook](../supabase/print-operations.md) for staging,
+staff procedures, cleanup monitoring, and rollback.

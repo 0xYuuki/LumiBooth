@@ -33,7 +33,12 @@ jobs:
           version: '2.84.2'
       - name: Check Edge Function types
         run: deno check --no-lock supabase/functions/print-commerce/index.ts
-      - name: Test private print request lifecycle
+      - name: Install browser test dependencies
+        working-directory: lumibooth_web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Test the private and browser print lifecycle
         run: |
           supabase start -x realtime,imgproxy,studio,postgres-meta,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/supabase-commerce.log" 2>&1
           local_status=$(supabase status -o json)
@@ -42,7 +47,7 @@ jobs:
           export LUMI_COMMERCE_CLEANUP_SECRET=$(openssl rand -hex 32)
           printf '::add-mask::%s\n' "$LUMI_TEST_SERVICE_ROLE_KEY"
           printf '::add-mask::%s\n' "$LUMI_COMMERCE_CLEANUP_SECRET"
-          export LUMI_COMMERCE_ENABLED=true LUMI_WEB_ORIGIN=http://127.0.0.1:4186
+          export LUMI_COMMERCE_ENABLED=true LUMI_WEB_ORIGIN=http://127.0.0.1:4185
           SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_SERVICE_ROLE_KEY="$LUMI_TEST_SERVICE_ROLE_KEY" \
             deno run --no-lock --allow-env --allow-net supabase/functions/print-commerce/index.ts \
             > "$RUNNER_TEMP/lumi-commerce-edge.log" 2>&1 &
@@ -51,6 +56,11 @@ jobs:
           curl --silent --fail --retry 15 --retry-connrefused --retry-delay 1 \
             -X OPTIONS http://127.0.0.1:8000/v1/catalog >/dev/null
           node supabase/tests/print_commerce.mjs
+          export VITE_LUMI_COMMERCE=true VITE_LUMI_SUPABASE_URL=http://127.0.0.1:54321
+          export VITE_LUMI_SUPABASE_KEY="$LUMI_TEST_SUPABASE_KEY"
+          cd lumibooth_web
+          npm run build
+          npm run test:e2e -- e2e/print-commerce-live.spec.js
       - name: Test customer and staff print flows
         working-directory: lumibooth_web
         env:
@@ -58,7 +68,5 @@ jobs:
           VITE_LUMI_SUPABASE_URL: https://lumi-test.invalid
           VITE_LUMI_SUPABASE_KEY: test-key
         run: |
-          npm ci
-          npx playwright install --with-deps chromium
           npm run build
           npm run test:e2e -- e2e/print-order.spec.js e2e/staff-print.spec.js

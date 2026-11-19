@@ -29,6 +29,7 @@ async function account(anonymous = false) {
 }
 
 const seller = await account();
+const secondSeller = await account();
 const customer = await account(true);
 const unrelated = await account();
 const product = randomUUID();
@@ -38,7 +39,7 @@ function sql(input) {
     { input, encoding: 'utf8' });
 }
 sql(`
-insert into lumi_commerce.staff_roles (user_id) values ('${seller.id}');
+insert into lumi_commerce.staff_roles (user_id) values ('${seller.id}'), ('${secondSeller.id}');
 insert into lumi_commerce.print_products
   (id, kind, sku, title, variant, reference_prefix, tiktok_url, width_px, height_px, bleed_px,
     target_dpi, minimum_dpi, low_resolution_policy, max_png_bytes, max_quantity, pending_ttl_minutes,
@@ -144,6 +145,12 @@ assert.equal((await find(draft.requestId, first.receiptToken)).status, 'awaiting
 await upload(draft.requestId, first.receiptToken, png(120), 409);
 await api('staff-list', { token: unrelated.token, status: 403 });
 await api('staff-list', { token: auth, status: 403 });
+await api('staff-list', { status: 401 });
+const wrongOrigin = await response(new URL('catalog', edge), {
+  method: 'POST', headers: { Origin: 'https://example.com' }, status: 403,
+});
+assert.equal(wrongOrigin.headers.get('access-control-allow-origin'), null);
+await wrongOrigin.arrayBuffer();
 const directRpc = await fetch(new URL('/rest/v1/rpc/lumi_print_v1_staff_detail', backend), {
   method: 'POST',
   headers: { apikey: key, Authorization: `Bearer ${staff}`, 'Content-Type': 'application/json' },
@@ -186,8 +193,18 @@ await api('staff-match', { token: staff, json: { ...matching, code: ready.code, 
 await api('staff-match', { token: staff, json: { ...matching, code: ready.code, variant: 'Matte' }, status: 422 });
 await api('staff-match', { token: unrelated.token, json: { ...matching, code: ready.code }, status: 403 });
 await api('staff-transition', { token: staff, json: { requestId: ready.requestId, status: 'printing' }, status: 409 });
-const statuses = await Promise.all([ready, second].map(candidate =>
-  apiStatus('staff-match', { ...matching, code: candidate.code }, staff)));
+await api('staff-match', { token: staff, json: { ...matching, code: undefined }, status: 400 });
+const unknownCode = `PS-${randomBytes(6).toString('hex').toUpperCase()}`;
+await api('staff-match', { token: staff, json: { ...matching, code: unknownCode }, status: 404 });
+await api('staff-match', { token: staff, json: { ...matching, code: ready.code, sku: disabled }, status: 422 });
+const cancelledRequest = await finishedRequest();
+await api('staff-transition', { token: staff, json: {
+  requestId: cancelledRequest.requestId, status: 'cancelled', reason: 'Cancelled in Seller Center',
+}});
+await api('staff-match', { token: staff, json: { ...matching, code: cancelledRequest.code }, status: 409 });
+await api('staff-media', { token: staff, json: { requestId: cancelledRequest.requestId }, status: 404 });
+const statuses = await Promise.all([ready, second].map((candidate, index) =>
+  apiStatus('staff-match', { ...matching, code: candidate.code }, [staff, secondSeller.token][index])));
 assert.deepEqual([...statuses].sort(), [200, 409]);
 const matched = [ready, second][statuses.indexOf(200)];
 const abandoned = [ready, second][statuses.indexOf(409)];
@@ -205,6 +222,8 @@ await api('cleanup', { headers: { 'X-Lumi-Cleanup': cleanupKey } });
 await api('cleanup', { headers: { 'X-Lumi-Cleanup': cleanupKey } });
 const { requests } = await api('staff-list', { token: staff });
 assert.equal(requests.find(item => item.requestId === abandoned.requestId).status, 'expired');
+await api('staff-match', { token: staff, json: { ...matching, orderId: randomUUID(), code: abandoned.code }, status: 409 });
+await api('staff-media', { token: staff, json: { requestId: abandoned.requestId }, status: 404 });
 assert.equal(requests.find(item => item.requestId === matched.requestId).status, 'printing');
 assert.equal(requests.find(item => item.requestId === held.requestId).status, 'needs_review');
 const status = sql(`select case when exists (
@@ -221,7 +240,7 @@ const queue = json => api('staff-list', { token: staff, json });
 const state = await detail();
 assert.equal(state.fileStatus, 'ready');
 assert.equal(state.match.order_id, matching.orderId);
-assert.equal(state.match.verified_by, seller.id);
+assert.equal(state.match.verified_by, [seller.id, secondSeller.id][statuses.indexOf(200)]);
 assert.equal(state.request.shippingDeadline, matching.shippingDeadline);
 assert.ok(state.events.some(event => event.action === 'shipping_deadline_recorded'));
 assert.ok(!JSON.stringify(state).includes('asset_key'));
@@ -275,5 +294,9 @@ const missingRelease = await api('staff-transition', { token: staff, status: 404
   json: { requestId: third.requestId, expectedStatus: 'verified', status: 'print_ready' },
 });
 assert.equal(missingRelease.error, 'The print file is missing.');
+
+sql(`update lumi_commerce.staff_roles set active = false where user_id = '${secondSeller.id}';`);
+await api('staff-list', { token: secondSeller.token, status: 403 });
+await api('staff-detail', { token: secondSeller.token, json: { requestId: matched.requestId }, status: 403 });
 
 console.log('Commerce lifecycle, private receipts, matching, queue filters, tracking, reprints, refund and cleanup passed.');

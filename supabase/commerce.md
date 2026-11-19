@@ -53,7 +53,7 @@ Cleanup expires only unverified pending requests. It removes the private file af
 
 The [commerce verification workflow](../.github/workflows/print-commerce.yml) runs an isolated Auth, Storage, and Edge test. It creates a synthetic SKU and staff account, exercises request recovery and concurrent matching, fulfillment and reprints, and checks expiry and access isolation. No production records are seeded.
 
-Deploy only to a test environment while implementing M2 and M3. Provision test staff through trusted administration, and configure the exact web origin and a server-only cleanup secret. Schedule `cleanup` through the existing Vault and Cron pattern, and verify that it runs. Keep `LUMI_COMMERCE_ENABLED` and `VITE_LUMI_COMMERCE` disabled on public builds until the operator approves listings, print specs, consent, retention, seller procedures and supervised live orders.
+Use the [print operations runbook](print-operations.md) for staging setup, cleanup monitoring, staff fulfillment, and rollback.
 
 ## Customer web integration
 

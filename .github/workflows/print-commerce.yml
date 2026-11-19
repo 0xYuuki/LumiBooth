@@ -51,7 +51,7 @@ jobs:
           curl --silent --fail --retry 15 --retry-connrefused --retry-delay 1 \
             -X OPTIONS http://127.0.0.1:8000/v1/catalog >/dev/null
           node supabase/tests/print_commerce.mjs
-      - name: Test the customer print flow
+      - name: Test customer and staff print flows
         working-directory: lumibooth_web
         env:
           VITE_LUMI_COMMERCE: 'true'
@@ -61,4 +61,4 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
           npm run build
-          npm run test:e2e -- e2e/print-order.spec.js
+          npm run test:e2e -- e2e/print-order.spec.js e2e/staff-print.spec.js

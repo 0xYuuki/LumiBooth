@@ -28,6 +28,9 @@ type PrintRequest = {
   created_at: string;
   finalized_at: string | null;
   asset_key: string;
+  orderId?: string | null;
+  shipping_deadline?: string | null;
+  tracking_reference?: string | null;
 };
 
 function required(value: unknown, pattern: RegExp) {
@@ -59,7 +62,9 @@ async function rpc<T>(name: string, args: Record<string, unknown> = {}): Promise
   if (error) {
     switch (error.code) {
       case '42501': throw new PrintError(403, 'Staff access required.');
-      case 'P0002': throw unavailable();
+      case 'P0002':
+        if (error.message === 'The print file is missing.') throw new PrintError(404, error.message);
+        throw unavailable();
       case '23505': throw new PrintError(409, error.message);
       case '22023': throw new PrintError(422, error.message);
       case '54000': throw new PrintError(429, error.message);
@@ -92,7 +97,10 @@ function summary(item: PrintRequest, staff = false) {
     requestId: item.id, code: item.finalized_at ? item.code : null,
     status: expired ? 'expired' : item.status, quantity: item.quantity,
     specification: item.specification, expiresAt: item.expires_at,
-    ...(staff ? { createdAt: item.created_at } : {}),
+    ...(staff ? {
+      createdAt: item.created_at, orderId: item.orderId ?? null,
+      shippingDeadline: item.shipping_deadline ?? null, trackingReference: item.tracking_reference ?? null,
+    } : {}),
   };
 }
 
@@ -172,34 +180,82 @@ async function action(name: string, request: Request, url: URL) {
       consent: required(input.consentVersion, /^.{1,80}$/),
     }));
   }
-  if (!['staff-list', 'staff-media', 'staff-match', 'staff-transition'].includes(name)) throw unavailable();
-  const staff = await actor(request, true);
-  const input = await json(request);
+  if (!staffActions.has(name)) throw unavailable();
+  return staffAction(name, await actor(request, true), await json(request));
+}
+
+const staffActions = new Set([
+  'staff-list', 'staff-detail', 'staff-match', 'staff-transition', 'staff-media',
+  'staff-reprint', 'staff-reprint-update',
+]);
+
+function optional(value: unknown, pattern: RegExp) {
+  return value == null ? null : required(value, pattern);
+}
+
+function calendarDate(value: unknown) {
+  const date = optional(value, /^\d{4}-\d{2}-\d{2}$/);
+  if (!date) return null;
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
+    throw new PrintError(400, 'Enter a valid calendar date.');
+  }
+  return date;
+}
+
+async function staffAction(name: string, staff: string, input: Record<string, unknown>) {
   if (name === 'staff-list') {
     const cursor = input.beforeCreated != null || input.beforeId != null;
     const before = cursor ? required(input.beforeCreated, /^\d{4}-\d\d-\d\dT[\d:.]+(?:Z|[+-]\d\d:\d\d)$/) : null;
     if (before && !Number.isFinite(Date.parse(before))) throw new PrintError(400, 'Invalid page cursor.');
-    const rows = await rpc<PrintRequest[]>('staff_list', {
-      actor: staff, before_created: before, before_id: cursor ? required(input.beforeId, uuid) : null,
+    const from = calendarDate(input.fromDate);
+    const through = calendarDate(input.throughDate);
+    if (from && through && from > through) throw new PrintError(400, 'The end date must follow the start date.');
+    const exclusiveEnd = through ? new Date(Date.parse(`${through}T00:00:00+08:00`) + 86400000).toISOString() : null;
+    const rows = await rpc<PrintRequest[]>('staff_queue', {
+      actor: staff, lookup: optional(input.lookup, /^[A-Za-z0-9_-]{1,80}$/), by_sku: optional(input.sku, /^.{1,120}$/),
+      by_status: optional(input.status, /^[a-z_]{1,40}$/), from_time: from && `${from}T00:00:00+08:00`,
+      through_time: exclusiveEnd, before_created: before, before_id: cursor ? required(input.beforeId, uuid) : null,
     });
     return { requests: rows.map(item => summary(item, true)) };
   }
   if (name === 'staff-match') {
-    return summary(await row('match', {
+    return summary(await row('staff_attest', {
       actor: staff, reference: required(input.code, /^[A-Z]{2,5}-[A-F0-9]{12}$/),
       seller_order: required(input.orderId, /^[A-Za-z0-9_-]{1,80}$/),
-      seller_line: input.lineId == null ? null : required(input.lineId, /^[A-Za-z0-9_-]{1,80}$/),
+      seller_line: optional(input.lineId, /^[A-Za-z0-9_-]{1,80}$/),
       compared_sku: required(input.sku, /^.{1,120}$/), compared_variant: required(input.variant, /^.{1,120}$/),
       line_units: quantity(input.lineQuantity), first_unit: quantity(input.firstUnit ?? 1),
-      attested: input.sellerCenterVerified === true,
+      attested: input.sellerCenterVerified === true, deadline: calendarDate(input.shippingDeadline),
     }), true);
   }
   const requestId = required(input.requestId, uuid);
+  const target = { actor: staff, requested: requestId };
+  if (name === 'staff-detail') {
+    const detail = await rpc<{ request: PrintRequest; match: { order_id: string } | null;
+      fileStatus: string; events: unknown[]; reprints: unknown[] }>('staff_detail', target);
+    return { ...detail, request: summary({ ...detail.request, orderId: detail.match?.order_id }, true) };
+  }
   if (name === 'staff-transition') {
-    return summary(await row('transition', {
-      actor: staff, request_id: requestId, next_status: required(input.status, /^[a-z_]{1,40}$/),
-      reason: input.reason == null ? null : required(input.reason, /^.{1,300}$/),
+    return summary(await row('staff_progress', {
+      ...target, next_status: required(input.status, /^[a-z_]{1,40}$/),
+      expected: optional(input.expectedStatus, /^[a-z_]{1,40}$/),
+      reason: optional(input.reason, /^.{1,300}$/), tracking: optional(input.trackingReference, /^[A-Za-z0-9_-]{1,100}$/),
     }), true);
+  }
+  if (name === 'staff-reprint') {
+    const jobId = await rpc<string>('staff_reprint', {
+      ...target, retry: required(input.retryKey, uuid), units: quantity(input.quantity),
+      explanation: required(input.reason, /^.{1,300}$/),
+    });
+    return { jobId };
+  }
+  if (name === 'staff-reprint-update') {
+    await rpc('staff_reprint_update', {
+      ...target, job_id: required(input.jobId, uuid), expected: required(input.expectedStatus, /^[a-z_]{1,40}$/),
+      next_status: required(input.status, /^[a-z_]{1,40}$/), explanation: optional(input.reason, /^.{1,300}$/),
+    });
+    return { ok: true };
   }
   const file = await rpc<string>('staff_media', { actor: staff, request_id: requestId });
   const { data, error } = await media.download(file);

@@ -146,7 +146,7 @@ function reduceSession(session, action) {
     case 'export':
       return session && action.session &&
         session.photos === action.session.photos && session.designRevision === action.session.designRevision
-        ? { ...session, output: action.output }
+        ? { ...session, output: action.output, ...(action.printDensity === undefined ? {} : { printDensity: action.printDensity }) }
         : session;
     default:
       return session;

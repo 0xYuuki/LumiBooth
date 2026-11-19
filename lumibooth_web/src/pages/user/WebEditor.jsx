@@ -4,6 +4,8 @@ import { PhotoboothContext } from '../../context/photoboothContext';
 import { BoothHeader, BoothStep, MiniStrip } from '../../components/BoothUI';
 import { Maximize2 } from 'lucide-react';
 import { toPng } from 'html-to-image';
+import { commerceEnabled } from '../../online/lumiClient';
+import { measurePrintDensity } from '../../commerce/printImage';
 
 import { frameBackground, frameLibrary } from './frameLibrary';
 import { IllustratedPhoto, PhotoStrip, StickerLayer } from './PhotoStrip';
@@ -69,13 +71,17 @@ const WebEditor = () => {
     try {
       await document.fonts.ready;
       if (exportJob.current !== job) return;
+      const pixelRatio = 3;
+      const printDensity = commerceEnabled && !session.roomId
+        ? measurePrintDensity(constraintsRef.current, session.crops, pixelRatio)
+        : undefined;
       const output = await toPng(constraintsRef.current, {
-        pixelRatio: 3,
+        pixelRatio,
         filter: (node) => !node.hasAttribute?.('data-editor-only'),
         style: { boxShadow: 'none', transition: 'none' },
       });
       if (exportJob.current !== job) return;
-      dispatch({ type: 'export', session, output });
+      dispatch({ type: 'export', session, output, printDensity });
       navigate('/preview');
     } catch {
       if (exportJob.current === job) {

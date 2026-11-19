@@ -4,7 +4,7 @@ const cachePrefix = `lumibooth-shell:${scope.pathname}:`;
 const cacheName = cachePrefix + offlineBuild.version;
 const files = offlineBuild.files.map(file => new URL(file, scope).href);
 const shell = new URL('index.html', scope).href;
-const guestPage = /^(?:works(?:\/[^/]+)?|uploads|legal|backup|gallery|camera|editor|preview)?\/?$/;
+const guestPage = /^(?:works(?:\/[^/]+)?|uploads|print-orders(?:\/[^/]+)?|legal|backup|gallery|camera|editor|preview)?\/?$/;
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(cacheName).then(cache => cache.addAll(files)));

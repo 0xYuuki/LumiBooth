@@ -42,12 +42,12 @@ insert into lumi_commerce.staff_roles (user_id) values ('${seller.id}');
 insert into lumi_commerce.print_products
   (id, kind, sku, title, variant, reference_prefix, tiktok_url, width_px, height_px, bleed_px,
     target_dpi, minimum_dpi, low_resolution_policy, max_png_bytes, max_quantity, pending_ttl_minutes,
-    consent_version, consent_text, enabled)
+    consent_version, consent_text, buyer_instructions, enabled)
 values
   ('${product}', 'strip', '${product}', 'Test strip', 'Glossy', 'PS',
-   'https://www.tiktok.com/test-listing', 2, 1, 0, 300, 200, 'warn', 1024, 3, 20, 'test-v1', 'Test only', true),
+   'https://www.tiktok.com/test-listing', 2, 1, 0, 300, 200, 'warn', 1024, 3, 20, 'test-v1', 'Test only', 'Test seller instructions', true),
   ('${disabled}', 'strip', '${disabled}', 'Disabled', 'Glossy', 'PS',
-   'https://www.tiktok.com/test-listing', 2, 1, 0, 300, 200, 'warn', 1024, 3, 20, 'test-v1', 'Test only', false);
+   'https://www.tiktok.com/test-listing', 2, 1, 0, 300, 200, 'warn', 1024, 3, 20, 'test-v1', 'Test only', null, false);
 `);
 
 async function api(action, { token, receipt, status = 200, json, binary, headers } = {}) {
@@ -106,7 +106,7 @@ const upload = (id, receipt, binary, status) => api(`upload?requestId=${id}`, { 
 const find = (requestId, receipt, status) => api('status', { receipt, status, json: { requestId } });
 
 const catalog = await api('catalog');
-assert.ok(catalog.products.some(item => item.id === product));
+assert.equal(catalog.products.find(item => item.id === product).buyer_instructions, 'Test seller instructions');
 assert.ok(!catalog.products.some(item => item.id === disabled));
 await api('create', { json: intent(), status: 401 });
 await create({ ...intent(), consentAccepted: false }, 422);
@@ -139,6 +139,7 @@ const [ready, retried] = await Promise.all([
 ]);
 assert.match(ready.code, /^PS-[A-F0-9]{12}$/);
 assert.equal(ready.code, retried.code);
+assert.equal(ready.specification.buyer_instructions, 'Test seller instructions');
 assert.equal((await find(draft.requestId, first.receiptToken)).status, 'awaiting_marketplace_order');
 await upload(draft.requestId, first.receiptToken, png(120), 409);
 await api('staff-list', { token: unrelated.token, status: 403 });

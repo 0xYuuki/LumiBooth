@@ -86,3 +86,17 @@ in-app privacy information at `/legal`. Serve this path through the SPA
 fallback. After owner approval, set `VITE_LUMI_PRIVACY_URL` and
 `VITE_LUMI_TERMS_URL` to the HTTPS URLs of the published documents. Builds
 without those values still show the in-app information.
+
+## Print orders
+
+With `VITE_LUMI_COMMERCE=true` and a configured Supabase project, the Finish
+screen offers **Order Print** for local strips. Keep the flag off on public
+builds until the seller approves the catalog, checkout instructions, and
+handling of uploaded print files. Each available product needs a TikTok
+listing, seller-approved reference instructions, a print specification, and
+upload consent text. Checkout, prices and delivery fees remain in TikTok Shop.
+
+**Print orders** on the home page opens receipts saved in that browser.
+The app stores the print PNG locally before sending it and clears that retry
+file after server confirmation. Clearing site data removes access to the
+receipt. The reference itself only helps the store match the order.

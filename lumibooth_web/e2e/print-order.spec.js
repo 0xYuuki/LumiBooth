@@ -119,7 +119,19 @@ test('guest reviews the print, explicitly uploads, resumes an interrupted receip
   await page.getByLabel('Horizontal position').fill('80');
   await page.getByLabel('Zoom').fill('1.25');
   const canvas = page.getByRole('img', { name: 'Cropped print preview' });
-  const rendered = await canvas.evaluate(element => element.toDataURL().split(',')[1]);
+  const { rendered, redPixels, bluePixels } = await canvas.evaluate(element => {
+    const { data } = element.getContext('2d').getImageData(0, 0, element.width, element.height);
+    let redPixels = 0;
+    let bluePixels = 0;
+    for (let index = 0; index < data.length; index += 4) {
+      const [red, green, blue] = data.subarray(index, index + 3);
+      if (red === 175 && green === 51 && blue === 51) redPixels++;
+      if (red === 34 && green === 58 && blue === 160) bluePixels++;
+    }
+    return { rendered: element.toDataURL().split(',')[1], redPixels, bluePixels };
+  });
+  expect(redPixels).toBeGreaterThan(500);
+  expect(bluePixels).toBeGreaterThan(500);
   expect(await canvas.evaluate(element => element.getBoundingClientRect().width)).toBeLessThan(390);
   await consent.check();
   await confirm.click();
@@ -139,6 +151,9 @@ test('guest reviews the print, explicitly uploads, resumes an interrupted receip
   });
   await page.getByRole('button', { name: 'Copy code' }).click();
   await expect(page.getByText('Select and copy the reference shown above.')).toBeVisible();
+  const reference = page.getByLabel('Print reference');
+  await expect(reference).toBeFocused();
+  expect(await reference.evaluate(input => input.value.slice(input.selectionStart, input.selectionEnd))).toBe('PS-0123456789AB');
 
   available = false;
   await page.getByRole('button', { name: 'Open TikTok Shop' }).click();

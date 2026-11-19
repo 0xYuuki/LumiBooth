@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { BoothHeader } from '../../components/BoothUI';
 import { accountAuth } from '../../online/lumiClient';
 import { staffPrintRequest } from '../../commerce/commerceClient';
@@ -25,16 +25,18 @@ export default function WebStaffPrint() {
     }
   }, []);
 
+  if (user === null) return <Navigate to="/account" replace />;
+  if (user === undefined) return <div className="booth-shell">
+    <BoothHeader step="STAFF SIGN-IN" />
+    <main className="booth-account"><p role="status">Checking staff sign-in…</p></main>
+  </div>;
+
   return <div className="booth-shell">
     <BoothHeader step="STAFF FULFILLMENT" />
     <main className="booth-content staff-print">
       <h1 className="booth-title">Print orders</h1>
-      {user === undefined ? <p role="status">Checking staff sign-in…</p> : user ? (
-        <>
-          <Link className="booth-link" to="/account">Staff account</Link>
-          <Queue key={user.id} owner={user.id} />
-        </>
-      ) : <p><Link to="/account">Sign in with your staff account</Link> to open the print queue.</p>}
+      <Link className="booth-link" to="/account">Staff account</Link>
+      <Queue key={user.id} owner={user.id} />
     </main>
   </div>;
 }

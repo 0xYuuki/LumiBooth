@@ -1,0 +1,51 @@
+name: Verify print commerce
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/print-commerce.yml'
+  pull_request:
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/print-commerce.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  commerce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.9.6'
+      - uses: supabase/setup-cli@v1
+        with:
+          version: '2.84.2'
+      - name: Check Edge Function types
+        run: deno check --no-lock supabase/functions/print-commerce/index.ts
+      - name: Test private print request lifecycle
+        run: |
+          supabase start -x realtime,imgproxy,studio,postgres-meta,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/supabase-commerce.log" 2>&1
+          local_status=$(supabase status -o json)
+          export LUMI_TEST_SUPABASE_KEY=$(jq -er .PUBLISHABLE_KEY <<< "$local_status")
+          export LUMI_TEST_SERVICE_ROLE_KEY=$(jq -er .SERVICE_ROLE_KEY <<< "$local_status")
+          export LUMI_COMMERCE_CLEANUP_SECRET=$(openssl rand -hex 32)
+          printf '::add-mask::%s\n' "$LUMI_TEST_SERVICE_ROLE_KEY"
+          printf '::add-mask::%s\n' "$LUMI_COMMERCE_CLEANUP_SECRET"
+          export LUMI_COMMERCE_ENABLED=true LUMI_WEB_ORIGIN=http://127.0.0.1:4186
+          SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_SERVICE_ROLE_KEY="$LUMI_TEST_SERVICE_ROLE_KEY" \
+            deno run --no-lock --allow-env --allow-net supabase/functions/print-commerce/index.ts \
+            > "$RUNNER_TEMP/lumi-commerce-edge.log" 2>&1 &
+          edge_pid=$!
+          trap 'kill "$edge_pid" 2>/dev/null || true' EXIT
+          curl --silent --fail --retry 15 --retry-connrefused --retry-delay 1 \
+            -X OPTIONS http://127.0.0.1:8000/v1/catalog >/dev/null
+          node supabase/tests/print_commerce.mjs

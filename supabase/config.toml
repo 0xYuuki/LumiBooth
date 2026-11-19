@@ -5,3 +5,6 @@ enable_anonymous_sign_ins = true
 
 [functions.lumi]
 verify_jwt = false
+
+[functions.print-commerce]
+verify_jwt = false

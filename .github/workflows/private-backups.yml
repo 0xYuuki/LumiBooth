@@ -38,6 +38,13 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: '2.84.2'
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: '2.9.6'
+      - name: Check online booth request handling
+        run: |
+          deno check --no-lock supabase/functions/lumi/index.ts
+          deno test --no-lock supabase/functions/lumi/request_test.ts
       - name: Install web dependencies
         working-directory: lumibooth_web
         run: |
@@ -60,6 +67,8 @@ jobs:
         run: |
           node supabase/tests/private_backups.mjs
           node supabase/tests/private_backups.mjs --uploads
+      - name: Check remote room permissions and protocol
+        run: docker exec -i supabase_db_lumibooth psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/room_protocol.sql
       - name: Test browser backup and restore
         working-directory: lumibooth_web
         env:

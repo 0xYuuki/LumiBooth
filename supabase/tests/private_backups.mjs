@@ -55,14 +55,12 @@ try {
   if (uploads) {
     const tooLarge = new Uint8Array(20 * 1024 * 1024 + 4101);
     assert.equal((await upload(path, owner.token, { body: tooLarge })).ok, false);
-    assert.equal((await request(`/storage/v1/object/upload/sign/${bucket}/${path}`,
-      json('POST', {}, owner.token))).ok, false, 'Even the owner cannot generate a signed upload URL.');
   }
+  assert.equal((await request(`/storage/v1/object/upload/sign/${bucket}/${path}`,
+    json('POST', {}, owner.token))).ok, false, 'Even the owner cannot generate a signed upload URL.');
   await ok(await upload(path, owner.token));
-  if (uploads) {
-    assert.equal((await request(`/storage/v1/object/sign/${bucket}/${path}`,
-      json('POST', { expiresIn: 60 }, owner.token))).ok, false, 'Even the owner cannot generate a signed download URL.');
-  }
+  assert.equal((await request(`/storage/v1/object/sign/${bucket}/${path}`,
+    json('POST', { expiresIn: 60 }, owner.token))).ok, false, 'Even the owner cannot generate a signed download URL.');
   assert.equal((await upload(path, owner.token)).ok, false, 'Retry has the same immutable key.');
   assert.equal((await upload(path, owner.token, { upsert: true })).ok, false);
   assert.equal((await upload(path, other.token, { upsert: true })).ok, false);

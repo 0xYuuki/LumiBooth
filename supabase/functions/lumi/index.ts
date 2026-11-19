@@ -1,4 +1,5 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2.119.0';
+import { ApiError, readRequestObject } from './request.ts';
 
 const url = Deno.env.get('SUPABASE_URL')!;
 const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -14,10 +15,6 @@ const type = {
   gif: { mime: 'image/gif', magic: [71, 73, 70, 56], max: 16 * 1024 * 1024 },
   jpg: { mime: 'image/jpeg', magic: [255, 216, 255], max: 1024 * 1024 },
 };
-
-class ApiError extends Error {
-  constructor(readonly status: number, message: string) { super(message); }
-}
 
 function value<T>({ data, error }: { data: T; error: unknown }): NonNullable<T> {
   if (error || data == null) throw new ApiError(503, 'Online service is temporarily unavailable.');
@@ -264,23 +261,21 @@ async function action(input: Record<string, unknown>, request: Request) {
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin');
-  const headers = {
-    'Access-Control-Allow-Origin': allowedOrigin ?? '*',
+  const headers = new Headers({
     'Access-Control-Allow-Headers': 'authorization, apikey, x-client-info, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Cache-Control': 'no-store',
     'Vary': 'Origin',
-  };
-  if (allowedOrigin && origin && origin !== allowedOrigin) return new Response(null, { status: 403 });
+    'X-Content-Type-Options': 'nosniff',
+  });
+  if (origin) {
+    if (origin !== allowedOrigin) return new Response(null, { status: 403, headers });
+    headers.set('Access-Control-Allow-Origin', origin);
+  }
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
   if (request.method !== 'POST') return new Response(null, { status: 405, headers });
   try {
-    const raw = await request.text();
-    if (raw.length > 2048) throw new ApiError(413, 'Request too large.');
-    let input;
-    try { input = JSON.parse(raw); } catch { throw new ApiError(400, 'Invalid request.'); }
-    if (!input || typeof input !== 'object' || Array.isArray(input)) throw new ApiError(400, 'Invalid request.');
-    return Response.json(await action(input, request), { headers });
+    return Response.json(await action(await readRequestObject(request), request), { headers });
   } catch (error) {
     if (!(error instanceof ApiError)) console.error('LumiBooth service operation failed');
     return Response.json({ error: error instanceof ApiError ? error.message : 'Online service is temporarily unavailable.' },

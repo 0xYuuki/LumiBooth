@@ -4,7 +4,7 @@ import { ArrowRight } from 'lucide-react';
 import { layouts } from '../../context/photoboothSession';
 import { PhotoboothContext } from '../../context/photoboothContext';
 import { BoothHeader, MiniStrip } from '../../components/BoothUI';
-import { accountsEnabled, printToPlayEnabled, remoteBoothEnabled } from '../../online/lumiClient';
+import { accountsEnabled, commerceEnabled, printToPlayEnabled, remoteBoothEnabled } from '../../online/lumiClient';
 
 export default function WebWelcome() {
   const navigate = useNavigate();
@@ -33,6 +33,7 @@ export default function WebWelcome() {
           {printToPlayEnabled && <Link className="booth-link" to="/print-links">Manage gallery links</Link>}
           <Link className="booth-link" to="/works">Your works</Link>
           <Link className="booth-link" to="/uploads">My Uploads</Link>
+          {commerceEnabled && <Link className="booth-link" to="/print-orders">Print orders</Link>}
           {accountsEnabled && <Link className="booth-link" to="/account">Account</Link>}
         </div>
         <div className="hero-art" aria-hidden="true">

@@ -12,10 +12,12 @@ import { WebSavedWork, WebWorks } from './pages/user/WebWorks';
 import WebLegal from './pages/user/WebLegal';
 import WebUploads from './pages/user/WebUploads';
 import WebPreview from './pages/user/WebPreview';
+import WebPrintOrder from './pages/user/WebPrintOrder';
+import { WebPrintReceipt, WebPrintReceiptList } from './pages/user/WebPrintReceipts';
 import { PhotoboothProvider } from './context/PhotoboothProvider';
 import { PhotoboothContext } from './context/photoboothContext';
 import { requiredPhotos } from './context/photoboothSession';
-import { accountsEnabled, backupsEnabled, printToPlayEnabled, remoteBoothEnabled } from './online/lumiClient';
+import { accountsEnabled, backupsEnabled, commerceEnabled, printToPlayEnabled, remoteBoothEnabled } from './online/lumiClient';
 import WebBackup from './pages/user/WebBackup';
 import WebAccount from './pages/user/WebAccount';
 import SharedStrip from './online/SharedStrip';
@@ -59,7 +61,8 @@ function GuestStep({ step, children }) {
 
   const complete = session.photos.length === requiredPhotos(session.layout);
   if (!['camera', 'review'].includes(step) && !complete) return <Navigate to="/gallery" replace />;
-  if (step === 'preview' && !session.output) return <Navigate to="/editor" replace />;
+  if (step === 'print-order' && session.roomId) return <Navigate to="/preview" replace />;
+  if (['preview', 'print-order'].includes(step) && !session.output) return <Navigate to="/editor" replace />;
   return children;
 }
 
@@ -84,6 +87,11 @@ const App = () => {
           <Route path="/camera" element={<GuestStep step="camera"><WebCamera /></GuestStep>} />
           <Route path="/editor" element={<GuestStep step="editor"><WebEditor /></GuestStep>} />
           <Route path="/preview" element={<GuestStep step="preview"><WebPreview /></GuestStep>} />
+          {commerceEnabled && <>
+            <Route path="/print-order" element={<GuestStep step="print-order"><WebPrintOrder /></GuestStep>} />
+            <Route path="/print-orders" element={<WebPrintReceiptList />} />
+            <Route path="/print-orders/:id" element={<WebPrintReceipt />} />
+          </>}
           <Route path="/p" element={<SharedStrip />} />
           {printToPlayEnabled && <Route path="/print-links" element={<PrintLinks />} />}
           {remoteBoothEnabled && <Route path="/room" element={<RemoteBooth />} />}

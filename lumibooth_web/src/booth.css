@@ -642,3 +642,28 @@
 .upload-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 125px), 1fr)); gap: .5rem; padding: 0; list-style: none; }
 .upload-grid li { padding: .5rem; border: 1px solid var(--line); border-radius: .5rem; overflow-wrap: anywhere; }
 .upload-grid img { display: block; width: 100%; height: 80px; object-fit: contain; margin-bottom: .35rem; }
+
+.print-order { max-width: 960px; }
+.print-order h2 { font: 500 1.35rem/1.25 "Playfair Display", Georgia, serif; color: var(--ink); }
+.print-order-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; gap: clamp(1rem, 4vw, 3rem); margin-top: 1.5rem; }
+.print-order-preview, .print-receipt { border: 1px solid var(--line); border-radius: 16px; background: var(--paper); padding: clamp(1rem, 3vw, 1.6rem); }
+.print-order-art { position: relative; width: min(100%, calc(55vh * var(--print-aspect))); margin: 1rem auto; background: white; }
+.print-order-art canvas { width: 100%; height: auto; display: block; }
+.print-order-safe { position: absolute; border: 2px dotted white; outline: 1px solid #3b2b51; pointer-events: none; }
+.print-order-trim { position: absolute; border: 2px dashed white; outline: 1px solid #3b2b51; pointer-events: none; }
+.print-order fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.print-order label { display: grid; gap: .35rem; margin-bottom: .8rem; font-weight: 600; }
+.print-order select, .print-order input:not([type=range]):not([type=checkbox]) { font: inherit; min-height: 42px; padding: .4rem .65rem; border: 1px solid var(--line); border-radius: 8px; background: white; color: var(--ink); max-width: 100%; }
+.print-order input[type=range], .print-order input[type=checkbox], .print-order progress { accent-color: var(--accent); }
+.print-order-crop { margin: 1.3rem 0; padding: 1rem; border: 1px solid var(--line); border-radius: 12px; }
+.print-order .print-order-consent { display: flex; gap: .55rem; align-items: flex-start; margin: .9rem 0; }
+.print-order-consent input { flex: none; margin-top: .3rem; }
+.print-order-warning { background: #fff4dc; color: #514019; padding: .75rem; border-radius: 8px; }
+.print-order-progress { display: grid; gap: .5rem; margin-top: 1rem; }
+.print-order-instructions { white-space: pre-wrap; }
+.print-receipt-list { list-style: none; padding: 0; display: grid; gap: .7rem; }
+.print-receipt-list li { display: grid; gap: .3rem; padding: .9rem; border: 1px solid var(--line); border-radius: 10px; }
+.print-receipt { max-width: 680px; }
+@media (max-width: 700px) {
+  .print-order-grid { grid-template-columns: 1fr; }
+}

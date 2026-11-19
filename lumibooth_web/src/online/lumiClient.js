@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const url = import.meta.env.VITE_LUMI_SUPABASE_URL;
 const key = import.meta.env.VITE_LUMI_SUPABASE_KEY;
+export const commerceEnabled = Boolean(url && key && import.meta.env.VITE_LUMI_COMMERCE === 'true');
 export const backupsEnabled = Boolean(url && key && import.meta.env.VITE_LUMI_CLOUD_BACKUP === 'true');
 export const accountsEnabled = Boolean(url && key);
 export const printToPlayEnabled = Boolean(url && key && import.meta.env.VITE_LUMI_PRINT_QR === 'true');
@@ -24,7 +25,7 @@ export function accountSupabase() {
 
 export function accountAuth() { return accountSupabase().auth; }
 
-async function guestSession() {
+export async function guestSession() {
   const auth = supabase().auth;
   const { data } = await auth.getSession();
   if (data.session) return data.session;

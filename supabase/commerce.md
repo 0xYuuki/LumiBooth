@@ -50,3 +50,15 @@ Cleanup expires only unverified pending requests. It removes the private file af
 The [commerce verification workflow](../.github/workflows/print-commerce.yml) runs an isolated Auth, Storage, and Edge test. It creates a synthetic SKU and staff account, exercises request recovery and concurrent matching, and checks expiry and access isolation. No production records are seeded.
 
 Deploy only to a test environment while implementing M2 and M3. Provision test staff through trusted administration, and configure the exact web origin and a server-only cleanup secret. Schedule `cleanup` through the existing Vault and Cron pattern, and verify that it runs. Keep `LUMI_COMMERCE_ENABLED` and the future web feature flag disabled on public builds until the operator approves listings, print specs, consent, retention, seller procedures and supervised live orders.
+
+## Customer web integration
+
+The web client offers only catalog entries with a valid TikTok Shop link
+and operator-approved `buyer_instructions`. The SKU may define `bleed_px`
+from the outside edge and `safe_inset_px` inside the trim. The PNG uses the
+full specified width and height. Staff print at the SKU’s physical size.
+
+The receipt keeps the original listing and print specification. When the
+customer opens TikTok Shop, the app refreshes the receipt and checks the
+current catalog against that snapshot. A disabled product or changed checkout
+details stops the redirect. Staff can still review an existing request.

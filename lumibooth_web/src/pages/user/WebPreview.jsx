@@ -11,7 +11,7 @@ import { exportMotionStrip } from '../../motion/exportMotionStrip';
 import StripPreviewDialog from './StripPreviewDialog';
 import { PhotoStrip } from './PhotoStrip';
 import PrintToPlay from '../../online/PrintToPlay';
-import { lumiRequest, printToPlayEnabled, uploadMedia } from '../../online/lumiClient';
+import { commerceEnabled, lumiRequest, printToPlayEnabled, uploadMedia } from '../../online/lumiClient';
 import { downloadBlob } from '../../online/download';
 
 export default function WebPreview() {
@@ -167,6 +167,9 @@ export default function WebPreview() {
             <button className="booth-button booth-secondary" disabled={!imageSize} onClick={() => print()}>
               <Printer size={17} aria-hidden="true" /> Print Photo
             </button>
+            {commerceEnabled && !session.roomId && <Link className="booth-button booth-secondary" to="/print-order">
+              Order Print
+            </Link>}
           </div>
           <div className="preview-actions">
             {hasMotion && <button className="booth-button booth-secondary" disabled={!imageSize || motionPending}

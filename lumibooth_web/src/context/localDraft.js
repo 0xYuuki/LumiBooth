@@ -69,7 +69,7 @@ async function readPhoto(url) {
 
 export async function serializeProject(session, readMedia = readPhoto) {
   const settings = Object.fromEntries(Object.entries(session).filter(([key]) =>
-    !['history', 'photos', 'motions', 'reviewItems', 'output', 'undoGroup'].includes(key)));
+    !['history', 'photos', 'motions', 'reviewItems', 'output', 'undoGroup', 'printDensity'].includes(key)));
   const items = await Promise.all(reviewItems(session).map(async ({ photo, name, crop, selected, order }) => ({
     name, crop, selected, order, blob: await readMedia(photo),
   })));

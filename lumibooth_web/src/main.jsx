@@ -6,6 +6,7 @@ import '@fontsource/outfit/latin-700.css';
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './studio.css'
 const { default: App } = import.meta.env.MODE === 'staff'
   ? await import('./pages/staff/StaffApp.jsx')
   : await import('./App.jsx')

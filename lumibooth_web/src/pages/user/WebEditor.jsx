@@ -150,7 +150,7 @@ const WebEditor = () => {
                 const strip = constraintsRef.current;
                 setPreviewSize({ width: strip.offsetWidth, height: strip.offsetHeight });
               }}>
-              <Maximize2 size={18} aria-hidden="true" />
+              <Maximize2 size={18} aria-hidden="true" /> Fullscreen
             </button>
           </div>
 

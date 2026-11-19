@@ -6,7 +6,8 @@ const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SE
   global: { fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(30_000) }) },
 });
 const media = db.storage.from('lumi-prints');
-const allowedOrigin = Deno.env.get('LUMI_WEB_ORIGIN');
+const publicOrigin = Deno.env.get('LUMI_WEB_ORIGIN');
+const staffOrigin = Deno.env.get('LUMI_STAFF_WEB_ORIGIN');
 const enabled = Deno.env.get('LUMI_COMMERCE_ENABLED') === 'true';
 const cleanupSecret = Deno.env.get('LUMI_COMMERCE_CLEANUP_SECRET');
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
@@ -264,7 +265,10 @@ async function staffAction(name: string, staff: string, input: Record<string, un
 }
 
 Deno.serve(async request => {
+  const url = new URL(request.url);
+  const [version, name] = url.pathname.split('/').slice(-2);
   const origin = request.headers.get('origin');
+  const allowedOrigin = staffActions.has(name) ? staffOrigin : publicOrigin;
   const headers = new Headers({
     'Access-Control-Allow-Headers': 'authorization, apikey, x-client-info, content-type, x-lumi-receipt',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -280,8 +284,6 @@ Deno.serve(async request => {
   if (request.method !== 'POST') return new Response(null, { status: 405, headers });
 
   try {
-    const url = new URL(request.url);
-    const [version, name] = url.pathname.split('/').slice(-2);
     if (version !== 'v1') throw unavailable();
     const result = await action(name, request, url);
     if (result instanceof Blob) {

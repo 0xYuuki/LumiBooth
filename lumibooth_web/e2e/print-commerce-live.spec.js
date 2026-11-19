@@ -6,7 +6,8 @@ import process from 'node:process';
 
 const backend = 'http://127.0.0.1:54321';
 const edge = 'http://127.0.0.1:8000';
-const localStack = process.env.VITE_LUMI_COMMERCE === 'true' && process.env.VITE_LUMI_SUPABASE_URL === backend;
+const staffUrl = 'http://127.0.0.1:4187/';
+const localStack = process.env.LUMI_TEST_STAFF === 'true' && process.env.VITE_LUMI_COMMERCE === 'true' && process.env.VITE_LUMI_SUPABASE_URL === backend;
 const listing = 'https://www.tiktok.com/test-print-fulfillment';
 const width = 240;
 const height = 360;
@@ -114,13 +115,13 @@ test('camera capture through verified print and tracking on the local commerce s
   const staff = await browser.newPage();
   try {
     await staff.route(functionRoute, forward);
-    await staff.goto('/admin/print-orders');
+    await staff.goto(staffUrl);
     await staff.getByRole('link', { name: 'Sign in with your staff account' }).click();
     await staff.getByLabel('Email').fill(email);
     await staff.getByLabel('Password', { exact: true }).fill(password);
     await staff.getByRole('button', { name: 'Log in' }).click();
     await expect(staff.getByRole('heading', { name: 'Your account' })).toBeVisible();
-    await staff.goto('/admin/print-orders');
+    await staff.goto(staffUrl);
     await staff.getByLabel('Reference or order ID').fill(code);
     await staff.getByRole('button', { name: 'Apply filters' }).click();
     await staff.getByRole('button', { name: new RegExp(code) }).click();

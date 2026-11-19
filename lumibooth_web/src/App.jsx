@@ -23,7 +23,6 @@ import WebAccount from './pages/user/WebAccount';
 import SharedStrip from './online/SharedStrip';
 import PrintLinks from './online/PrintLinks';
 import RemoteBooth from './online/RemoteBooth';
-import WebStaffPrint from './pages/staff/WebStaffPrint';
 
 const AdminLayout = () => {
   return (
@@ -46,10 +45,6 @@ const AdminLayout = () => {
             <Printer size={20} />
             Print Logs
           </NavLink>
-          {commerceEnabled && <NavLink to="/admin/print-orders" className="nav-item">
-            <Printer size={20} />
-            Staff Print Orders
-          </NavLink>}
         </nav>
       </aside>
       <main className="main-content">
@@ -100,8 +95,6 @@ const App = () => {
           <Route path="/p" element={<SharedStrip />} />
           {printToPlayEnabled && <Route path="/print-links" element={<PrintLinks />} />}
           {remoteBoothEnabled && <Route path="/room" element={<RemoteBooth />} />}
-
-          {commerceEnabled && <Route path="/admin/print-orders" element={<WebStaffPrint />} />}
 
           {/* Admin Dashboard */}
           <Route path="/admin" element={<AdminLayout />}>

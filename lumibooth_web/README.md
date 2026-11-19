@@ -108,9 +108,10 @@ The app stores the print PNG locally before sending it and clears that retry
 file after server confirmation. Clearing site data removes access to the
 receipt. The reference itself only helps the store match the order.
 
-Staff use **Staff Print Orders** under **Admin**, or open
-`/admin/print-orders` directly. The queue requires a signed-in account with
-a staff role provisioned in Supabase. Staff verify payment and the matching
+The public booth build contains the buyer flow. Deploy the seller dashboard
+as a separate site using `npm run build:staff` and the `dist-staff` output.
+Protect all its deployment URLs with Vercel Authentication. The queue also
+requires a signed-in account with a staff role provisioned in Supabase. Staff verify payment and the matching
 reference, SKU, variant and quantity in Seller Center to unlock the original
 PNG. They can record shipment details, cancellations, refunds and audited
 reprints from the request. For an order without a usable reference, hold the

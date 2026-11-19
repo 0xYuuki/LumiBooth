@@ -3,7 +3,8 @@ import { Buffer } from 'node:buffer';
 import process from 'node:process';
 
 const backend = 'https://lumi-test.invalid';
-const enabled = process.env.VITE_LUMI_COMMERCE === 'true' && process.env.VITE_LUMI_SUPABASE_URL === backend;
+const staffUrl = 'http://127.0.0.1:4187/';
+const enabled = process.env.LUMI_TEST_STAFF === 'true' && process.env.VITE_LUMI_COMMERCE === 'true' && process.env.VITE_LUMI_SUPABASE_URL === backend;
 const requestId = 'ad2f6ba9-d537-4ce5-9970-f90bff01ca35';
 const userId = '459e9da1-de85-40b4-ac8d-e58341dfbaa6';
 const code = 'PS-0123456789AB';
@@ -38,7 +39,7 @@ async function mockStaff(page, handle) {
 
 test('staff queue requires an account and an active staff role', async ({ page }) => {
   test.skip(!enabled, 'Requires the commerce browser test build.');
-  await page.goto('/admin/print-orders');
+  await page.goto(staffUrl);
   await expect(page.getByRole('link', { name: 'Sign in with your staff account' })).toBeVisible();
   await mockStaff(page, (action, _body, reply) => {
     expect(action).toBe('staff-list');
@@ -88,7 +89,7 @@ test('staff verifies a purchase on mobile, previews its original and records shi
         return reply.json({ error: 'Unexpected test request' }, 500);
     }
   });
-  await page.goto('/admin/print-orders');
+  await page.goto(staffUrl);
   await page.getByLabel('Reference or order ID').fill(code);
   await page.getByRole('button', { name: 'Apply filters' }).click();
   await expect.poll(() => filter).toBe(code);
@@ -118,8 +119,7 @@ test('staff verifies a purchase on mobile, previews its original and records shi
 });
 
 
-test('staff print queue is hidden when commerce is off', async ({ page }) => {
-  test.skip(process.env.VITE_LUMI_COMMERCE === 'true', 'Requires the ordinary booth build.');
+test('the public booth has no staff print queue', async ({ page }) => {
   await page.goto('/admin');
   await expect(page.getByRole('link', { name: 'Staff Print Orders' })).toHaveCount(0);
   await page.goto('/admin/print-orders');

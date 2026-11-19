@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:staff": "vite build --mode staff",
     "lint": "eslint .",
     "preview": "vite preview",
+    "preview:staff": "vite preview --mode staff",
     "test": "node --test",
     "test:e2e": "playwright test"
   },

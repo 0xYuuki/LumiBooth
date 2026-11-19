@@ -2,7 +2,9 @@
 
 ## Staging deployment
 
-Use a dedicated staging Supabase project or branch and a stable HTTPS web origin. In Vercel, use the `lumibooth_web` root and scope the staging values to the staging deployment. Use synthetic images, accounts, and catalog items for the checklist.
+Use a dedicated staging Supabase project or branch and separate, stable HTTPS origins for the public booth and private staff dashboard. In Vercel, create separate projects with the `lumibooth_web` root. Use the default web build for the booth. Set the staff project's build command to `npm run build:staff` and its output directory to `dist-staff`.
+
+Before deploying the staff build, turn on Vercel Authentication with **All Deployments** in the staff project's Deployment Protection settings. Grant access to approved staff accounts. Verify that the primary staff URL and the generated deployment URL both deny unauthenticated requests. Use synthetic images, accounts, and catalog items for the checklist.
 
 | Setting | Staging value |
 |---|---|
@@ -11,6 +13,7 @@ Use a dedicated staging Supabase project or branch and a stable HTTPS web origin
 | `VITE_LUMI_SUPABASE_KEY` | Staging publishable key. |
 | `LUMI_COMMERCE_ENABLED` | `true` in the staging Edge Function environment after setup. The default is `false` when omitted. |
 | `LUMI_WEB_ORIGIN` | Exact HTTPS web origin, without a path or trailing slash. This setting is shared with the `lumi` function. |
+| `LUMI_STAFF_WEB_ORIGIN` | Exact HTTPS origin of the private staff dashboard, without a path or trailing slash. |
 | `LUMI_COMMERCE_CLEANUP_SECRET` | Random server-only secret, separate from the online booth cleanup secret. Store the same value in staging Vault for Cron. |
 
 1. Link the Supabase CLI to the approved staging project or branch. Confirm the project ref before running the staging migration and deploying the function.
@@ -21,7 +24,7 @@ Use a dedicated staging Supabase project or branch and a stable HTTPS web origin
    supabase functions deploy print-commerce --project-ref "$LUMI_STAGING_PROJECT_REF"
    ```
 
-2. Enable guest anonymous sign-in in staging Supabase Auth and configure the staging Auth site URL and account redirect URL. Review anonymous sign-in limits before public rollout. Store Edge secrets in Supabase. The web build uses only the publishable key.
+2. Enable guest anonymous sign-in in staging Supabase Auth and configure the staging Auth site URL and exact `/account` redirect URLs for the public and staff sites. Review anonymous sign-in limits before public rollout. Store Edge secrets in Supabase. The web build uses only the publishable key.
 3. Provision the staff role through trusted database administration after creating and confirming the staff Auth account. Verify that a regular account cannot open the queue before using the staff account.
 
    ```sql
@@ -31,7 +34,7 @@ Use a dedicated staging Supabase project or branch and a stable HTTPS web origin
    ```
 
 4. Provision an approved test SKU with a unique reference prefix, variant, listing URL, buyer reference instructions, consent text, pixel dimensions, trim and bleed, safe inset, DPI, and order limits. Use the spec and field rules in the backend contract.
-5. Set up cleanup, then enable both staging feature flags and deploy the staging web build. Open `/admin/print-orders` directly once to confirm the hosting rewrite works. Keep the public flags disabled until the seller completes the live approval in issue #33.
+5. Set up cleanup, then enable both staging feature flags and deploy both staging builds. Open the private staff URL, confirm Vercel access, and sign in with the provisioned staff account. Confirm that the public booth has no staff queue. Keep the public flags disabled until the seller completes the live approval in issue #33.
 
 [Backend contract](commerce.md) · [Issue #33](https://github.com/0xYuuki/LumiBooth/issues/33) · [Supabase anonymous Auth](https://supabase.com/docs/guides/auth/auth-anonymous)
 
@@ -72,7 +75,7 @@ A rising overdue count calls for checking Edge errors, the Vault secret match, t
 
 ## Staff fulfillment
 
-1. Sign in with a provisioned staff account and open **Staff Print Orders**. Search for the LumiBooth reference.
+1. Open the private staff site and sign in with a provisioned staff account. Search for the LumiBooth reference.
 2. In Seller Center, confirm payment and compare the exact reference, SKU, variant, and quantity. Enter the order ID and identifiable line ID, confirm the attestation, and record the seller ship-by date if available. When splitting a line, identify its first unallocated unit. Without a line ID, use a request that covers the entire verified order quantity.
 3. For a missing, wrong, or duplicated reference, hold the order in Seller Center and ask for the right reference. Mark any identified LumiBooth request **Needs review** and record why. For cancelled or refunded purchases, confirm the change in Seller Center before recording it in LumiBooth.
 4. Preview and download the original after verification. Check the PNG dimensions, trim, bleed, and safe area against the catalog spec. Print at the approved physical size. Record **Ready to print**, **Printing**, and **Packed** as work progresses.
@@ -87,7 +90,7 @@ To revoke access, set the account’s `lumi_commerce.staff_roles.active` to `fal
 - [ ] Interrupt a synthetic upload and return to **Print orders**. Recover the same request and reference. Confirm that keyboard focus selects the read-only reference and that manual copy works when clipboard permission is denied.
 - [ ] Confirm the checkout link points to the approved test listing. Use a seller-approved supervised transaction only when authorized for live orders. Use a synthetic Seller Center record or fixture for staging QA.
 - [ ] Verify rejection of missing, wrong, duplicated, expired, cancelled, or refunded requests and mismatched products or quantities. Have two staff accounts attempt the same allocation. Confirm only one succeeds and the audit identifies the staff account.
-- [ ] Check file access before and after verification with staff, signed-out, and regular accounts. Download a verified PNG, confirm pixel dimensions and visible crop and color, then make a test print and check physical trim and bleed.
+- [ ] Verify unauthenticated access is blocked on every staff deployment URL and that an ordinary Supabase account cannot open the queue even with hosting access. Check file access before and after verification with staff, signed-out, and regular accounts. Download a verified PNG, confirm pixel dimensions and visible crop and color, then make a test print and check physical trim and bleed.
 - [ ] Progress a verified request through tracking and completion, refresh the buyer receipt, and confirm staff and buyer see the expected statuses. Exercise a reprint and verify that refund revokes further download.
 - [ ] Confirm cleanup finishes for a synthetic expired request. Check that ordinary capture, editing and download work with commerce off.
 

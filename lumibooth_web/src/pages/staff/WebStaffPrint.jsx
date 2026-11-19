@@ -30,7 +30,10 @@ export default function WebStaffPrint() {
     <main className="booth-content staff-print">
       <h1 className="booth-title">Print orders</h1>
       {user === undefined ? <p role="status">Checking staff sign-in…</p> : user ? (
-        <Queue key={user.id} owner={user.id} />
+        <>
+          <Link className="booth-link" to="/account">Staff account</Link>
+          <Queue key={user.id} owner={user.id} />
+        </>
       ) : <p><Link to="/account">Sign in with your staff account</Link> to open the print queue.</p>}
     </main>
   </div>;

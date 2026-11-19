@@ -107,3 +107,14 @@ upload consent text. Checkout, prices and delivery fees remain in TikTok Shop.
 The app stores the print PNG locally before sending it and clears that retry
 file after server confirmation. Clearing site data removes access to the
 receipt. The reference itself only helps the store match the order.
+
+Staff use **Staff Print Orders** under **Admin**, or open
+`/admin/print-orders` directly. The queue requires a signed-in account with
+a staff role provisioned in Supabase. Staff verify payment and the matching
+reference, SKU, variant and quantity in Seller Center to unlock the original
+PNG. They can record shipment details, cancellations, refunds and audited
+reprints from the request. For an order without a usable reference, hold the
+order in Seller Center until the customer can supply it.
+
+See the [print commerce backend guide](../supabase/commerce.md) for API and
+configuration details.

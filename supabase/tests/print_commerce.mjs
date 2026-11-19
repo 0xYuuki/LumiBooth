@@ -144,14 +144,21 @@ assert.equal((await find(draft.requestId, first.receiptToken)).status, 'awaiting
 await upload(draft.requestId, first.receiptToken, png(120), 409);
 await api('staff-list', { token: unrelated.token, status: 403 });
 await api('staff-list', { token: auth, status: 403 });
-const directRpc = await fetch(new URL('/rest/v1/rpc/lumi_print_v1_staff_list', backend), {
+const directRpc = await fetch(new URL('/rest/v1/rpc/lumi_print_v1_staff_detail', backend), {
   method: 'POST',
   headers: { apikey: key, Authorization: `Bearer ${staff}`, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ actor: seller.id, before_created: null, before_id: null }),
+  body: JSON.stringify({ actor: seller.id, requested: ready.requestId }),
 });
 assert.ok(!directRpc.ok);
 await directRpc.arrayBuffer();
 await api('staff-media', { token: staff, json: { requestId: ready.requestId }, status: 404 });
+const privateReady = await api('staff-detail', { token: staff, json: { requestId: ready.requestId } });
+assert.equal(privateReady.fileStatus, 'locked');
+assert.equal(privateReady.match, null);
+for (const token of [auth, unrelated.token]) {
+  await api('staff-detail', { token, json: { requestId: ready.requestId }, status: 403 });
+}
+await api('staff-list', { token: staff, json: { fromDate: '2026-02-31' }, status: 400 });
 const path = `${ready.requestId}/print.png`;
 for (const token of [key, auth, staff]) {
   const result = await fetch(new URL(`/storage/v1/object/authenticated/lumi-prints/${path}`, backend),
@@ -173,7 +180,7 @@ await api('staff-transition', { token: staff, json: {
 }});
 const matching = {
   orderId: randomUUID(), lineId: 'line1', sku: product, variant: 'Glossy',
-  lineQuantity: 2, firstUnit: 1, sellerCenterVerified: true,
+  lineQuantity: 2, firstUnit: 1, sellerCenterVerified: true, shippingDeadline: '2030-12-31',
 };
 await api('staff-match', { token: staff, json: { ...matching, code: ready.code, sellerCenterVerified: false }, status: 422 });
 await api('staff-match', { token: staff, json: { ...matching, code: ready.code, variant: 'Matte' }, status: 422 });
@@ -206,4 +213,67 @@ const status = sql(`select case when exists (
 assert.match(status, /file_removed/);
 assert.deepEqual(await api('staff-media', { token: staff, json: { requestId: matched.requestId } }), goodPng);
 await api('staff-match', { token: staff, json: { ...matching, orderId: randomUUID(), code: held.code } });
-console.log('Commerce create, upload, private receipt, staff match, allocation race and cleanup passed.');
+const detail = () => api('staff-detail', { token: staff, json: { requestId: matched.requestId } });
+const ship = (status, expectedStatus, rest = {}, code = 200) => api('staff-transition', {
+  token: staff, json: { requestId: matched.requestId, status, expectedStatus, ...rest }, status: code,
+});
+const queue = json => api('staff-list', { token: staff, json });
+const state = await detail();
+assert.equal(state.fileStatus, 'ready');
+assert.equal(state.match.order_id, matching.orderId);
+assert.equal(state.match.verified_by, seller.id);
+assert.equal(state.request.shippingDeadline, matching.shippingDeadline);
+assert.ok(state.events.some(event => event.action === 'shipping_deadline_recorded'));
+assert.ok(!JSON.stringify(state).includes('asset_key'));
+assert.ok(!JSON.stringify(state).includes('receipt_hash'));
+const localDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', dateStyle: 'short' })
+  .format(new Date(state.request.createdAt));
+assert.deepEqual((await queue({
+  lookup: matching.orderId, sku: product, status: 'printing', fromDate: localDate, throughDate: localDate,
+})).requests.map(item => item.requestId), [matched.requestId]);
+assert.deepEqual((await queue({ lookup: matched.code.toLowerCase() })).requests.map(item => item.requestId), [matched.requestId]);
+assert.deepEqual((await queue({ lookup: matched.code, beforeCreated: state.request.createdAt,
+  beforeId: matched.requestId })).requests, []);
+assert.deepEqual((await queue({ lookup: 'DOES-NOT-EXIST' })).requests, []);
+await ship('packed', 'verified', {}, 409);
+
+const job = { requestId: matched.requestId, retryKey: randomUUID(), quantity: 1, reason: 'Print quality check' };
+await api('staff-reprint', { token: unrelated.token, json: job, status: 403 });
+const duplicates = await Promise.all([1, 2].map(() => api('staff-reprint', { token: staff, json: job })));
+assert.equal(duplicates[0].jobId, duplicates[1].jobId);
+assert.equal((await detail()).reprints.length, 1);
+await api('staff-reprint', { token: staff, json: { ...job, retryKey: randomUUID() }, status: 409 });
+await ship('packed', 'printing', {}, 409);
+const updateReprint = (jobId, status, expectedStatus) => api('staff-reprint-update', {
+  token: staff, json: { jobId, requestId: matched.requestId, status, expectedStatus },
+});
+await updateReprint(duplicates[0].jobId, 'printing', 'queued');
+await updateReprint(duplicates[0].jobId, 'completed', 'printing');
+assert.equal((await detail()).request.status, 'printing');
+await ship('packed', 'printing');
+await ship('shipped', 'packed', { trackingReference: 'TEST-TRACK-001' });
+await ship('completed', 'shipped');
+const shipped = await detail();
+assert.equal(shipped.request.trackingReference, 'TEST-TRACK-001');
+assert.ok(shipped.events.some(event => event.action === 'tracking_recorded' && event.actor_id === seller.id));
+const refundJob = await api('staff-reprint', { token: staff, json: { ...job, retryKey: randomUUID() } });
+await ship('refunded', 'completed', { reason: 'Seller Center refund confirmed' });
+const refunded = await detail();
+assert.equal(refunded.fileStatus, 'locked');
+assert.equal(refunded.reprints.find(item => item.id === refundJob.jobId).status, 'cancelled');
+assert.ok(refunded.events.some(event => event.action === 'reprint_cancelled' && event.detail.jobId === refundJob.jobId));
+await api('staff-media', { token: staff, json: { requestId: matched.requestId }, status: 404 });
+
+const removed = await response(new URL('/storage/v1/object/lumi-prints', backend), {
+  method: 'DELETE', headers: { apikey: adminKey, Authorization: `Bearer ${adminKey}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify({ prefixes: [`${third.requestId}/print.png`] }),
+});
+await removed.arrayBuffer();
+const missing = await api('staff-detail', { token: staff, json: { requestId: third.requestId } });
+assert.equal(missing.fileStatus, 'missing');
+const missingRelease = await api('staff-transition', { token: staff, status: 404,
+  json: { requestId: third.requestId, expectedStatus: 'verified', status: 'print_ready' },
+});
+assert.equal(missingRelease.error, 'The print file is missing.');
+
+console.log('Commerce lifecycle, private receipts, matching, queue filters, tracking, reprints, refund and cleanup passed.');

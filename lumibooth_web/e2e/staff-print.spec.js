@@ -1,0 +1,127 @@
+import { expect, test } from '@playwright/test';
+import { Buffer } from 'node:buffer';
+import process from 'node:process';
+
+const backend = 'https://lumi-test.invalid';
+const enabled = process.env.VITE_LUMI_COMMERCE === 'true' && process.env.VITE_LUMI_SUPABASE_URL === backend;
+const requestId = 'ad2f6ba9-d537-4ce5-9970-f90bff01ca35';
+const userId = '459e9da1-de85-40b4-ac8d-e58341dfbaa6';
+const code = 'PS-0123456789AB';
+const createdAt = '2030-12-01T10:00:00Z';
+const specification = {
+  title: 'Test strip', sku: 'test-strip', variant: 'Gloss', width_px: 240, height_px: 360,
+  target_dpi: 300, bleed_px: 12, safe_inset_px: 8,
+};
+
+async function mockStaff(page, handle) {
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  const claim = Buffer.from(JSON.stringify({ sub: userId, exp })).toString('base64url');
+  const token = `eyJhbGciOiJIUzI1NiJ9.${claim}.fake`;
+  await page.addInitScript(session => {
+    if (!localStorage.getItem('lumibooth-account')) localStorage.setItem('lumibooth-account', JSON.stringify(session));
+  }, { access_token: token, refresh_token: 'staff', expires_at: exp, expires_in: 3600,
+    user: { id: userId, email: 'staff@example.test', is_anonymous: false } });
+  await page.route(`${backend}/**`, async route => {
+    const request = route.request();
+    const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*',
+      'access-control-allow-methods': 'POST, OPTIONS' };
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+    expect(request.headers().authorization).toBe(`Bearer ${token}`);
+    return handle(new URL(request.url()).pathname.split('/').at(-1), request.postDataJSON(), {
+      json: (json, status = 200) => route.fulfill({ status, json, headers }),
+      png: () => route.fulfill({ contentType: 'image/png', headers, body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aXRsAAAAASUVORK5CYII=', 'base64',
+      ) }),
+    });
+  });
+}
+
+test('staff queue requires an account and an active staff role', async ({ page }) => {
+  test.skip(!enabled, 'Requires the commerce browser test build.');
+  await page.goto('/admin/print-orders');
+  await expect(page.getByRole('link', { name: 'Sign in with your staff account' })).toBeVisible();
+  await mockStaff(page, (action, _body, reply) => {
+    expect(action).toBe('staff-list');
+    return reply.json({ error: 'Forbidden' }, 403);
+  });
+  await page.reload();
+  await expect(page.getByRole('alert')).toHaveText('An active staff role is required to access print orders.');
+  await expect(page.getByRole('region', { name: 'Print queue' })).toHaveCount(0);
+});
+
+test('staff verifies a purchase on mobile, previews its original and records shipping', async ({ page }) => {
+  test.skip(!enabled, 'Requires the commerce browser test build.');
+  await page.setViewportSize({ width: 390, height: 844 });
+  let status = 'awaiting_marketplace_order';
+  let mediaCalls = 0;
+  let match = null;
+  let trackingReference = null;
+  let filter;
+  const request = () => ({ requestId, status, code, createdAt, specification, quantity: 1,
+    orderId: match?.order_id, trackingReference });
+  await mockStaff(page, (action, body, reply) => {
+    switch (action) {
+      case 'staff-list':
+        filter = body.lookup ?? filter;
+        return reply.json({ requests: [request()] });
+      case 'staff-detail':
+        expect(body.requestId).toBe(requestId);
+        return reply.json({ request: request(), match, fileStatus: match ? 'ready' : 'locked', reprints: [], events: [] });
+      case 'staff-match':
+        expect(body).toMatchObject({ code, orderId: 'TEST-123', lineId: null, sku: 'test-strip', variant: 'Gloss',
+          shippingDeadline: null, lineQuantity: 1, firstUnit: 1, sellerCenterVerified: true });
+        status = 'verified';
+        match = { order_id: body.orderId, allocation_start: 1, verified_line_quantity: 1, verified_at: createdAt };
+        return reply.json(request());
+      case 'staff-media':
+        expect(match).toBeTruthy();
+        expect(body.requestId).toBe(requestId);
+        mediaCalls++;
+        return reply.png();
+      case 'staff-transition':
+        expect(body.requestId).toBe(requestId);
+        expect(body.expectedStatus).toBe(status);
+        status = body.status;
+        trackingReference = body.trackingReference;
+        return reply.json(request());
+      default:
+        return reply.json({ error: 'Unexpected test request' }, 500);
+    }
+  });
+  await page.goto('/admin/print-orders');
+  await page.getByLabel('Reference or order ID').fill(code);
+  await page.getByRole('button', { name: 'Apply filters' }).click();
+  await expect.poll(() => filter).toBe(code);
+  await page.getByRole('button', { name: new RegExp(code) }).click();
+  await expect(page.getByText(/The private print file is locked/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Download print PNG' })).toHaveCount(0);
+  await page.getByLabel('TikTok order ID').fill('TEST-123');
+  await page.getByLabel('Purchased SKU').fill('test-strip');
+  await page.getByLabel('Purchased variant').fill('Gloss');
+  await page.getByLabel('Quantity on order line').fill('1');
+  await page.getByRole('button', { name: 'Verify and match purchase' }).click();
+  expect(match).toBeNull();
+  expect(mediaCalls).toBe(0);
+  await page.getByLabel(/I verified the purchase/).check();
+  await page.getByRole('button', { name: 'Verify and match purchase' }).click();
+  await page.getByRole('button', { name: 'Load preview' }).click();
+  await expect(page.getByRole('img', { name: 'Verified print file' })).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download print PNG' }).click();
+  expect((await download).suggestedFilename()).toBe(`lumibooth-${code}.png`);
+  for (const name of ['Release to print queue', 'Start printing', 'Mark packed']) {
+    await page.getByRole('button', { name, exact: true }).click();
+  }
+  await page.getByLabel('Waybill or tracking reference (optional)').fill('TEST-TRACK-01');
+  await page.getByRole('button', { name: 'Record shipment' }).click();
+  await expect(page.getByText('TEST-TRACK-01')).toBeVisible();
+});
+
+
+test('staff print queue is hidden when commerce is off', async ({ page }) => {
+  test.skip(process.env.VITE_LUMI_COMMERCE === 'true', 'Requires the ordinary booth build.');
+  await page.goto('/admin');
+  await expect(page.getByRole('link', { name: 'Staff Print Orders' })).toHaveCount(0);
+  await page.goto('/admin/print-orders');
+  await expect(page.getByText('Page unavailable')).toBeVisible();
+});

@@ -1,4 +1,4 @@
-import { guestSession } from '../online/lumiClient';
+import { accountAuth, guestSession } from '../online/lumiClient';
 import { loadPrintFile, storePrintReceipt } from './printReceipts';
 
 const url = import.meta.env.VITE_LUMI_SUPABASE_URL;
@@ -9,8 +9,9 @@ function requireOnline() {
   if (navigator.onLine === false) throw new Error('You’re offline. Reconnect and try again.');
 }
 
-async function request(route, json = {}, { token, receipt } = {}) {
+async function request(route, json = {}, { token, receipt, file = false, signal } = {}) {
   requireOnline();
+  const timeout = AbortSignal.timeout(file ? 40_000 : 15_000);
   const response = await fetch(endpoint(route), {
     method: 'POST',
     headers: {
@@ -18,11 +19,30 @@ async function request(route, json = {}, { token, receipt } = {}) {
       ...(token && { Authorization: `Bearer ${token}` }),
       ...(receipt && { 'X-Lumi-Receipt': receipt }),
     },
-    body: JSON.stringify(json), cache: 'no-store', signal: AbortSignal.timeout(15_000),
+    body: JSON.stringify(json), cache: 'no-store', signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
   }).catch(() => { throw new Error('Could not reach the print service. Try again.'); });
+  if (file && response.ok) {
+    if (response.headers.get('content-type') !== 'image/png') throw new Error('The print file is unavailable.');
+    return response.blob();
+  }
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error ?? 'Print ordering is unavailable. Try again.');
+  if (!response.ok) {
+    const error = new Error(result.error ?? 'Print ordering is unavailable. Try again.');
+    error.status = response.status;
+    throw error;
+  }
   return result;
+}
+
+export async function staffPrintRequest(owner, route, body, options = {}) {
+  const { data } = await accountAuth().getSession();
+  const session = data.session;
+  if (!session?.access_token || session.user.id !== owner || session.user.is_anonymous) {
+    const error = new Error('Sign in with your staff account.');
+    error.status = 401;
+    throw error;
+  }
+  return request(route, body, { ...options, token: session.access_token });
 }
 
 const printStatuses = new Set([

@@ -116,12 +116,13 @@ test('camera capture through verified print and tracking on the local commerce s
   try {
     await staff.route(functionRoute, forward);
     await staff.goto(staffUrl);
-    await staff.getByRole('link', { name: 'Sign in with your staff account' }).click();
+    await expect(staff).toHaveURL(`${staffUrl}account`);
+    await expect(staff.getByRole('heading', { name: 'Staff sign-in' })).toBeVisible();
     await staff.getByLabel('Email').fill(email);
     await staff.getByLabel('Password', { exact: true }).fill(password);
     await staff.getByRole('button', { name: 'Log in' }).click();
-    await expect(staff.getByRole('heading', { name: 'Your account' })).toBeVisible();
-    await staff.goto(staffUrl);
+    await expect(staff).toHaveURL(staffUrl);
+    await expect(staff.getByRole('heading', { name: 'Print orders', exact: true })).toBeVisible();
     await staff.getByLabel('Reference or order ID').fill(code);
     await staff.getByRole('button', { name: 'Apply filters' }).click();
     await staff.getByRole('button', { name: new RegExp(code) }).click();

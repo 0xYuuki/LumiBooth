@@ -161,7 +161,7 @@ test('staff login opens the queue directly and sign-out protects it again', asyn
   await page.getByLabel('Password', { exact: true }).fill('test-password');
   await page.getByRole('button', { name: 'Log in', exact: true }).click();
   await expect(page).toHaveURL(staffUrl);
-  await expect(page.getByText('No requests match these filters.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your queue is clear' })).toBeVisible();
   await page.getByRole('link', { name: 'Staff account' }).click();
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page.getByRole('heading', { name: 'Staff sign-in' })).toBeVisible();
@@ -170,4 +170,41 @@ test('staff login opens the queue directly and sign-out protects it again', asyn
   await expect(page).toHaveURL(`${staffUrl}account`);
   await expect(page.getByRole('heading', { name: 'Print orders', exact: true })).toHaveCount(0);
   expect(queueCalls).toBe(previousCalls);
+});
+
+
+test('dashboard recovers from connection errors and clears filters on mobile', async ({ page }, testInfo) => {
+  test.skip(!enabled, 'Requires the commerce browser test build.');
+  let unavailable = true;
+  const calls = [];
+  await mockStaff(page, (action, body, reply) => {
+    expect(action).toBe('staff-list');
+    calls.push(body);
+    if (unavailable) return reply.json({ error: 'Print service is temporarily unavailable.' }, 503);
+    return reply.json({ requests: body.lookup ? [] : [{ requestId, code, createdAt, specification,
+      quantity: 1, status: 'awaiting_marketplace_order' }] });
+  });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(staffUrl);
+  await expect(page.getByRole('alert')).toContainText("We couldn't load the queue");
+  await expect(page.locator('.staff-count')).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath('staff-desktop-error.png'), fullPage: true });
+  unavailable = false;
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: new RegExp(code) })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('staff-desktop-queue.png'), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByLabel('Reference or order ID').fill('NOT-FOUND');
+  await page.getByRole('button', { name: 'Apply filters' }).click();
+  await expect(page.getByRole('heading', { name: 'No matching requests' })).toBeVisible();
+  await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
+  await expect(page.getByLabel('Reference or order ID')).toHaveValue('');
+  await expect(page.getByRole('button', { name: new RegExp(code) })).toBeVisible();
+  expect(calls.at(-1).lookup).toBeUndefined();
+  await page.screenshot({ path: testInfo.outputPath('staff-mobile-queue.png'), fullPage: true });
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
 });
